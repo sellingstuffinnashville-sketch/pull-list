@@ -348,7 +348,7 @@ async function photoSheet(name) {
   const el = document.createElement('div'); el.className = 'sheet';
   el.innerHTML = `<div class="box">${u ? `<img src="${u}">` : '<p>Taken on another phone. It is in Drive once uploaded.</p>'}
     <p><b>${esc(name)}</b><br><span class="small">by ${esc(meta.by || '')}${val(st, 'assign:' + name) ? ' · assigned to ' + esc(val(st, 'assign:' + name)) : ''}</span></p>
-    ${opts}${u ? `<button data-del="1" style="color:#a00;border-color:#a00">Delete photo</button>` : ''}<button data-close="1">Close</button></div>`;
+    ${opts}${u ? `<button data-del="1" style="color:#e05050;border-color:#a33">Delete photo</button>` : ''}<button data-close="1">Close</button></div>`;
   document.body.append(el);
   el.onclick = async ev => {
     const b = ev.target;
