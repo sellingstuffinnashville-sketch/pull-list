@@ -262,6 +262,7 @@ function render() {
       const vinPics = photosFor(st, 'vin', car.code6), xPics = photosFor(st, 'x', car.code6);
       const vin = val(st, 'vin:' + car.code6);
       h += `<section class="car"><div class="carhd">
+        ${car.photo ? `<button type="button" class="carphoto" data-refimg="${esc(car.photo)}" aria-label="Yard photo of ${esc(car.car)}"><img loading="lazy" referrerpolicy="no-referrer" src="${esc(car.photo)}" alt=""></button>` : ''}
         <div class="carbtns"><button data-act="vin" data-c="${car.code6}" class="${vinPics.length ? 'done' : ''}">📷 VIN photo${vinPics.length ? ' ✓' : ''}</button>
         <button data-act="x" data-c="${car.code6}">📷 Extra photo${xPics.length ? ` (${xPics.length})` : ''}</button></div>
         <div class="code6">${esc(car.code6)}</div>
@@ -288,8 +289,8 @@ function render() {
           ${thumb}
           <div class="pinfo"><span class="pcode">${esc(p.code)}</span><span class="tier ${p.tier}">${p.tier}</span>${elink}
           <div class="pname">${esc(p.part)}</div>${p.note ? `<div class="pnote">${esc(p.note)}</div>` : ''}
-          ${p.pap != null ? `<div class="small">PAP $${p.pap.toFixed(2)}</div>` : ''}</div>
-          <div class="pnet">${money(p.net)}</div></div>
+          ${p.pap != null ? `<div class="small">PAP price $${p.pap.toFixed(2)}</div>` : ''}</div>
+          <div class="pnet"><span class="pnetlbl">Est. net</span>${money(p.net)}</div></div>
           <div class="pbtns"><button class="cambtn" data-act="part" data-c="${p.code}">📷${pics.length ? ' ' + pics.length : ''}</button>
           <input data-pn="${p.code}" placeholder="Actual part #" value="${esc(val(st, 'pn:' + p.code) || '')}">
           <button class="rmbtn" data-act="rm" data-c="${p.code}">Remove</button></div>${thumbs(pics)}</div>`;
