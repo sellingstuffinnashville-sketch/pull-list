@@ -1,5 +1,5 @@
 // Offline open: app shell is cached; scan data + photos live in IndexedDB. API calls go to Apps Script and are never cached.
-const V = 'pl-pages-v1';
+const V = 'pl-pages-v2';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'zip.js', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k))))); self.clients.claim(); });

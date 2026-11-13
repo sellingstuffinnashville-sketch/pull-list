@@ -131,14 +131,14 @@ function nextName(st, prefix) { // per-device numbering so two phones never coll
   for (const k of Object.keys(st)) { const m = re.exec(k); if (m) max = Math.max(max, +m[1]); }
   return `${prefix}${DEV}${max + 1}.jpg`;
 }
-async function toJpeg(file) { // shrink to 2400px long edge JPEG: plenty for eBay, quick to upload
+async function toJpeg(file) { // shrink to keep full camera quality (up to 4000px)
   try {
     const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
-    const k = Math.min(1, 2400 / Math.max(bmp.width, bmp.height));
-    if (k === 1 && file.type === 'image/jpeg' && file.size < 2.5e6) return file;
+    const k = Math.min(1, 4000 / Math.max(bmp.width, bmp.height));
+    if (k === 1 && file.type === 'image/jpeg' && file.size < 8e6) return file;
     const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
     c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-    return await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.88));
+    return await new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.93));
   } catch { return file; }
 }
 function takePhoto() {
