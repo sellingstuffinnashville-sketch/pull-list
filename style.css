@@ -1,0 +1,58 @@
+*{box-sizing:border-box}
+html,body{margin:0;background:#fff;color:#000;font:18px/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;background:#111;color:#fff;padding:10px 12px;padding-top:max(10px,env(safe-area-inset-top))}
+header h1{flex:1;font-size:20px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdrbtn{background:#ffd400;color:#000;border:0;font-weight:800;font-size:17px;padding:10px 12px;border-radius:8px;min-height:44px}
+.pill{font-size:14px;font-weight:700;padding:4px 8px;border-radius:99px;background:#444}
+.pill.ok{background:#1b7f2a}.pill.wait{background:#b35c00}.pill.off{background:#a00}
+main{max-width:720px;margin:0 auto;padding:10px 10px 90px}
+button{font:inherit;cursor:pointer}
+.big{display:block;width:100%;min-height:56px;font-size:20px;font-weight:800;border:3px solid #000;border-radius:10px;background:#ffd400;color:#000;margin:8px 0}
+.scanitem{display:block;width:100%;text-align:left;border:3px solid #000;border-radius:12px;background:#fff;padding:14px;margin:10px 0;min-height:72px}
+.scanitem b{font-size:22px;display:block}
+.rowband{background:#000;color:#ffd400;font-weight:900;font-size:22px;padding:8px 12px;border-radius:8px;margin:18px 0 8px}
+.car{border:3px solid #000;border-radius:12px;margin:10px 0;overflow:hidden}
+.carhd{background:#eee;padding:10px 12px;border-bottom:3px solid #000}
+.carhd .code6{font:900 34px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:2px}
+.carhd .name{font-weight:800;font-size:19px}
+.carhd .vin{font:15px ui-monospace,Menlo,monospace;color:#333;word-break:break-all}
+.carbtns{display:flex;gap:8px;margin-top:8px}
+.carbtns button{flex:1;min-height:52px;border:3px solid #000;border-radius:10px;background:#fff;font-weight:800;font-size:17px}
+.carbtns button.done{background:#c8f7c5}
+.vinflag{font-size:14px;font-weight:700;color:#7a4b00;margin-top:4px}
+.part{padding:10px 12px;border-top:2px solid #bbb}
+.part:first-of-type{border-top:0}
+.part.got{background:#e3fbe1}
+.pline{display:flex;align-items:flex-start;gap:10px}
+.chk{width:52px;height:52px;flex:0 0 52px;border:3px solid #000;border-radius:10px;background:#fff;font-size:34px;font-weight:900;line-height:1;padding:0}
+.part.got .chk{background:#1b7f2a;color:#fff;border-color:#1b7f2a}
+.pinfo{flex:1;min-width:0}
+.pcode{font:800 20px ui-monospace,Menlo,monospace}
+.tier{display:inline-block;font:900 14px system-ui;padding:2px 7px;border-radius:6px;margin-left:6px;vertical-align:3px;border:2px solid #000}
+.tier.Q{background:#ffd400}.tier.B{background:#000;color:#fff}
+.pname{font-weight:800;font-size:19px}
+.pnote{font-size:15px;color:#333}
+.pnet{font-weight:900;font-size:20px;white-space:nowrap}
+.pbtns{display:flex;gap:8px;margin-top:8px;align-items:center}
+.pbtns .cambtn{min-height:50px;min-width:96px;border:3px solid #000;border-radius:10px;background:#ffd400;font-weight:900;font-size:17px}
+.pbtns .rmbtn{min-height:50px;border:2px solid #a00;color:#a00;border-radius:10px;background:#fff;font-weight:800;font-size:15px;padding:0 10px}
+.pbtns input{flex:1;min-width:0;min-height:50px;font-size:17px;border:2px solid #000;border-radius:10px;padding:0 10px}
+.thumbs{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.thumbs .t{position:relative;width:64px;height:64px;border:2px solid #000;border-radius:6px;overflow:hidden;background:#ddd;font:11px ui-monospace,monospace;display:flex;align-items:flex-end;justify-content:center}
+.thumbs .t img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.thumbs .t span{position:relative;background:#000c;color:#fff;width:100%;text-align:center}
+.removed{padding:8px 12px;border-top:2px dashed #a00;background:#fff3f3;font-size:15px;display:flex;align-items:center;gap:8px}
+.removed button{min-height:44px;border:2px solid #000;border-radius:8px;background:#fff;font-weight:800;padding:0 12px;margin-left:auto}
+.trip{border:3px solid #000;border-radius:12px;padding:12px;background:#fffbe0;margin:8px 0}
+.trip label{font-weight:800}
+.trip input{font-size:20px;min-height:50px;width:100%;border:2px solid #000;border-radius:10px;padding:0 10px;margin:4px 0 8px}
+.login{max-width:420px;margin:40px auto}
+.login input{font-size:28px;min-height:60px;width:100%;text-align:center;border:3px solid #000;border-radius:10px;letter-spacing:4px}
+.msg{font-weight:700;color:#a00;min-height:1.4em}
+.small{font-size:14px;color:#444}
+.sheet{position:fixed;inset:0;background:#0008;z-index:20;display:flex;align-items:flex-end}
+.sheet .box{background:#fff;width:100%;max-height:80vh;overflow:auto;border-radius:16px 16px 0 0;padding:14px}
+.sheet .box img{max-width:100%;max-height:45vh;display:block;margin:0 auto 8px}
+.sheet .box button{display:block;width:100%;min-height:52px;margin:6px 0;border:2px solid #000;border-radius:10px;background:#fff;font-weight:800;font-size:17px}
+.trow{display:flex;gap:8px}.trow>div{flex:1;min-width:0}
+.trip .big{margin:2px 0 6px;min-height:52px}
