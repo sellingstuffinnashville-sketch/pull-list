@@ -4,6 +4,7 @@
 const $ = s => document.querySelector(s);
 const main = $('#main');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ebaySize = (u, n) => String(u || '').replace(/s-l\d+/i, 's-l' + n);
 
 // ---------- IndexedDB ----------
 let dbp;
@@ -276,9 +277,16 @@ function render() {
         if (got) { gotN++; gotNet += p.net || 0; }
         const pics = photosFor(st, 'part', p.code).concat(
           Object.keys(st).filter(k => k.startsWith('assign:') && st[k].v === p.code).map(k => k.slice(7)));
+        const thumb = p.ref && p.ref.img
+          ? `<button type="button" class="pref" data-refimg="${esc(p.ref.img)}" aria-label="Reference photo of ${esc(p.part)}"><img loading="lazy" referrerpolicy="no-referrer" src="${esc(ebaySize(p.ref.img, 225))}" alt="" width="56" height="56"></button>`
+          : '';
+        const elink = p.ref && p.ref.link
+          ? `<a class="elink" href="${esc(p.ref.link)}" target="_blank" rel="noopener noreferrer">eBay</a>`
+          : '';
         h += `<div class="part ${got ? 'got' : ''}"><div class="pline">
           <button class="chk" data-act="got" data-c="${p.code}" aria-label="Got it">${got ? '✓' : ''}</button>
-          <div class="pinfo"><span class="pcode">${esc(p.code)}</span><span class="tier ${p.tier}">${p.tier}</span>
+          ${thumb}
+          <div class="pinfo"><span class="pcode">${esc(p.code)}</span><span class="tier ${p.tier}">${p.tier}</span>${elink}
           <div class="pname">${esc(p.part)}</div>${p.note ? `<div class="pnote">${esc(p.note)}</div>` : ''}
           ${p.pap != null ? `<div class="small">PAP $${p.pap.toFixed(2)}</div>` : ''}</div>
           <div class="pnet">${money(p.net)}</div></div>
@@ -302,8 +310,17 @@ function render() {
   $('#chg').onclick = e => { e.preventDefault(); showWho(); };
 }
 
+function refPreview(img) {
+  const el = document.createElement('div'); el.className = 'refover';
+  el.innerHTML = `<img src="${esc(ebaySize(img, 1600))}" referrerpolicy="no-referrer" alt=""><button type="button">Close</button>`;
+  el.onclick = ev => { if (ev.target === el || ev.target.tagName === 'BUTTON') el.remove(); };
+  document.body.append(el);
+}
+
 main.addEventListener('click', async e => {
   const t = e.target.closest('[data-act]'); const ph = e.target.closest('.t[data-photo]');
+  const rb = e.target.closest('[data-refimg]');
+  if (rb && !t) { e.preventDefault(); return refPreview(rb.dataset.refimg); }
   if (ph && !t) return photoSheet(ph.dataset.photo);
   if (!t) return;
   const c = t.dataset.c, st = view();
