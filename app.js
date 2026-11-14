@@ -6,6 +6,119 @@ const main = $('#main');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const ebaySize = (u, n) => String(u || '').replace(/s-l\d+/i, 's-l' + n);
 
+// ---------- sounds (original Web Audio synth; no samples, no copyrighted audio) ----------
+const SFX_KEY = 'pl_sfx';
+let SFX = localStorage.getItem(SFX_KEY) !== '0'; // on by default
+let actx, master, noiseBufCache;
+
+function unlockAudio() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  if (!actx) {
+    actx = new AC();
+    master = actx.createGain();
+    master.gain.value = 0.4; // keep the whole set quiet
+    master.connect(actx.destination);
+  }
+  if (actx.state === 'suspended') actx.resume();
+}
+['pointerdown', 'touchstart', 'click', 'keydown'].forEach(ev =>
+  document.addEventListener(ev, unlockAudio, { capture: true }));
+
+function sfxReady() { return SFX && actx && master; }
+
+function noiseBuf() {
+  if (noiseBufCache) return noiseBufCache;
+  const n = Math.ceil(0.35 * actx.sampleRate);
+  const b = actx.createBuffer(1, n, actx.sampleRate);
+  const d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  noiseBufCache = b;
+  return b;
+}
+function tone(type, freq, t, dur, vol, freqEnd) {
+  const o = actx.createOscillator();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, t);
+  if (freqEnd) o.frequency.exponentialRampToValueAtTime(Math.max(freqEnd, 1), t + dur);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(master);
+  o.start(t);
+  o.stop(t + dur + 0.02);
+}
+function burst(t, dur, vol, startHz, endHz) {
+  const src = actx.createBufferSource();
+  src.buffer = noiseBuf();
+  const f = actx.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.setValueAtTime(startHz, t);
+  f.frequency.exponentialRampToValueAtTime(endHz, t + dur);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f).connect(g).connect(master);
+  src.start(t);
+  src.stop(t + dur);
+}
+
+function playThud(reverse) {
+  if (!sfxReady()) return;
+  const t = actx.currentTime;
+  const vol = reverse ? 0.22 : 0.32;
+  tone('sine', reverse ? 96 : 68, t, reverse ? 0.2 : 0.28, vol, reverse ? 150 : 36);
+  tone('square', reverse ? 210 : 170, t, 0.08, vol * 0.08, 55);
+  burst(t, reverse ? 0.14 : 0.2, vol * 0.45, reverse ? 900 : 520, 110);
+}
+function playClink() {
+  if (!sfxReady()) return;
+  const t = actx.currentTime;
+  [[1760, 0, 0.11, 0.16], [2340, 0.028, 0.09, 0.12], [1310, 0.05, 0.08, 0.1]].forEach(([freq, delay, dur, vol]) => {
+    tone('sine', freq, t + delay, dur, vol, freq * 0.9);
+  });
+}
+function playGong() {
+  if (!sfxReady()) return;
+  const t = actx.currentTime;
+  [[82, 0.28, 1.1], [110, 0.2, 1.0], [164, 0.1, 0.85], [220, 0.06, 0.7], [277, 0.035, 0.55]].forEach(([freq, vol, dur]) => {
+    tone('sine', freq, t, dur, vol, freq * 0.97);
+  });
+}
+function playQuest() {
+  if (!sfxReady()) return;
+  const t = actx.currentTime;
+  // deep grim "quest complete" chord (original, not a copied motif)
+  [[73.42, 0, 0.28, 0.9], [110, 0.03, 0.18, 0.85], [146.83, 0.06, 0.16, 0.8], [174.61, 0.14, 0.12, 0.75], [220, 0.22, 0.1, 0.7]].forEach(([freq, delay, vol, dur]) => {
+    tone('triangle', freq, t + delay, dur, vol, freq * 0.99);
+  });
+}
+function syncSfxBtn() {
+  const b = $('#sfx');
+  if (!b) return;
+  b.textContent = SFX ? '🔊' : '🔇';
+  b.setAttribute('aria-label', SFX ? 'Sound on' : 'Sound off');
+  b.classList.toggle('off', !SFX);
+}
+function carForPart(code) {
+  if (!scan) return null;
+  for (const row of scan.rows) for (const car of row.cars)
+    if (car.parts.some(p => p.code === code)) return car;
+  return null;
+}
+function carAllGot(car, st, flipped) {
+  let any = false;
+  for (const p of car.parts) {
+    if (val(st, 'rm:' + p.code)) continue;
+    any = true;
+    const got = flipped && p.code === flipped.code ? flipped.got : !!val(st, 'got:' + p.code);
+    if (!got) return false;
+  }
+  return any;
+}
+
+
 // ---------- IndexedDB ----------
 let dbp;
 function db() {
@@ -159,6 +272,7 @@ async function capture(kind, code) {
   await tx('photos', 'readwrite', s => s.put({ key: `${date}/${name}`, date, name, blob, uploaded: 0, t: Date.now() }));
   await op('photo:' + name, { kind, code, by: DEVNAME || DEV, size: blob.size });
   if (kind === 'vin') await op('vin:' + code, { file: name, verify: 'pending' });
+  if (kind === 'vin') playGong(); else playClink();
   upload();
 }
 const urlCache = new Map();
@@ -238,6 +352,7 @@ async function openScan(d) {
   serverState = ((await tx('server', 'readonly', s => req(s.get(d)))) || {}).state || {};
   localOps = (await tx('ops', 'readonly', s => req(s.getAll()))).filter(o => o.date === d);
   render(); sync();
+  playGong();
 }
 
 function money(n) { return n == null ? '?' : '$' + n; }
@@ -326,7 +441,15 @@ main.addEventListener('click', async e => {
   if (!t) return;
   const c = t.dataset.c, st = view();
   switch (t.dataset.act) {
-    case 'got': return op('got:' + c, !val(st, 'got:' + c));
+    case 'got': {
+      const next = !val(st, 'got:' + c);
+      const car = carForPart(c);
+      const wasDone = car && carAllGot(car, st);
+      const nowDone = car && carAllGot(car, st, { code: c, got: next });
+      if (next) { playThud(false); if (nowDone && !wasDone) playQuest(); }
+      else playThud(true);
+      return op('got:' + c, next);
+    }
     case 'rm': return op('rm:' + c, true);
     case 'undo': return op('rm:' + c, false);
     case 'part': return capture('part', c);
@@ -379,6 +502,17 @@ async function exportZip() {
 }
 
 $('#back').onclick = () => showHome();
+const sfxBtn = $('#sfx');
+if (sfxBtn) {
+  syncSfxBtn();
+  sfxBtn.onclick = () => {
+    SFX = !SFX;
+    localStorage.setItem(SFX_KEY, SFX ? '1' : '0');
+    syncSfxBtn();
+    unlockAudio();
+    if (SFX) playClink();
+  };
+}
 async function start() {
   if (!TOKEN) return showLogin(navigator.onLine ? '' : 'Needs signal the first time.');
   if (navigator.onLine) {
