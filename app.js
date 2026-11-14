@@ -107,7 +107,7 @@ function playLevelUp() {
 }
 const BGM_KEY = 'pl_bgm';
 let BGM = localStorage.getItem(BGM_KEY) === '1'; // off by default
-let bgmGain, bgmTimer, bgmNodes = [], bgmNext = 0, bgmBar = 0, bgmPhrase = 0, bgmBus;
+let bgmGain, bgmTimer, bgmNodes = [], bgmNext = 0, bgmBar = 0, bgmBus, bgmFilter, bgmComp, bgmGen = 0;
 
 function syncBgmBtn() {
   const b = $('#bgm');
@@ -117,171 +117,141 @@ function syncBgmBtn() {
   b.classList.toggle('off', !BGM);
 }
 function stopBgm() {
+  bgmGen++;
   if (bgmTimer) { clearTimeout(bgmTimer); bgmTimer = null; }
-  (bgmNodes || []).forEach(n => { try { if (n.stop) n.stop(); n.disconnect(); } catch (e) {} });
+  (bgmNodes || []).forEach(n => {
+    try {
+      if (n.gain) {
+        n.gain.cancelScheduledValues(0);
+        n.gain.value = 0;
+      }
+    } catch (e) {}
+    try { if (n.frequency && n.frequency.cancelScheduledValues) n.frequency.cancelScheduledValues(0); } catch (e) {}
+    try { if (n.stop) n.stop(); } catch (e) {}
+    try { n.disconnect(); } catch (e) {}
+  });
   bgmNodes = [];
-  if (bgmGain) { try { bgmGain.disconnect(); } catch (e) {} bgmGain = null; }
-  bgmBus = null;
-}
-function makeReverbIR(ctx, sec, decay) {
-  const n = Math.ceil(sec * ctx.sampleRate);
-  const buf = ctx.createBuffer(2, n, ctx.sampleRate);
-  for (let c = 0; c < 2; c++) {
-    const d = buf.getChannelData(c);
-    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, decay);
-  }
-  return buf;
-}
-function brownNoiseBuf(ctx, sec) {
-  const n = Math.ceil(sec * ctx.sampleRate);
-  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
-  const d = buf.getChannelData(0);
-  let v = 0;
-  for (let i = 0; i < n; i++) { v = (v + (Math.random() * 2 - 1) * 0.02) * 0.98; d[i] = v * 3; }
-  return buf;
-}
-function karplusPluck(freq, t, dur, vol, dest) {
-  const sr = actx.sampleRate;
-  const period = Math.max(8, Math.round(sr / freq));
-  const buf = actx.createBuffer(1, period, sr);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < period; i++) data[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / period);
-  const src = actx.createBufferSource();
-  src.buffer = buf;
-  const delay = actx.createDelay(0.05);
-  delay.delayTime.value = period / sr;
-  const lp = actx.createBiquadFilter();
-  lp.type = 'lowpass';
-  lp.frequency.value = Math.min(3200, freq * 6.5);
-  lp.Q.value = 0.1;
-  const fb = actx.createGain();
-  fb.gain.value = 0.974;
-  const out = actx.createGain();
-  out.gain.setValueAtTime(0.0001, t);
-  out.gain.exponentialRampToValueAtTime(vol, t + 0.01);
-  out.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  src.connect(out);
-  src.connect(delay);
-  delay.connect(lp);
-  lp.connect(fb);
-  fb.connect(delay);
-  lp.connect(out);
-  out.connect(dest);
-  src.start(t);
-  src.stop(t + period / sr * 2);
-  fb.gain.setValueAtTime(0.974, t);
-  fb.gain.setValueAtTime(0.0001, t + dur);
-  bgmNodes.push(src, delay, lp, fb, out);
+  [bgmGain, bgmBus, bgmFilter, bgmComp].forEach(n => { try { if (n) n.disconnect(); } catch (e) {} });
+  bgmGain = bgmBus = bgmFilter = bgmComp = null;
 }
 function startBgm() {
   if (!BGM || document.hidden) return;
   if (!actx) return;
   if (bgmGain) return;
   if (actx.state === 'suspended') actx.resume();
+  const gen = ++bgmGen;
   bgmGain = actx.createGain();
-  bgmGain.gain.value = 0.055;
-  bgmGain.connect(actx.destination);
-  const dry = actx.createGain(); dry.gain.value = 0.82;
-  const wet = actx.createGain(); wet.gain.value = 0.32;
-  const conv = actx.createConvolver();
-  conv.buffer = makeReverbIR(actx, 2.4, 2.5);
+  bgmGain.gain.value = 0.06;
+  bgmFilter = actx.createBiquadFilter();
+  bgmFilter.type = 'lowpass';
+  bgmFilter.frequency.value = 5000;
+  bgmFilter.Q.value = 0.7;
+  bgmComp = actx.createDynamicsCompressor();
+  bgmComp.threshold.value = -18;
+  bgmComp.knee.value = 4;
+  bgmComp.ratio.value = 20;
+  bgmComp.attack.value = 0.003;
+  bgmComp.release.value = 0.12;
   bgmBus = actx.createGain();
-  bgmBus.connect(dry); dry.connect(bgmGain);
-  bgmBus.connect(conv); conv.connect(wet); wet.connect(bgmGain);
-  bgmNodes.push(dry, wet, conv, bgmBus);
-  // Low bowed drone (D minor: D, A, F)
-  [[73.42, 0.22], [110, 0.14], [87.31, 0.09]].forEach(([freq, vol], i) => {
-    const o = actx.createOscillator();
-    o.type = 'sawtooth';
-    o.frequency.value = freq;
-    const lp = actx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = 280 + i * 40;
-    lp.Q.value = 0.7;
-    const g = actx.createGain();
-    g.gain.value = vol;
-    const lfo = actx.createOscillator();
-    lfo.type = 'sine';
-    lfo.frequency.value = 0.07 + i * 0.03;
-    const lg = actx.createGain();
-    lg.gain.value = 40;
-    lfo.connect(lg); lg.connect(lp.frequency);
-    o.connect(lp).connect(g).connect(bgmBus);
-    o.start(); lfo.start();
-    bgmNodes.push(o, lp, g, lfo, lg);
-  });
-  // Distant wind
-  const wind = actx.createBufferSource();
-  wind.buffer = brownNoiseBuf(actx, 4);
-  wind.loop = true;
-  const wp = actx.createBiquadFilter();
-  wp.type = 'bandpass';
-  wp.frequency.value = 260;
-  wp.Q.value = 0.7;
-  const wg = actx.createGain();
-  wg.gain.value = 0.07;
-  const wlfo = actx.createOscillator();
-  wlfo.frequency.value = 0.05;
-  const wlg = actx.createGain();
-  wlg.gain.value = 0.03;
-  wlfo.connect(wlg); wlg.connect(wg.gain);
-  wind.connect(wp).connect(wg).connect(bgmBus);
-  wind.start(); wlfo.start();
-  bgmNodes.push(wind, wp, wg, wlfo, wlg);
-  bgmNext = actx.currentTime + 0.15;
-  bgmBar = 0;
-  bgmPhrase = Math.floor(Math.random() * BGM_PHRASES.length);
-  schedBgm();
-}
-function tollBell(t) {
-  [[110, 0.16, 5], [220, 0.07, 4], [164.81, 0.05, 3.5]].forEach(([freq, vol, dur]) => {
+  bgmBus.gain.value = 1;
+  bgmBus.connect(bgmFilter);
+  bgmFilter.connect(bgmComp);
+  bgmComp.connect(bgmGain);
+  bgmGain.connect(actx.destination);
+  bgmNodes.push(bgmBus, bgmFilter, bgmComp, bgmGain);
+  // Drone in D Dorian (D, A, F)
+  [[73.42, 0.35], [110, 0.22], [87.31, 0.12]].forEach(([freq, vol]) => {
     const o = actx.createOscillator();
     o.type = 'sine';
-    o.frequency.setValueAtTime(freq, t);
-    o.frequency.exponentialRampToValueAtTime(freq * 0.985, t + dur);
+    o.frequency.value = freq;
     const g = actx.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    g.gain.value = vol;
     o.connect(g).connect(bgmBus);
-    o.start(t); o.stop(t + dur + 0.05);
+    o.start();
+    bgmNodes.push(o, g);
+  });
+  // Soft crowd murmur: looping filtered noise
+  const nlen = Math.ceil(2 * actx.sampleRate);
+  const nb = actx.createBuffer(1, nlen, actx.sampleRate);
+  const nd = nb.getChannelData(0);
+  let v = 0;
+  for (let i = 0; i < nlen; i++) { v = v * 0.98 + (Math.random() * 2 - 1) * 0.02; nd[i] = v; }
+  const crowd = actx.createBufferSource();
+  crowd.buffer = nb;
+  crowd.loop = true;
+  const cf = actx.createBiquadFilter();
+  cf.type = 'lowpass';
+  cf.frequency.value = 700;
+  const cg = actx.createGain();
+  cg.gain.value = 0.22;
+  crowd.connect(cf).connect(cg).connect(bgmBus);
+  crowd.start();
+  bgmNodes.push(crowd, cf, cg);
+  bgmNext = actx.currentTime + 0.05;
+  bgmBar = 0;
+  if (gen !== bgmGen) return;
+  schedBgm();
+}
+function pluckAt(freq, t, dur, vol) {
+  if (!bgmBus) return;
+  [1, 2, 3.02, 4.05].forEach((h, i) => {
+    const o = actx.createOscillator();
+    o.type = i ? 'sine' : 'triangle';
+    o.frequency.setValueAtTime(freq * h, t);
+    const g = actx.createGain();
+    const v = vol * (i ? 0.22 / i : 1);
+    g.gain.setValueAtTime(v, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur * (i ? 0.45 : 1));
+    o.connect(g).connect(bgmBus);
+    o.start(t);
+    o.stop(t + dur + 0.05);
     bgmNodes.push(o, g);
   });
 }
-// Original slow D-minor guitar phrases (broken chords, not a copied tune). Values: [eighth, Hz, eighths, vol]
-const BGM_PHRASES = [
-  [[0,146.83,2,.18],[2,220.00,2,.16],[4,293.66,2,.17],[6,174.61,2,.14],[8,220.00,2,.16],[10,293.66,4,.17],[14,220.00,2,.13],[16,174.61,2,.15],[18,146.83,2,.16],[20,220.00,4,.15],[24,293.66,2,.16],[26,349.23,2,.13],[28,293.66,2,.14],[30,220.00,2,.12]],
-  [[0,196.00,2,.16],[2,233.08,2,.15],[4,293.66,2,.16],[6,196.00,2,.13],[8,233.08,4,.15],[12,349.23,2,.12],[14,293.66,2,.14],[16,196.00,2,.15],[18,146.83,4,.16],[22,196.00,2,.13],[24,233.08,2,.14],[26,293.66,4,.13],[30,196.00,2,.12]],
-  [[0,174.61,2,.16],[2,220.00,2,.14],[4,261.63,2,.15],[6,174.61,2,.13],[8,220.00,2,.14],[10,349.23,4,.13],[14,261.63,2,.12],[16,174.61,4,.15],[20,146.83,4,.16],[24,220.00,2,.13],[26,174.61,2,.13],[28,130.81,4,.14]],
-  [[0,146.83,4,.15],[4,220.00,4,.13],[8,174.61,4,.14],[12,146.83,8,.16],[20,110.00,4,.12],[24,146.83,4,.14],[28,174.61,4,.12]],
-  [[0,293.66,2,.15],[2,261.63,2,.14],[4,220.00,2,.15],[6,196.00,2,.13],[8,174.61,4,.14],[12,220.00,2,.13],[14,146.83,6,.16],[20,174.61,2,.13],[22,220.00,2,.13],[24,196.00,2,.12],[26,174.61,2,.12],[28,146.83,4,.14]],
-  [[0,110.00,4,.14],[4,146.83,2,.15],[6,174.61,2,.13],[8,220.00,4,.14],[12,174.61,2,.13],[14,146.83,2,.14],[16,196.00,2,.13],[18,233.08,2,.12],[20,293.66,4,.13],[24,220.00,2,.13],[26,174.61,2,.13],[28,146.83,4,.15]]
+function drumAt(t, lo) {
+  if (!bgmBus) return;
+  const src = actx.createBufferSource();
+  src.buffer = noiseBuf();
+  const f = actx.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.setValueAtTime(lo ? 180 : 700, t);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(lo ? 0.28 : 0.1, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + (lo ? 0.12 : 0.05));
+  src.connect(f).connect(g).connect(bgmBus);
+  src.start(t);
+  src.stop(t + 0.15);
+  bgmNodes.push(src, f, g);
+}
+// Original 8-bar D Dorian lute phrase (not a known tune). Values are [eighths from loop start, Hz, eighths long].
+const BGM_TUNE = [
+  [0, 293.66, 2], [2, 349.23, 2], [4, 392.00, 2], [6, 440.00, 2],
+  [8, 392.00, 2], [10, 349.23, 2], [12, 329.63, 2], [14, 293.66, 2],
+  [16, 349.23, 2], [18, 440.00, 2], [20, 523.25, 2], [22, 440.00, 2],
+  [24, 392.00, 2], [26, 349.23, 2], [28, 293.66, 4],
+  [32, 220.00, 2], [34, 293.66, 2], [36, 349.23, 2], [38, 329.63, 2],
+  [40, 349.23, 2], [42, 392.00, 2], [44, 440.00, 2], [46, 392.00, 2],
+  [48, 349.23, 2], [50, 329.63, 2], [52, 293.66, 2], [54, 261.63, 2],
+  [56, 293.66, 4], [60, 220.00, 2], [62, 293.66, 2]
 ];
-const BGM_EIGHTH = (60 / 58) / 2; // ~58 BPM, brooding
+const BGM_BEAT = 60 / 86; // ~86 BPM, eighth = BGM_BEAT/2
+const BGM_EIGHTH = BGM_BEAT / 2;
 function schedBgm() {
   if (!BGM || !bgmGain || !bgmBus || !actx || document.hidden) return;
-  const horizon = actx.currentTime + 1.4;
+  const gen = bgmGen;
+  const horizon = actx.currentTime + 1.25;
   while (bgmNext < horizon) {
     const t = bgmNext;
-    const i = bgmBar % 32;
-    if (i === 0 && bgmBar > 0) {
-      let next;
-      do { next = Math.floor(Math.random() * BGM_PHRASES.length); } while (next === bgmPhrase && BGM_PHRASES.length > 1);
-      bgmPhrase = next;
-      if (Math.random() < 0.28) tollBell(t + BGM_EIGHTH * 2);
-    }
-    const phrase = BGM_PHRASES[bgmPhrase];
-    phrase.forEach(n => {
-      if (n[0] === i) {
-        const dur = n[2] * BGM_EIGHTH * 1.15;
-        karplusPluck(n[1], t, dur, n[3], bgmBus);
-        if (n[2] >= 4 && Math.random() < 0.35) karplusPluck(n[1] * 2.002, t + 0.02, dur * 0.7, n[3] * 0.22, bgmBus);
-      }
+    const i = bgmBar % 64;
+    BGM_TUNE.forEach(([step, freq, len]) => {
+      if (step === i) pluckAt(freq, t, len * BGM_EIGHTH * 0.95, 0.22);
     });
+    if (i % 4 === 0) drumAt(t, true);
+    else if (i % 4 === 2) drumAt(t, false);
     bgmBar++;
     bgmNext += BGM_EIGHTH;
   }
-  bgmTimer = setTimeout(schedBgm, 400);
+  bgmTimer = setTimeout(() => { if (gen === bgmGen) schedBgm(); }, 350);
 }
 
 document.addEventListener('visibilitychange', () => {
