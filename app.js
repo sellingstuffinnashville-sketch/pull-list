@@ -94,6 +94,16 @@ function playQuest() {
     tone('triangle', freq, t + delay, dur, vol, freq * 0.99);
   });
 }
+function playLevelUp() {
+  if (!sfxReady()) return;
+  const t = actx.currentTime;
+  // original rising fanfare (not a copied motif)
+  [[146.83, 0, 0.2, 0.35], [174.61, 0.08, 0.2, 0.38], [220, 0.16, 0.22, 0.45],
+   [293.66, 0.28, 0.26, 0.7], [440, 0.42, 0.16, 0.65], [587.33, 0.52, 0.14, 0.85]].forEach(([freq, delay, vol, dur]) => {
+    tone('triangle', freq, t + delay, dur, vol, freq * 1.03);
+    tone('sine', freq * 2, t + delay, dur * 0.65, vol * 0.22, freq * 2.03);
+  });
+}
 function syncSfxBtn() {
   const b = $('#sfx');
   if (!b) return;
@@ -107,17 +117,132 @@ function carForPart(code) {
     if (car.parts.some(p => p.code === code)) return car;
   return null;
 }
-function carAllGot(car, st, flipped) {
+function carAllGot(car, st, override) {
   let any = false;
   for (const p of car.parts) {
-    if (val(st, 'rm:' + p.code)) continue;
+    const rm = override && p.code === override.code && 'rm' in override ? !!override.rm : !!val(st, 'rm:' + p.code);
+    if (rm) continue;
     any = true;
-    const got = flipped && p.code === flipped.code ? flipped.got : !!val(st, 'got:' + p.code);
+    const got = override && p.code === override.code && 'got' in override ? !!override.got : !!val(st, 'got:' + p.code);
     if (!got) return false;
   }
   return any;
 }
 
+
+// ---------- XP / levels (local only: the server sync is per-scan and won't take a lifetime key) ----------
+const XP_KEY = 'pl_xp';
+function defaultXp() { return { xp: 0, level: 1, grants: {}, pulled: 0, net: 0 }; }
+function loadXp() {
+  try {
+    const s = JSON.parse(localStorage.getItem(XP_KEY) || '');
+    if (!s || typeof s.xp !== 'number') return defaultXp();
+    return {
+      xp: Math.max(0, s.xp | 0),
+      level: Math.max(1, s.level | 0),
+      grants: s.grants && typeof s.grants === 'object' ? s.grants : {},
+      pulled: Math.max(0, s.pulled | 0),
+      net: Math.max(0, s.net | 0)
+    };
+  } catch { return defaultXp(); }
+}
+let xpState = loadXp();
+function xpToNext(level) { return Math.round(100 * Math.pow(level, 1.5)); }
+function totalXpForLevel(level) {
+  let t = 0;
+  for (let i = 1; i < level; i++) t += xpToNext(i);
+  return t;
+}
+function levelFromXp(xp) {
+  let lvl = 1;
+  while (totalXpForLevel(lvl + 1) <= xp && lvl < 200) lvl++;
+  return lvl;
+}
+function xpProgress(xp, level) {
+  const start = totalXpForLevel(level), need = xpToNext(level);
+  return { have: xp - start, need };
+}
+function partXp(part) {
+  const n = part && part.net != null && isFinite(part.net) ? Math.round(Number(part.net)) : 0;
+  return Math.max(5, n);
+}
+function partNet(part) {
+  return part && part.net != null && isFinite(part.net) ? Math.max(0, Math.round(Number(part.net))) : 0;
+}
+function gotId(code) { return 'got:' + date + ':' + code; }
+function photoId(name) { return 'photo:' + date + ':' + name; }
+function vinId(code) { return 'vin:' + date + ':' + code; }
+function carId(car) { return 'car:' + date + ':' + car.code6; }
+function grantAmount(rec) { return !rec ? 0 : (typeof rec === 'number' ? rec : rec.xp || 0); }
+function grantSilent(id, amount, extras) {
+  if (!(amount > 0) || xpState.grants[id]) return 0;
+  const rec = { xp: amount };
+  if (extras && extras.pulled) rec.pulled = extras.pulled;
+  if (extras && extras.net) rec.net = extras.net;
+  xpState.grants[id] = rec;
+  xpState.xp += amount;
+  xpState.pulled += rec.pulled || 0;
+  xpState.net += rec.net || 0;
+  return amount;
+}
+function revokeSilent(id) {
+  const rec = xpState.grants[id];
+  if (!rec) return 0;
+  const amount = grantAmount(rec);
+  delete xpState.grants[id];
+  xpState.xp = Math.max(0, xpState.xp - amount);
+  xpState.pulled = Math.max(0, xpState.pulled - (rec.pulled || 0));
+  xpState.net = Math.max(0, xpState.net - (rec.net || 0));
+  return amount;
+}
+function applyXp(changes, ev) {
+  if (!changes || !changes.length) return;
+  const oldLevel = xpState.level;
+  let gained = 0;
+  for (const c of changes) {
+    if (c.revoke) revokeSilent(c.id);
+    else gained += grantSilent(c.id, c.amount, c.extras);
+  }
+  xpState.level = levelFromXp(xpState.xp);
+  localStorage.setItem(XP_KEY, JSON.stringify(xpState));
+  renderXpBar();
+  if (gained > 0) floatXp(gained, ev);
+  if (xpState.level > oldLevel) setTimeout(() => { playLevelUp(); showLevelUp(xpState.level); }, 280);
+}
+function xpAnchor(ev) {
+  if (ev && ev.clientX != null) return ev;
+  const el = $('#xpwrap') || $('#lvlbadge');
+  if (!el) return { clientX: window.innerWidth / 2, clientY: 80 };
+  const r = el.getBoundingClientRect();
+  return { clientX: r.left + r.width / 2, clientY: r.bottom };
+}
+function floatXp(n, ev) {
+  const pt = xpAnchor(ev);
+  const el = document.createElement('div');
+  el.className = 'xpfloat';
+  el.textContent = '+' + n + ' XP';
+  el.style.left = pt.clientX + 'px';
+  el.style.top = pt.clientY + 'px';
+  document.body.append(el);
+  requestAnimationFrame(() => el.classList.add('go'));
+  setTimeout(() => el.remove(), 1100);
+}
+function showLevelUp(level) {
+  document.querySelectorAll('.lvlup').forEach(n => n.remove());
+  const el = document.createElement('div');
+  el.className = 'lvlup';
+  el.innerHTML = '<b>LEVEL UP — Level ' + level + '</b>';
+  document.body.append(el);
+  setTimeout(() => el.remove(), 2200);
+}
+function renderXpBar() {
+  const badge = $('#lvlbadge'), fill = $('#xpfill'), wrap = $('#xpwrap');
+  if (!badge || !fill) return;
+  const { have, need } = xpProgress(xpState.xp, xpState.level);
+  badge.textContent = 'Lv ' + xpState.level;
+  if (wrap) wrap.title = have + ' / ' + need + ' XP to level ' + (xpState.level + 1);
+  fill.style.width = Math.min(100, need ? (have / need) * 100 : 0) + '%';
+}
 
 // ---------- IndexedDB ----------
 let dbp;
@@ -273,6 +398,8 @@ async function capture(kind, code) {
   await op('photo:' + name, { kind, code, by: DEVNAME || DEV, size: blob.size });
   if (kind === 'vin') await op('vin:' + code, { file: name, verify: 'pending' });
   if (kind === 'vin') playGong(); else playClink();
+  if (kind === 'part') applyXp([{ id: photoId(name), amount: 5 }], xpAnchor());
+  if (kind === 'vin') applyXp([{ id: vinId(code), amount: 10 }], xpAnchor());
   upload();
 }
 const urlCache = new Map();
@@ -328,6 +455,7 @@ function showWho() {
     if (!ini) return;
     DEV = ini; DEVNAME = $('#nm').value.trim() || ini;
     localStorage.setItem('pl_dev', DEV); localStorage.setItem('pl_devname', DEVNAME); if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+renderXpBar();
 start();
   };
 }
@@ -338,7 +466,8 @@ async function showHome() {
   let idx;
   try { idx = (await api('listScans')).scans; await kvSet('index', idx); }
   catch (e) { if (e.login) return showLogin(); idx = await kvGet('index') || []; }
-  main.innerHTML = `<p class="small">Newest first. Tap a scan to open it.</p>` + (idx.length ? idx.map(s =>
+  const stats = `Level ${xpState.level} · ${xpState.xp} XP · ${xpState.pulled} parts pulled · est. net ${money(xpState.net)}`;
+  main.innerHTML = `<p class="xpstats">${stats}</p><p class="small">Newest first. Tap a scan to open it.</p>` + (idx.length ? idx.map(s =>
     `<button class="scanitem" data-d="${esc(s.date)}"><b>${esc(s.date)}</b>${esc(s.label)}<br><span class="small">${s.cars} cars · ${s.parts} parts</span></button>`).join('')
     : '<p>No scans yet.</p>');
   main.querySelectorAll('.scanitem').forEach(b => b.onclick = () => openScan(b.dataset.d));
@@ -444,14 +573,45 @@ main.addEventListener('click', async e => {
     case 'got': {
       const next = !val(st, 'got:' + c);
       const car = carForPart(c);
+      const part = car && car.parts.find(p => p.code === c);
       const wasDone = car && carAllGot(car, st);
       const nowDone = car && carAllGot(car, st, { code: c, got: next });
-      if (next) { playThud(false); if (nowDone && !wasDone) playQuest(); }
-      else playThud(true);
+      const xp = [];
+      if (next) {
+        playThud(false);
+        xp.push({ id: gotId(c), amount: partXp(part), extras: { pulled: 1, net: partNet(part) } });
+        if (nowDone && !wasDone) { playQuest(); xp.push({ id: carId(car), amount: 50 }); }
+      } else {
+        playThud(true);
+        xp.push({ id: gotId(c), revoke: 1 });
+        if (wasDone && !nowDone) xp.push({ id: carId(car), revoke: 1 });
+      }
+      applyXp(xp, e);
       return op('got:' + c, next);
     }
-    case 'rm': return op('rm:' + c, true);
-    case 'undo': return op('rm:' + c, false);
+    case 'rm': {
+      const car = carForPart(c);
+      const wasDone = car && carAllGot(car, st);
+      const nowDone = car && carAllGot(car, st, { code: c, rm: true });
+      const xp = [];
+      if (val(st, 'got:' + c)) xp.push({ id: gotId(c), revoke: 1 });
+      if (wasDone && !nowDone) xp.push({ id: carId(car), revoke: 1 });
+      if (!wasDone && nowDone) xp.push({ id: carId(car), amount: 50 });
+      applyXp(xp, e);
+      return op('rm:' + c, true);
+    }
+    case 'undo': {
+      const car = carForPart(c);
+      const part = car && car.parts.find(p => p.code === c);
+      const wasDone = car && carAllGot(car, st);
+      const nowDone = car && carAllGot(car, st, { code: c, rm: false });
+      const xp = [];
+      if (val(st, 'got:' + c)) xp.push({ id: gotId(c), amount: partXp(part), extras: { pulled: 1, net: partNet(part) } });
+      if (wasDone && !nowDone) xp.push({ id: carId(car), revoke: 1 });
+      if (!wasDone && nowDone) { playQuest(); xp.push({ id: carId(car), amount: 50 }); }
+      applyXp(xp, e);
+      return op('rm:' + c, false);
+    }
     case 'part': return capture('part', c);
     case 'vin': return capture('vin', c);
     case 'x': return capture('x', c);
@@ -478,7 +638,15 @@ async function photoSheet(name) {
     const b = ev.target;
     if (b === el || b.dataset.close) return el.remove();
     if (b.dataset.assign) { el.remove(); return op('assign:' + name, b.dataset.assign); }
-    if (b.dataset.del && confirm('Delete this photo?')) { el.remove(); await tx('photos', 'readwrite', s => s.delete(`${date}/${name}`)); urlCache.delete(`${date}/${name}`); return op('del:' + name, true); }
+    if (b.dataset.del && confirm('Delete this photo?')) {
+      el.remove();
+      await tx('photos', 'readwrite', s => s.delete(`${date}/${name}`));
+      urlCache.delete(`${date}/${name}`);
+      if (meta.kind === 'part') applyXp([{ id: photoId(name), revoke: 1 }]);
+      if (meta.kind === 'vin' && photosFor(st, 'vin', meta.code).filter(n => n !== name).length === 0)
+        applyXp([{ id: vinId(meta.code), revoke: 1 }]);
+      return op('del:' + name, true);
+    }
   };
 }
 
@@ -519,6 +687,7 @@ async function start() {
     try { await api('me'); } catch (e) { if (e.login) { TOKEN = ''; localStorage.removeItem('pl_token'); return showLogin(); } }
   }
   if (!DEV) return showWho();
+  renderXpBar();
   showHome(); upload();
 }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
