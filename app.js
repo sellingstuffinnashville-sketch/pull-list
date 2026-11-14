@@ -4,7 +4,14 @@
 const $ = s => document.querySelector(s);
 const main = $('#main');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const ebaySize = (u, n) => String(u || '').replace(/s-l\d+/i, 's-l' + n);
+function ebaySize(u, n) {
+  u = String(u || '');
+  const g = u.match(/i\.ebayimg\.com\/images\/g\/([^/?#]+)/i)
+         || u.match(/i\.ebayimg\.com\/00\/s\/[^/]+\/z\/([^/]+)\//i);
+  if (g) return 'https://i.ebayimg.com/images/g/' + g[1] + '/s-l' + n + '.jpg';
+  return u.replace(/s-l\d+/i, 's-l' + n);
+}
+
 
 // ---------- sounds (original Web Audio synth; no samples, no copyrighted audio) ----------
 const SFX_KEY = 'pl_sfx';
