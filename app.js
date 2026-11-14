@@ -517,8 +517,36 @@ let TOKEN = localStorage.getItem('pl_token') || '';
 async function api(fn, ...args) {
   const r = await call(fn, TOKEN, ...args);
   if (r && r.error === 'login') { const e = new Error('login'); e.login = 1; throw e; }
+  if (r && r.resetEpoch) await applyResetIfNeeded(r.resetEpoch);
+  if (r && r.error === 'reset') { const e = new Error('reset'); e.reset = 1; throw e; }
   if (r && r.error) throw new Error(r.error);
   return r;
+}
+
+// Field reset (2026-11-14): wipe checks, notes, photos and character once per epoch.
+// Keep pick-list caches in the kv store, plus login, device name and sound toggles.
+const RESET_KEY = 'pl_reset_epoch';
+const LOCAL_RESET_EPOCH = 1794670000000; // keep in sync with Apps Script RESET_EPOCH
+async function applyResetIfNeeded(epoch) {
+  const target = Math.max(Number(epoch || 0), LOCAL_RESET_EPOCH);
+  const applied = Number(localStorage.getItem(RESET_KEY) || 0);
+  if (applied >= target) return false;
+  localOps = [];
+  serverState = {};
+  if (typeof urlCache !== 'undefined') {
+    for (const u of urlCache.values()) { try { if (u && String(u).startsWith('blob:')) URL.revokeObjectURL(u); } catch (e) {} }
+    urlCache.clear();
+  }
+  await tx('ops', 'readwrite', s => s.clear());
+  await tx('photos', 'readwrite', s => s.clear());
+  await tx('server', 'readwrite', s => s.clear());
+  xpState = defaultXp();
+  persistXp();
+  localStorage.setItem(RESET_KEY, String(target));
+  if (window.PLLoot) window.PLLoot.init();
+  renderXpBar();
+  if (scan && date) render();
+  return true;
 }
 
 // ---------- device ----------
@@ -548,15 +576,23 @@ let syncing = false;
 function setPill(cls, txt) { const p = $('#net'); p.className = 'pill ' + cls; p.textContent = txt; }
 async function sync() {
   if (!date || syncing) return;
+  await applyResetIfNeeded(0);
   const pend = localOps.filter(o => o.pending);
   if (!navigator.onLine) { setPill('off', pend.length ? `Offline · ${pend.length} saved` : 'Offline'); return; }
   syncing = true;
   try {
-    const j = await api('sync', date, pend.map(({ id, k, v, dev, ts }) => ({ id, k, v, dev, ts })));
-    serverState = j.state;
-    await tx('server', 'readwrite', s => s.put({ date, state: serverState }));
-    await tx('ops', 'readwrite', s => { for (const o of pend) { o.pending = 0; s.put(o); } });
-    render();
+    const epoch = Number(localStorage.getItem(RESET_KEY) || 0);
+    const j = await api('sync', date, pend.map(({ id, k, v, dev, ts }) => ({ id, k, v, dev, ts })), epoch);
+    if (Number(localStorage.getItem(RESET_KEY) || 0) > epoch) {
+      serverState = j.state || {};
+      await tx('server', 'readwrite', s => s.put({ date, state: serverState }));
+      render();
+    } else {
+      serverState = j.state;
+      await tx('server', 'readwrite', s => s.put({ date, state: serverState }));
+      await tx('ops', 'readwrite', s => { for (const o of pend) { o.pending = 0; s.put(o); } });
+      render();
+    }
   } catch (e) {
     if (e.login) { TOKEN = ''; localStorage.removeItem('pl_token'); syncing = false; return showLogin(); }
   } finally { syncing = false; }
@@ -574,11 +610,14 @@ async function upload() {
       if (!next || !navigator.onLine) break;
       status(all.filter(r => !r.uploaded).length);
       const b64 = await blobToB64(next.blob);
-      await api('uploadPhoto', next.date, next.name, b64);
+      const epoch = Number(localStorage.getItem(RESET_KEY) || 0);
+      await api('uploadPhoto', next.date, next.name, b64, epoch);
+      // A mid-upload reset clears the photos store; don't write the old record back.
+      if (Number(localStorage.getItem(RESET_KEY) || 0) > epoch) break;
       next.uploaded = 1;
       await tx('photos', 'readwrite', s => s.put(next));
     }
-  } catch (e) { if (e.login) { uploading = false; return showLogin(); } }
+  } catch (e) { if (e.reset) {} else if (e.login) { uploading = false; return showLogin(); } }
   finally { uploading = false; }
   status();
 }
@@ -930,6 +969,7 @@ if (bgmBtn) {
 }
 async function start() {
   if (!TOKEN) return showLogin(navigator.onLine ? '' : 'Needs signal the first time.');
+  await applyResetIfNeeded(0);
   if (navigator.onLine) {
     try { await api('me'); } catch (e) { if (e.login) { TOKEN = ''; localStorage.removeItem('pl_token'); return showLogin(); } }
   }
