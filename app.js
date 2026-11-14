@@ -141,11 +141,67 @@ function stopBgm() {
   [bgmGain, bgmBus, bgmFilter, bgmComp].forEach(n => { try { if (n) n.disconnect(); } catch (e) {} });
   bgmGain = bgmBus = bgmFilter = bgmComp = null;
 }
+// Brian's own loop (music.mp3) is the music; the procedural tavern loop below is only a fallback if it can't load.
+const BGM_FILE = 'music.mp3', BGM_FILE_GAIN = 0.12;
+let bgmBuf = null, bgmBufP = null, bgmFileFailed = false;
+function loadBgmFile() {
+  if (bgmBuf) return Promise.resolve(bgmBuf);
+  if (!bgmBufP) {
+    bgmBufP = fetch(BGM_FILE).then(r => { if (!r.ok) throw new Error('music ' + r.status); return r.arrayBuffer(); })
+      .then(ab => new Promise((res, rej) => actx.decodeAudioData(ab, res, rej)))
+      .then(b => {
+        // skip decoder padding / silence at both ends so the loop has no gap
+        const d = b.getChannelData(0), th = 0.002;
+        let a = 0, z = d.length - 1;
+        while (a < z && Math.abs(d[a]) < th) a++;
+        while (z > a && Math.abs(d[z]) < th) z--;
+        b._ls = a / b.sampleRate; b._le = (z + 1) / b.sampleRate;
+        bgmBuf = b;
+        return b;
+      })
+      .catch(e => { bgmBufP = null; bgmFileFailed = true; throw e; });
+  }
+  return bgmBufP;
+}
 function startBgm() {
-  if (!BGM || document.hidden) return;
+  if (!BGM || !SFX || document.hidden) return;
   if (!actx) return;
   if (bgmGain) return;
   if (actx.state === 'suspended') actx.resume();
+  if (bgmFileFailed) return startProcBgm();
+  const gen = ++bgmGen;
+  bgmGain = actx.createGain();
+  bgmGain.gain.value = 0;
+  bgmGain.connect(actx.destination);
+  bgmNodes.push(bgmGain);
+  loadBgmFile().then(buf => {
+    if (gen !== bgmGen || !bgmGain) return;
+    bgmComp = actx.createDynamicsCompressor(); // gentle limiter so no peak can spike
+    bgmComp.threshold.value = -10;
+    bgmComp.knee.value = 6;
+    bgmComp.ratio.value = 12;
+    bgmComp.attack.value = 0.005;
+    bgmComp.release.value = 0.2;
+    const src = actx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    src.loopStart = buf._ls;
+    src.loopEnd = buf._le;
+    src.connect(bgmComp).connect(bgmGain);
+    const t = actx.currentTime;
+    bgmGain.gain.setValueAtTime(0, t);
+    bgmGain.gain.linearRampToValueAtTime(BGM_FILE_GAIN, t + 1.5);
+    src.start(t, buf._ls);
+    bgmNodes.push(src, bgmComp);
+  }).catch(() => {
+    if (gen !== bgmGen) return;
+    try { bgmGain.disconnect(); } catch (e) {}
+    bgmGain = null; bgmNodes = [];
+    startProcBgm();
+  });
+}
+function startProcBgm() {
+  if (!BGM || !SFX || document.hidden || !actx || bgmGain) return;
   const gen = ++bgmGen;
   bgmGain = actx.createGain();
   bgmGain.gain.value = 0.06;
@@ -856,7 +912,8 @@ if (sfxBtn) {
     localStorage.setItem(SFX_KEY, SFX ? '1' : '0');
     syncSfxBtn();
     unlockAudio();
-    if (SFX) playClink();
+    if (SFX) { playClink(); if (BGM) startBgm(); }
+    else stopBgm();
   };
 }
 const bgmBtn = $('#bgm');

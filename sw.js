@@ -1,7 +1,7 @@
 // Offline open: app shell is cached; scan data + photos live in IndexedDB. API calls go to Apps Script and are never cached.
 // Reference thumbs from i.ebayimg.com are cached opaque so they still show in the yard without signal.
-const V = 'pl-pages-v13';
-const SHELL = ['./', 'index.html', 'style.css', 'fonts/cinzel.woff2', 'app.js', 'loot.js', 'zip.js', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'bg-cave.webp'];
+const V = 'pl-pages-v14';
+const SHELL = ['./', 'index.html', 'style.css', 'fonts/cinzel.woff2', 'app.js', 'px.js', 'loot.js', 'zip.js', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'bg-cave.webp', 'music.mp3'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k))))); self.clients.claim(); });
 self.addEventListener('fetch', e => {
