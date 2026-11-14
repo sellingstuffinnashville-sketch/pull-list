@@ -253,7 +253,7 @@ function carAllGot(car, st, override) {
 
 // ---------- XP / levels (local only: the server sync is per-scan and won't take a lifetime key) ----------
 const XP_KEY = 'pl_xp';
-function defaultXp() { return { xp: 0, level: 1, grants: {}, pulled: 0, net: 0, chests: 0, chestAwarded: {}, inventory: {}, equipped: {} }; }
+function defaultXp() { return { xp: 0, level: 1, grants: {}, pulled: 0, net: 0, chests: 0, chestAwarded: {}, levelChests: {}, inventory: {}, equipped: {} }; }
 function loadXp() {
   try {
     const s = JSON.parse(localStorage.getItem(XP_KEY) || '');
@@ -266,6 +266,7 @@ function loadXp() {
       net: Math.max(0, s.net | 0),
       chests: Math.max(0, s.chests | 0),
       chestAwarded: s.chestAwarded && typeof s.chestAwarded === 'object' ? s.chestAwarded : {},
+      levelChests: s.levelChests && typeof s.levelChests === 'object' ? s.levelChests : {},
       inventory: s.inventory && typeof s.inventory === 'object' ? s.inventory : {},
       equipped: s.equipped && typeof s.equipped === 'object' ? s.equipped : {}
     };
@@ -336,7 +337,10 @@ function applyXp(changes, ev) {
     if (!c.revoke && c.id && c.id.indexOf('car:') === 0 && window.PLLoot) window.PLLoot.award(c.id);
   }
   if (gained > 0) floatXp(gained, ev);
-  if (xpState.level > oldLevel) setTimeout(() => { playLevelUp(); showLevelUp(xpState.level); }, 280);
+  if (xpState.level > oldLevel) {
+    if (window.PLLoot && window.PLLoot.awardLevels) window.PLLoot.awardLevels(oldLevel, xpState.level);
+    setTimeout(() => { playLevelUp(); showLevelUp(xpState.level); }, 280);
+  }
 }
 function xpAnchor(ev) {
   if (ev && ev.clientX != null) return ev;

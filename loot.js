@@ -64,6 +64,7 @@ ITEMS.forEach(i => { ITEM_BY_ID[i.id] = i; });
 
 function lootEnsure() {
   if (!xpState.chestAwarded || typeof xpState.chestAwarded !== 'object') xpState.chestAwarded = {};
+  if (!xpState.levelChests || typeof xpState.levelChests !== 'object') xpState.levelChests = {};
   if (!xpState.inventory || typeof xpState.inventory !== 'object') xpState.inventory = {};
   if (!xpState.equipped || typeof xpState.equipped !== 'object') xpState.equipped = {};
   if (typeof xpState.chests !== 'number' || xpState.chests < 0) xpState.chests = 0;
@@ -161,7 +162,20 @@ function armorTrim(id) {
     'arm-night': '#4a4558'
   }[id] || '#1a1612';
 }
+function drawPeonBody() {
+  const robe = '#6a4a28', rag = '#4a3218', skin = '#c4a07a', wrap = '#5a3e24';
+  return s('rect', { x: 31, y: 76, width: 6, height: 26, rx: 1, fill: wrap, stroke: '#0a0806' }) +
+    s('rect', { x: 43, y: 76, width: 6, height: 26, rx: 1, fill: wrap, stroke: '#0a0806' }) +
+    s('rect', { x: 29, y: 100, width: 10, height: 6, rx: 1, fill: '#3a2a18', stroke: '#0a0806' }) +
+    s('rect', { x: 41, y: 100, width: 10, height: 6, rx: 1, fill: '#3a2a18', stroke: '#0a0806' }) +
+    s('path', { d: 'M30 38 L50 38 L55 78 L48 76 L44 80 L40 75 L36 80 L32 76 L25 78 Z', fill: robe, stroke: '#0a0806' }) +
+    s('path', { d: 'M36 50 L42 58 L34 62 Z', fill: rag, stroke: '#0a0806' }) +
+    s('rect', { x: 19, y: 42, width: 7, height: 24, rx: 2, fill: skin, stroke: '#0a0806' }) +
+    s('rect', { x: 54, y: 42, width: 7, height: 22, rx: 2, fill: skin, stroke: '#0a0806' }) +
+    s('rect', { x: 37, y: 32, width: 6, height: 8, fill: skin, stroke: '#0a0806' });
+}
 function drawBody(armorId) {
+  if (!armorId) return drawPeonBody();
   const c = armorColor(armorId);
   const t = armorTrim(armorId);
   const leg = '#2e2a26';
@@ -178,6 +192,7 @@ function drawBody(armorId) {
     s('rect', { x: 36, y: 30, width: 8, height: 7, fill: c, stroke: '#0a0806' });
 }
 function drawPauldrons(id) {
+  if (!id) return '';
   const c = id === 'paul-gilt' || id === 'paul-sun' ? '#c4a35a' : id === 'paul-bone' ? '#d8d0c0' : id === 'paul-spike' ? '#4a4540' : '#3a3530';
   const trim = id === 'paul-bone' ? '#d8d0c0' : id === 'paul-gilt' || id === 'paul-sun' ? '#e8c76a' : '#1a1612';
   let h = s('rect', { x: 10, y: 30, width: 18, height: 14, rx: 3, fill: c, stroke: '#0a0806' }) +
@@ -194,7 +209,22 @@ function drawPauldrons(id) {
   }
   return h;
 }
-function drawHelm(id) {
+function drawPeonHead(armored) {
+  const skin = '#c4a07a', hair = '#2a1a0c', hood = '#5a3e24';
+  let h = '';
+  if (!armored) {
+    h += s('path', { d: 'M26 28 Q24 12 40 8 Q56 12 54 28 L48 30 Q40 22 32 30 Z', fill: hood, stroke: '#0a0806' });
+  }
+  h += s('ellipse', { cx: 40, cy: 20, rx: 8, ry: 10, fill: skin, stroke: '#0a0806' });
+  h += s('path', { d: 'M33 14 Q36 6 40 8 Q44 6 47 14 Q42 10 40 11 Q38 10 33 14', fill: hair, stroke: '#0a0806' });
+  if (!armored) h += s('path', { d: 'M34 8 Q40 4 46 8', fill: hair, stroke: '#0a0806' });
+  h += s('circle', { cx: 37, cy: 20, r: 1.1, fill: '#1a0a08' }) +
+    s('circle', { cx: 43, cy: 20, r: 1.1, fill: '#1a0a08' }) +
+    s('path', { d: 'M38 25 Q40 26 42 25', fill: 'none', stroke: '#6a4030', 'stroke-width': 0.9 });
+  return h;
+}
+function drawHelm(id, armorId) {
+  if (!id) return drawPeonHead(!!armorId);
   const c = id === 'helm-mask' || id === 'helm-phoenix' ? '#c4a35a' : id === 'helm-skull' ? '#c8c0b0' : '#3a3530';
   let h = s('rect', { x: 28, y: 10, width: 24, height: 22, rx: 4, fill: c, stroke: '#0a0806' }) +
     s('rect', { x: 32, y: 18, width: 16, height: 4, fill: '#0a0806' });
@@ -214,14 +244,20 @@ function drawHelm(id) {
       s('circle', { cx: 44, cy: 19, r: 2.1, fill: '#0a0806' }) +
       s('path', { d: 'M36 25 H44', stroke: '#0a0806', 'stroke-width': 1.2 });
   }
-  if (id === 'helm-iron' || !id) {
+  if (id === 'helm-iron') {
     h += s('rect', { x: 30, y: 12, width: 20, height: 6, fill: '#2a2622' });
   }
   return h;
 }
 function drawWeapon(id) {
-  if (!id) return '';
   const right = 'translate(58,44)';
+  if (!id) {
+    return s('g', { transform: right },
+      s('rect', { x: 6, y: 2, width: 3, height: 30, rx: 0.5, fill: '#7a4a28', stroke: '#0a0806' }) +
+      s('path', { d: 'M4 2 L13 2 L12 8 L14 10 L8 14 L2 10 L4 8 Z', fill: '#8a5a30', stroke: '#0a0806' }) +
+      s('path', { d: 'M7 16 L9 20', stroke: '#4a2a14', 'stroke-width': 0.8 })
+    );
+  }
   if (id === 'wep-blade' || id === 'wep-rune') {
     const blade = id === 'wep-rune' ? '#b0c0d0' : '#8a8680';
     return s('g', { transform: right },
@@ -295,7 +331,7 @@ function heroSvg(eq, size) {
     drawPack(eq.pack) +
     drawBody(eq.armor) +
     drawPauldrons(eq.pauldrons) +
-    drawHelm(eq.helm) +
+    drawHelm(eq.helm, eq.armor) +
     drawWeapon(eq.weapon) +
     drawFamiliar(eq.pack)
   );
@@ -307,10 +343,15 @@ function miniItemSvg(item) {
   return heroSvg(eq, 72);
 }
 
+function rarityWeights() {
+  const boost = Math.min(15, Math.max(0, ((xpState && xpState.level) || 1) - 1));
+  const rest = 50;
+  return RARITY_WEIGHTS.map(([r, w]) => r === 'common' ? [r, 50 - boost] : [r, w + boost * (w / rest)]);
+}
 function rollItem() {
   const n = Math.random() * 100;
   let acc = 0, rarity = 'common';
-  for (const [r, w] of RARITY_WEIGHTS) { acc += w; if (n < acc) { rarity = r; break; } }
+  for (const [r, w] of rarityWeights()) { acc += w; if (n < acc) { rarity = r; break; } }
   const pool = ITEMS.filter(i => i.rarity === rarity);
   return (pool.length ? pool : ITEMS.filter(i => i.rarity === 'common'))[Math.floor(Math.random() * (pool.length || 1))];
 }
@@ -325,6 +366,21 @@ function obtainItem(item) {
   return was > 0;
 }
 
+function awardLevelChests(fromLevel, toLevel) {
+  lootEnsure();
+  let n = 0;
+  for (let L = (fromLevel | 0) + 1; L <= (toLevel | 0); L++) {
+    const key = String(L);
+    if (xpState.levelChests[key]) continue;
+    xpState.levelChests[key] = 1;
+    xpState.chests += 1;
+    n++;
+  }
+  if (!n) return;
+  lootSave();
+  renderDock();
+  showChestToast();
+}
 function awardChest(carKey) {
   lootEnsure();
   if (carKey && xpState.chestAwarded[carKey]) return;
@@ -482,4 +538,4 @@ function initLoot() {
   } catch (e) {}
 }
 
-window.PLLoot = { award: awardChest, init: initLoot, render: renderDock };
+window.PLLoot = { award: awardChest, awardLevels: awardLevelChests, init: initLoot, render: renderDock };
