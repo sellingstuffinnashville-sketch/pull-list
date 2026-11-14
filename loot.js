@@ -1,6 +1,11 @@
 // Reliquary chests + Armory. Original names and inline SVG only (no trademarked terms, no copied art).
 'use strict';
 
+const CLASSES = {
+  warrior: { name: 'Warrior', blurb: 'Plate and steel', slots: { helm: 'Helm', pauldrons: 'Pauldrons', armor: 'Armor', weapon: 'Weapon', pack: 'Pack', cape: 'Cape', base: 'Base' } },
+  shooter: { name: 'Shooter', blurb: 'Guns and carapace', slots: { helm: 'Helmet', pauldrons: 'Shoulders', armor: 'Armor', weapon: 'Gun', pack: 'Pack', cape: 'Coat', base: 'Base' } },
+  mage: { name: 'Mage', blurb: 'Staff and warp fire', slots: { helm: 'Hood', pauldrons: 'Mantle', armor: 'Robe', weapon: 'Staff', pack: 'Tome', cape: 'Cloak', base: 'Base' } }
+};
 const LOOT_SLOTS = [
   ['helm', 'Helm'],
   ['pauldrons', 'Pauldrons'],
@@ -40,16 +45,16 @@ const ITEMS = [
   { id: 'arm-gilt', slot: 'armor', name: 'Gilded Plate', rarity: 'relic' },
   { id: 'arm-halo', slot: 'armor', name: 'Gold-Halo Warplate', rarity: 'legendary' },
   { id: 'wep-blade', slot: 'weapon', name: 'Iron Combat Blade', rarity: 'common' },
-  { id: 'wep-rifle', slot: 'weapon', name: 'Heavy Slug Rifle', rarity: 'common' },
+  { id: 'wep-rifle', cls: 'shooter', slot: 'weapon', name: 'Heavy Slug Rifle', rarity: 'common' },
   { id: 'wep-axe', slot: 'weapon', name: 'Toothed Axe', rarity: 'uncommon' },
   { id: 'wep-maul', slot: 'weapon', name: 'Crackling Maul', rarity: 'uncommon' },
-  { id: 'wep-carbine', slot: 'weapon', name: 'Drum-Fed Carbine', rarity: 'uncommon' },
+  { id: 'wep-carbine', cls: 'shooter', slot: 'weapon', name: 'Drum-Fed Carbine', rarity: 'uncommon' },
   { id: 'wep-rune', slot: 'weapon', name: 'Rune-Tooth Blade', rarity: 'rare' },
-  { id: 'wep-sun', slot: 'weapon', name: 'Sunburst Pistol', rarity: 'rare' },
+  { id: 'wep-sun', cls: 'shooter', slot: 'weapon', name: 'Sunburst Pistol', rarity: 'rare' },
   { id: 'wep-glaive', slot: 'weapon', name: 'Burning Glaive', rarity: 'relic' },
-  { id: 'wep-slug', slot: 'weapon', name: 'Mass-Slug Cannon', rarity: 'relic' },
+  { id: 'wep-slug', cls: 'shooter', slot: 'weapon', name: 'Mass-Slug Cannon', rarity: 'relic' },
   { id: 'wep-storm', slot: 'weapon', name: 'Storm-Head Hammer', rarity: 'legendary' },
-  { id: 'wep-siege', slot: 'weapon', name: 'Siege Repeater', rarity: 'legendary' },
+  { id: 'wep-siege', cls: 'shooter', slot: 'weapon', name: 'Siege Repeater', rarity: 'legendary' },
   { id: 'pack-iron', slot: 'pack', name: 'Iron Supply Pack', rarity: 'common' },
   { id: 'pack-banner', slot: 'pack', name: 'Tattered Battle Banner', rarity: 'uncommon' },
   { id: 'pack-rack', slot: 'pack', name: 'Spiked Trophy Rack', rarity: 'uncommon' },
@@ -58,12 +63,72 @@ const ITEMS = [
   { id: 'cape-ash', slot: 'cape', name: 'Tattered Ash Cape', rarity: 'common' },
   { id: 'cape-crimson', slot: 'cape', name: 'Crimson Cape', rarity: 'uncommon' },
   { id: 'cape-night', slot: 'cape', name: 'Gold-Trimmed Night Cape', rarity: 'rare' },
-  { id: 'base-rubble', slot: 'base', name: 'Rubble Base', rarity: 'common' },
-  { id: 'base-gear', slot: 'base', name: 'Brass Gear Base', rarity: 'uncommon' },
-  { id: 'base-skulls', slot: 'base', name: 'Skull-Strewn Base', rarity: 'rare' }
+  { id: 'base-rubble', cls: 'all', slot: 'base', name: 'Rubble Base', rarity: 'common' },
+  { id: 'base-gear', cls: 'all', slot: 'base', name: 'Brass Gear Base', rarity: 'uncommon' },
+  { id: 'base-skulls', cls: 'all', slot: 'base', name: 'Skull-Strewn Base', rarity: 'rare' },
+  // Shooter pool (grimdark gunner); the guns above are his too
+  { id: 'wep-revolver', cls: 'shooter', slot: 'weapon', name: 'Heavy Revolver', rarity: 'common' },
+  { id: 'wep-boltc', cls: 'shooter', slot: 'weapon', name: 'Bolt Carbine', rarity: 'rare' },
+  { id: 'sh-helm-cap', cls: 'shooter', slot: 'helm', name: 'Field Cap', rarity: 'common' },
+  { id: 'sh-helm-flak', cls: 'shooter', slot: 'helm', name: 'Flak Helmet', rarity: 'common' },
+  { id: 'sh-helm-mask', cls: 'shooter', slot: 'helm', name: 'Rebreather Mask', rarity: 'uncommon' },
+  { id: 'sh-helm-visor', cls: 'shooter', slot: 'helm', name: 'Carapace Visor Helm', rarity: 'rare' },
+  { id: 'sh-helm-peak', cls: 'shooter', slot: 'helm', name: 'Officer\'s Peaked Cap', rarity: 'relic' },
+  { id: 'sh-helm-sun', cls: 'shooter', slot: 'helm', name: 'Sun-Warden Helm', rarity: 'legendary' },
+  { id: 'sh-paul-pad', cls: 'shooter', slot: 'pauldrons', name: 'Flak Pads', rarity: 'common' },
+  { id: 'sh-paul-plate', cls: 'shooter', slot: 'pauldrons', name: 'Carapace Shoulders', rarity: 'uncommon' },
+  { id: 'sh-paul-stripe', cls: 'shooter', slot: 'pauldrons', name: 'Marksman Plates', rarity: 'rare' },
+  { id: 'sh-paul-gilt', cls: 'shooter', slot: 'pauldrons', name: 'Gilded Epaulettes', rarity: 'relic' },
+  { id: 'sh-arm-flak', cls: 'shooter', slot: 'armor', name: 'Flak Vest', rarity: 'common' },
+  { id: 'sh-arm-quilt', cls: 'shooter', slot: 'armor', name: 'Padded Flak Coat', rarity: 'common' },
+  { id: 'sh-arm-carapace', cls: 'shooter', slot: 'armor', name: 'Carapace Armor', rarity: 'uncommon' },
+  { id: 'sh-arm-urban', cls: 'shooter', slot: 'armor', name: 'Urban Carapace', rarity: 'uncommon' },
+  { id: 'sh-arm-storm', cls: 'shooter', slot: 'armor', name: 'Storm Carapace', rarity: 'rare' },
+  { id: 'sh-arm-gilt', cls: 'shooter', slot: 'armor', name: 'Gilded Carapace', rarity: 'relic' },
+  { id: 'sh-arm-halo', cls: 'shooter', slot: 'armor', name: 'Sun-Warden Carapace', rarity: 'legendary' },
+  { id: 'sh-pack-ammo', cls: 'shooter', slot: 'pack', name: 'Ammo Satchel', rarity: 'common' },
+  { id: 'sh-pack-vox', cls: 'shooter', slot: 'pack', name: 'Vox Pack', rarity: 'uncommon' },
+  { id: 'sh-pack-rack', cls: 'shooter', slot: 'pack', name: 'Grenade Rack', rarity: 'rare' },
+  { id: 'sh-pack-drone', cls: 'shooter', slot: 'pack', name: 'Spotter Drone', rarity: 'relic' },
+  { id: 'sh-cape-coat', cls: 'shooter', slot: 'cape', name: 'Field Greatcoat', rarity: 'common' },
+  { id: 'sh-cape-camo', cls: 'shooter', slot: 'cape', name: 'Camo Cloak', rarity: 'uncommon' },
+  { id: 'sh-cape-officer', cls: 'shooter', slot: 'cape', name: 'Black Officer\'s Coat', rarity: 'rare' },
+  // Mage pool (hooded psychic caster)
+  { id: 'mg-helm-hood', cls: 'mage', slot: 'helm', name: 'Deep Hood', rarity: 'common' },
+  { id: 'mg-helm-cowl', cls: 'mage', slot: 'helm', name: 'Rune Cowl', rarity: 'uncommon' },
+  { id: 'mg-helm-circlet', cls: 'mage', slot: 'helm', name: 'Silver Circlet', rarity: 'uncommon' },
+  { id: 'mg-helm-crystal', cls: 'mage', slot: 'helm', name: 'Crystal-Spined Hood', rarity: 'rare' },
+  { id: 'mg-helm-mask', cls: 'mage', slot: 'helm', name: 'Seer\'s Silver Mask', rarity: 'relic' },
+  { id: 'mg-helm-crown', cls: 'mage', slot: 'helm', name: 'Crown of Warp Fire', rarity: 'legendary' },
+  { id: 'mg-paul-fur', cls: 'mage', slot: 'pauldrons', name: 'Fur Mantle', rarity: 'common' },
+  { id: 'mg-paul-bone', cls: 'mage', slot: 'pauldrons', name: 'Bone Mantle', rarity: 'uncommon' },
+  { id: 'mg-paul-crystal', cls: 'mage', slot: 'pauldrons', name: 'Crystal Spaulders', rarity: 'rare' },
+  { id: 'mg-paul-gilt', cls: 'mage', slot: 'pauldrons', name: 'Gilded Mantle', rarity: 'relic' },
+  { id: 'mg-arm-grey', cls: 'mage', slot: 'armor', name: 'Ash-Grey Robe', rarity: 'common' },
+  { id: 'mg-arm-blue', cls: 'mage', slot: 'armor', name: 'Novice Robe', rarity: 'common' },
+  { id: 'mg-arm-bone', cls: 'mage', slot: 'armor', name: 'Bone-Bead Robe', rarity: 'uncommon' },
+  { id: 'mg-arm-violet', cls: 'mage', slot: 'armor', name: 'Warp-Stitched Robe', rarity: 'uncommon' },
+  { id: 'mg-arm-crimson', cls: 'mage', slot: 'armor', name: 'Crimson Seer Robe', rarity: 'rare' },
+  { id: 'mg-arm-star', cls: 'mage', slot: 'armor', name: 'Star-Woven Robe', rarity: 'relic' },
+  { id: 'mg-arm-eye', cls: 'mage', slot: 'armor', name: 'Robe of the Golden Eye', rarity: 'legendary' },
+  { id: 'mg-wep-stick', cls: 'mage', slot: 'weapon', name: 'Gnarled Staff', rarity: 'common' },
+  { id: 'mg-wep-iron', cls: 'mage', slot: 'weapon', name: 'Iron Force Staff', rarity: 'common' },
+  { id: 'mg-wep-skull', cls: 'mage', slot: 'weapon', name: 'Skull-Topped Staff', rarity: 'uncommon' },
+  { id: 'mg-wep-orb', cls: 'mage', slot: 'weapon', name: 'Orb Staff', rarity: 'uncommon' },
+  { id: 'mg-wep-crystal', cls: 'mage', slot: 'weapon', name: 'Crystal Staff', rarity: 'rare' },
+  { id: 'mg-wep-sword', cls: 'mage', slot: 'weapon', name: 'Force Sword', rarity: 'rare' },
+  { id: 'mg-wep-eye', cls: 'mage', slot: 'weapon', name: 'Staff of the Open Eye', rarity: 'relic' },
+  { id: 'mg-wep-storm', cls: 'mage', slot: 'weapon', name: 'Warp-Storm Staff', rarity: 'legendary' },
+  { id: 'mg-pack-scrolls', cls: 'mage', slot: 'pack', name: 'Scroll Case', rarity: 'common' },
+  { id: 'mg-pack-candles', cls: 'mage', slot: 'pack', name: 'Candle Rack', rarity: 'uncommon' },
+  { id: 'mg-pack-tome', cls: 'mage', slot: 'pack', name: 'Chained Tome', rarity: 'rare' },
+  { id: 'mg-pack-grimoire', cls: 'mage', slot: 'pack', name: 'Floating Grimoire', rarity: 'relic' },
+  { id: 'mg-cape-grey', cls: 'mage', slot: 'cape', name: 'Wanderer\'s Cloak', rarity: 'common' },
+  { id: 'mg-cape-star', cls: 'mage', slot: 'cape', name: 'Star Cloak', rarity: 'uncommon' },
+  { id: 'mg-cape-void', cls: 'mage', slot: 'cape', name: 'Void-Black Cloak', rarity: 'rare' }
 ];
 const ITEM_BY_ID = {};
-ITEMS.forEach(i => { ITEM_BY_ID[i.id] = i; });
+ITEMS.forEach(i => { if (!i.cls) i.cls = 'warrior'; ITEM_BY_ID[i.id] = i; });
 
 function lootEnsure() {
   if (!xpState.chestAwarded || typeof xpState.chestAwarded !== 'object') xpState.chestAwarded = {};
@@ -71,6 +136,60 @@ function lootEnsure() {
   if (!xpState.inventory || typeof xpState.inventory !== 'object') xpState.inventory = {};
   if (!xpState.equipped || typeof xpState.equipped !== 'object') xpState.equipped = {};
   if (typeof xpState.chests !== 'number' || xpState.chests < 0) xpState.chests = 0;
+  if (!CLASSES[xpState.cls]) xpState.cls = 'warrior';
+  if (!xpState.classes || typeof xpState.classes !== 'object') xpState.classes = {};
+  if (!xpState.classesV) {
+    // one-time: guns now belong to the Shooter, so move any the Warrior found over to him
+    xpState.classesV = 1;
+    if (xpState.cls === 'warrior') {
+      const sh = xpState.classes.shooter || (xpState.classes.shooter = { inventory: {}, equipped: {} });
+      for (const id in xpState.inventory) {
+        const it = ITEM_BY_ID[id];
+        if (it && it.cls === 'shooter') {
+          sh.inventory[id] = (sh.inventory[id] || 0) + xpState.inventory[id];
+          delete xpState.inventory[id];
+          if (xpState.equipped.weapon === id) { delete xpState.equipped.weapon; if (!sh.equipped.weapon) sh.equipped.weapon = id; }
+        }
+      }
+    }
+  }
+}
+function curClass() { return (xpState && CLASSES[xpState.cls]) ? xpState.cls : 'warrior'; }
+function classItem(i, cls) { return i.cls === (cls || curClass()) || i.cls === 'all'; }
+function setClass(c) {
+  if (!CLASSES[c]) return;
+  lootEnsure();
+  const cur = curClass();
+  if (c === cur) return;
+  xpState.classes[cur] = { inventory: xpState.inventory, equipped: xpState.equipped };
+  const nx = xpState.classes[c] || { inventory: {}, equipped: {} };
+  xpState.inventory = nx.inventory || {};
+  xpState.equipped = nx.equipped || {};
+  delete xpState.classes[c];
+  xpState.cls = c;
+  lootSave();
+  renderDock();
+  try { document.dispatchEvent(new CustomEvent('pl-class')); } catch (e) {}
+}
+function classEquipped(c) {
+  if (c === curClass()) return xpState.equipped || {};
+  return ((xpState.classes || {})[c] || {}).equipped || {};
+}
+function classPickerHtml() {
+  lootEnsure();
+  return '<div class="classpick" role="radiogroup" aria-label="Class">' + Object.keys(CLASSES).map(c => {
+    const on = c === curClass();
+    return '<button type="button" role="radio" aria-checked="' + on + '" class="classbtn' + (on ? ' on' : '') + '" data-cls="' + c + '">' +
+      heroSvg(Object.assign({ _cls: c }, classEquipped(c)), 60, 'portrait') + '<b>' + CLASSES[c].name + '</b><small>' + CLASSES[c].blurb + '</small></button>';
+  }).join('') + '</div>';
+}
+function wireClassPicker(root) {
+  root.querySelectorAll('[data-cls]').forEach(b => b.onclick = () => {
+    setClass(b.dataset.cls);
+    const box = root.querySelector('.classpick');
+    if (box) box.outerHTML = classPickerHtml();
+    wireClassPicker(root);
+  });
 }
 function lootSave() {
   lootEnsure();
@@ -90,14 +209,17 @@ function bestRarity(eq) {
 // Hero and item art are pixel sprites drawn by px.js (PLPixel); these wrappers keep the old call sites.
 function heroSvg(eq, size, cropSlot) {
   eq = eq || (xpState && xpState.equipped) || {};
+  const portrait = cropSlot === 'portrait';
+  if (portrait) cropSlot = '';
+  if (!eq._cls) eq = Object.assign({ _cls: curClass() }, eq);
   const rare = bestRarity(eq);
   const src = window.PLPixel ? PLPixel.hero(eq, cropSlot ? 0 : rare.rank, cropSlot ? null : rare.color, cropSlot || '') : '';
-  const cls = 'hero-svg hero-px' + (cropSlot ? ' hero-ico' : '') + (!cropSlot && rare.rank >= 5 ? ' leg' : '') + (!cropSlot && rare.rank === 4 ? ' relic' : '');
+  const cls = 'hero-svg hero-px' + (cropSlot ? ' hero-ico' : '') + (portrait ? ' hero-portrait' : '') + (!cropSlot && rare.rank >= 5 ? ' leg' : '') + (!cropSlot && rare.rank === 4 ? ' relic' : '');
   return '<img class="' + cls + '" src="' + src + '" alt="" draggable="false"' + (size ? ' data-size="' + size + '"' : '') + '>';
 }
 
 function miniItemSvg(item) {
-  return heroSvg({ [item.slot]: item.id }, 88, item.slot);
+  return heroSvg({ _cls: item.cls === 'all' ? curClass() : item.cls, [item.slot]: item.id }, 88, item.slot);
 }
 
 function rarityWeights() {
@@ -109,8 +231,9 @@ function rollItem() {
   const n = Math.random() * 100;
   let acc = 0, rarity = 'common';
   for (const [r, w] of rarityWeights()) { acc += w; if (n < acc) { rarity = r; break; } }
-  const pool = ITEMS.filter(i => i.rarity === rarity);
-  return (pool.length ? pool : ITEMS.filter(i => i.rarity === 'common'))[Math.floor(Math.random() * (pool.length || 1))];
+  let pool = ITEMS.filter(i => i.rarity === rarity && classItem(i));
+  if (!pool.length) pool = ITEMS.filter(i => i.rarity === 'common' && classItem(i));
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function obtainItem(item) {
@@ -251,12 +374,13 @@ function openArmory() {
       const st = PLBattle.stats(xpState.equipped, xpState.level), k = PLBattle.kills();
       $('#armstats').innerHTML = '<span>ATK <b>' + st.atk + '</b></span><span>ARM <b>' + st.arm + '</b></span><span>HP <b>' + st.hp + '</b></span><span>Kills <b>' + k.kills + '</b></span>' + (k.elites ? '<span>Elites <b>' + k.elites + '</b></span>' : '');
     }
-    $('#armslots').innerHTML = LOOT_SLOTS.map(([id, lab]) => {
+    $('#armslots').innerHTML = LOOT_SLOTS.map(([id, lab0]) => {
+      const lab = CLASSES[curClass()].slots[id] || lab0;
       const on = slot === id ? ' on' : '';
       const eq = ITEM_BY_ID[xpState.equipped[id]];
       return '<button type="button" class="armslot' + on + '" data-slot="' + id + '">' + lab + (eq ? '<small>' + esc(eq.name) + '</small>' : '<small>Empty</small>') + '</button>';
     }).join('');
-    const owned = ITEMS.filter(i => i.slot === slot && (xpState.inventory[i.id] || 0) > 0);
+    const owned = ITEMS.filter(i => i.slot === slot && classItem(i) && (xpState.inventory[i.id] || 0) > 0);
     $('#armlist').innerHTML = owned.length ? owned.map(i => {
       const rar = RARITY[i.rarity];
       const n = xpState.inventory[i.id] || 0;
@@ -292,4 +416,4 @@ function initLoot() {
   } catch (e) {}
 }
 
-window.PLLoot = { award: awardChest, awardLevels: awardLevelChests, init: initLoot, render: renderDock, svg: heroSvg };
+window.PLLoot = { award: awardChest, awardLevels: awardLevelChests, init: initLoot, render: renderDock, svg: heroSvg, setClass: setClass, cls: curClass, picker: classPickerHtml, wirePicker: wireClassPicker };

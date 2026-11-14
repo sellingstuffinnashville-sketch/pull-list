@@ -183,3 +183,10 @@ header h1{text-shadow:0 1px 2px #000,0 0 8px #000}
 .battle-on main{padding-bottom:calc(var(--strip-h,0px) + 90px)}
 .armstats{display:flex;justify-content:center;flex-wrap:wrap;gap:6px 14px;margin:-4px 0 10px;font:700 12px system-ui,sans-serif;color:var(--dim);letter-spacing:.3px}
 .armstats b{color:var(--gold2);font:800 14px Cinzel,Georgia,serif}
+.classpick{display:flex;gap:8px;margin:2px 0 12px}
+.classbtn{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px 8px;border:1px solid var(--line);border-radius:10px;background:#0c0a08cc;color:var(--txt)}
+.classbtn .hero-portrait{width:60px;height:80px;image-rendering:pixelated;image-rendering:crisp-edges}
+.classbtn b{font:800 14px Cinzel,Georgia,serif;color:var(--gold2)}
+.classbtn small{font:700 10px system-ui,sans-serif;color:var(--dim);text-align:center}
+.classbtn.on{border-color:var(--gold);box-shadow:0 0 12px #e8c76a44 inset,0 0 10px #e8c76a33}
+.classbtn:not(.on){opacity:.72}

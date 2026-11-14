@@ -354,7 +354,7 @@ function carAllGot(car, st, override) {
 
 // ---------- XP / levels (local only: the server sync is per-scan and won't take a lifetime key) ----------
 const XP_KEY = 'pl_xp';
-function defaultXp() { return { xp: 0, level: 1, grants: {}, pulled: 0, net: 0, chests: 0, chestAwarded: {}, levelChests: {}, inventory: {}, equipped: {} }; }
+function defaultXp() { return { xp: 0, level: 1, grants: {}, pulled: 0, net: 0, chests: 0, chestAwarded: {}, levelChests: {}, inventory: {}, equipped: {}, cls: 'warrior', classes: {} }; }
 function loadXp() {
   try {
     const s = JSON.parse(localStorage.getItem(XP_KEY) || '');
@@ -369,7 +369,10 @@ function loadXp() {
       chestAwarded: s.chestAwarded && typeof s.chestAwarded === 'object' ? s.chestAwarded : {},
       levelChests: s.levelChests && typeof s.levelChests === 'object' ? s.levelChests : {},
       inventory: s.inventory && typeof s.inventory === 'object' ? s.inventory : {},
-      equipped: s.equipped && typeof s.equipped === 'object' ? s.equipped : {}
+      equipped: s.equipped && typeof s.equipped === 'object' ? s.equipped : {},
+      cls: ['warrior', 'shooter', 'mage'].includes(s.cls) ? s.cls : 'warrior',
+      classes: s.classes && typeof s.classes === 'object' ? s.classes : {},
+      classesV: s.classesV | 0
     };
   } catch { return defaultXp(); }
 }
@@ -742,10 +745,11 @@ async function showHome() {
   try { idx = (await api('listScans')).scans; await kvSet('index', idx); }
   catch (e) { if (e.login) return showLogin(); idx = await kvGet('index') || []; }
   const stats = `Level ${xpState.level} · ${xpState.xp} XP · ${xpState.pulled} parts pulled · est. net ${money(xpState.net)}`;
-  main.innerHTML = `<p class="xpstats">${stats}</p><p class="small">Newest first. Tap a scan to open it.</p>` + (idx.length ? idx.map(s =>
+  main.innerHTML = `<p class="xpstats">${stats}</p>${window.PLLoot ? window.PLLoot.picker() : ''}<p class="small">Newest first. Tap a scan to open it.</p>` + (idx.length ? idx.map(s =>
     `<button class="scanitem" data-d="${esc(s.date)}"><b>${esc(s.date)}</b>${esc(s.label)}<br><span class="small">${s.cars} cars · ${s.parts} parts</span></button>`).join('')
     : '<p>No scans yet.</p>');
   main.querySelectorAll('.scanitem').forEach(b => b.onclick = () => openScan(b.dataset.d));
+  if (window.PLLoot) window.PLLoot.wirePicker(main);
 }
 async function openScan(d) {
   date = d;
