@@ -21,6 +21,7 @@ function unlockAudio() {
     master.connect(actx.destination);
   }
   if (actx.state === 'suspended') actx.resume();
+  if (typeof startBgm === 'function') startBgm();
 }
 ['pointerdown', 'touchstart', 'click', 'keydown'].forEach(ev =>
   document.addEventListener(ev, unlockAudio, { capture: true }));
@@ -104,6 +105,126 @@ function playLevelUp() {
     tone('sine', freq * 2, t + delay, dur * 0.65, vol * 0.22, freq * 2.03);
   });
 }
+const BGM_KEY = 'pl_bgm';
+let BGM = localStorage.getItem(BGM_KEY) === '1'; // off by default
+let bgmGain, bgmTimer, bgmNodes = [], bgmNext = 0, bgmBar = 0;
+
+function syncBgmBtn() {
+  const b = $('#bgm');
+  if (!b) return;
+  b.textContent = BGM ? '♪' : '♪';
+  b.setAttribute('aria-label', BGM ? 'Music on' : 'Music off');
+  b.classList.toggle('off', !BGM);
+}
+function stopBgm() {
+  if (bgmTimer) { clearTimeout(bgmTimer); bgmTimer = null; }
+  (bgmNodes || []).forEach(n => { try { if (n.stop) n.stop(); n.disconnect(); } catch (e) {} });
+  bgmNodes = [];
+  if (bgmGain) { try { bgmGain.disconnect(); } catch (e) {} bgmGain = null; }
+}
+function startBgm() {
+  if (!BGM || document.hidden) return;
+  if (!actx) return;
+  if (bgmGain) return;
+  if (actx.state === 'suspended') actx.resume();
+  bgmGain = actx.createGain();
+  bgmGain.gain.value = 0.07; // stay under the SFX bus
+  bgmGain.connect(actx.destination);
+  // Drone in D Dorian (D, A, F)
+  [[73.42, 0.35], [110, 0.22], [87.31, 0.12]].forEach(([freq, vol]) => {
+    const o = actx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = freq;
+    const g = actx.createGain();
+    g.gain.value = vol;
+    o.connect(g).connect(bgmGain);
+    o.start();
+    bgmNodes.push(o, g);
+  });
+  // Soft crowd murmur: looping filtered noise
+  const nlen = Math.ceil(2 * actx.sampleRate);
+  const nb = actx.createBuffer(1, nlen, actx.sampleRate);
+  const nd = nb.getChannelData(0);
+  let v = 0;
+  for (let i = 0; i < nlen; i++) { v = v * 0.98 + (Math.random() * 2 - 1) * 0.02; nd[i] = v; }
+  const crowd = actx.createBufferSource();
+  crowd.buffer = nb;
+  crowd.loop = true;
+  const cf = actx.createBiquadFilter();
+  cf.type = 'lowpass';
+  cf.frequency.value = 700;
+  const cg = actx.createGain();
+  cg.gain.value = 0.22;
+  crowd.connect(cf).connect(cg).connect(bgmGain);
+  crowd.start();
+  bgmNodes.push(crowd, cf, cg);
+  bgmNext = actx.currentTime + 0.05;
+  bgmBar = 0;
+  schedBgm();
+}
+function pluckAt(freq, t, dur, vol) {
+  [1, 2, 3.02, 4.05].forEach((h, i) => {
+    const o = actx.createOscillator();
+    o.type = i ? 'sine' : 'triangle';
+    o.frequency.setValueAtTime(freq * h, t);
+    const g = actx.createGain();
+    const v = vol * (i ? 0.22 / i : 1);
+    g.gain.setValueAtTime(v, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur * (i ? 0.45 : 1));
+    o.connect(g).connect(bgmGain);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  });
+}
+function drumAt(t, lo) {
+  const src = actx.createBufferSource();
+  src.buffer = noiseBuf();
+  const f = actx.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.setValueAtTime(lo ? 180 : 700, t);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(lo ? 0.28 : 0.1, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + (lo ? 0.12 : 0.05));
+  src.connect(f).connect(g).connect(bgmGain);
+  src.start(t);
+  src.stop(t + 0.15);
+}
+// Original 8-bar D Dorian lute phrase (not a known tune). Values are [eighths from loop start, Hz, eighths long].
+const BGM_TUNE = [
+  [0, 293.66, 2], [2, 349.23, 2], [4, 392.00, 2], [6, 440.00, 2],
+  [8, 392.00, 2], [10, 349.23, 2], [12, 329.63, 2], [14, 293.66, 2],
+  [16, 349.23, 2], [18, 440.00, 2], [20, 523.25, 2], [22, 440.00, 2],
+  [24, 392.00, 2], [26, 349.23, 2], [28, 293.66, 4],
+  [32, 220.00, 2], [34, 293.66, 2], [36, 349.23, 2], [38, 329.63, 2],
+  [40, 349.23, 2], [42, 392.00, 2], [44, 440.00, 2], [46, 392.00, 2],
+  [48, 349.23, 2], [50, 329.63, 2], [52, 293.66, 2], [54, 261.63, 2],
+  [56, 293.66, 4], [60, 220.00, 2], [62, 293.66, 2]
+];
+const BGM_BEAT = 60 / 86; // ~86 BPM, eighth = BGM_BEAT/2
+const BGM_EIGHTH = BGM_BEAT / 2;
+const BGM_LOOP = 64 * BGM_EIGHTH;
+function schedBgm() {
+  if (!BGM || !bgmGain || !actx || document.hidden) return;
+  const now = actx.currentTime;
+  const horizon = now + 1.25;
+  while (bgmNext < horizon) {
+    const t = bgmNext;
+    const i = bgmBar % 64;
+    BGM_TUNE.forEach(([step, freq, len]) => {
+      if (step === i) pluckAt(freq, t, len * BGM_EIGHTH * 0.95, 0.22);
+    });
+    if (i % 4 === 0) drumAt(t, true);
+    else if (i % 4 === 2) drumAt(t, false);
+    bgmBar++;
+    bgmNext += BGM_EIGHTH;
+  }
+  bgmTimer = setTimeout(schedBgm, 350);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopBgm();
+  else if (BGM && actx) startBgm();
+});
+
 function syncSfxBtn() {
   const b = $('#sfx');
   if (!b) return;
@@ -132,7 +253,7 @@ function carAllGot(car, st, override) {
 
 // ---------- XP / levels (local only: the server sync is per-scan and won't take a lifetime key) ----------
 const XP_KEY = 'pl_xp';
-function defaultXp() { return { xp: 0, level: 1, grants: {}, pulled: 0, net: 0 }; }
+function defaultXp() { return { xp: 0, level: 1, grants: {}, pulled: 0, net: 0, chests: 0, chestAwarded: {}, inventory: {}, equipped: {} }; }
 function loadXp() {
   try {
     const s = JSON.parse(localStorage.getItem(XP_KEY) || '');
@@ -142,7 +263,11 @@ function loadXp() {
       level: Math.max(1, s.level | 0),
       grants: s.grants && typeof s.grants === 'object' ? s.grants : {},
       pulled: Math.max(0, s.pulled | 0),
-      net: Math.max(0, s.net | 0)
+      net: Math.max(0, s.net | 0),
+      chests: Math.max(0, s.chests | 0),
+      chestAwarded: s.chestAwarded && typeof s.chestAwarded === 'object' ? s.chestAwarded : {},
+      inventory: s.inventory && typeof s.inventory === 'object' ? s.inventory : {},
+      equipped: s.equipped && typeof s.equipped === 'object' ? s.equipped : {}
     };
   } catch { return defaultXp(); }
 }
@@ -195,6 +320,7 @@ function revokeSilent(id) {
   xpState.net = Math.max(0, xpState.net - (rec.net || 0));
   return amount;
 }
+function persistXp() { localStorage.setItem(XP_KEY, JSON.stringify(xpState)); }
 function applyXp(changes, ev) {
   if (!changes || !changes.length) return;
   const oldLevel = xpState.level;
@@ -204,8 +330,11 @@ function applyXp(changes, ev) {
     else gained += grantSilent(c.id, c.amount, c.extras);
   }
   xpState.level = levelFromXp(xpState.xp);
-  localStorage.setItem(XP_KEY, JSON.stringify(xpState));
+  persistXp();
   renderXpBar();
+  for (const c of changes) {
+    if (!c.revoke && c.id && c.id.indexOf('car:') === 0 && window.PLLoot) window.PLLoot.award(c.id);
+  }
   if (gained > 0) floatXp(gained, ev);
   if (xpState.level > oldLevel) setTimeout(() => { playLevelUp(); showLevelUp(xpState.level); }, 280);
 }
@@ -681,6 +810,18 @@ if (sfxBtn) {
     if (SFX) playClink();
   };
 }
+const bgmBtn = $('#bgm');
+if (bgmBtn) {
+  syncBgmBtn();
+  bgmBtn.onclick = () => {
+    BGM = !BGM;
+    localStorage.setItem(BGM_KEY, BGM ? '1' : '0');
+    syncBgmBtn();
+    unlockAudio();
+    if (BGM) startBgm();
+    else stopBgm();
+  };
+}
 async function start() {
   if (!TOKEN) return showLogin(navigator.onLine ? '' : 'Needs signal the first time.');
   if (navigator.onLine) {
@@ -688,6 +829,7 @@ async function start() {
   }
   if (!DEV) return showWho();
   renderXpBar();
+  if (window.PLLoot) window.PLLoot.init();
   showHome(); upload();
 }
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

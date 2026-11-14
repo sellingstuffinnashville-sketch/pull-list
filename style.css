@@ -6,7 +6,7 @@ header h1{font-size:20px;margin:0;white-space:nowrap;overflow:hidden;text-overfl
 .hdrbtn{background:#ffd400;color:#000;border:0;font-weight:800;font-size:17px;padding:10px 12px;border-radius:8px;min-height:44px}
 .pill{font-size:14px;font-weight:700;padding:4px 8px;border-radius:99px;background:#444}
 .pill.ok{background:#1b7f2a}.pill.wait{background:#b35c00}.pill.off{background:#a00}
-main{max-width:720px;margin:0 auto;padding:10px 10px 90px}
+main{max-width:720px;margin:0 auto;padding:10px 10px 210px}
 button{font:inherit;cursor:pointer}
 .big{display:block;width:100%;min-height:56px;font-size:20px;font-weight:800;border:3px solid #000;border-radius:10px;background:#ffd400;color:#000;margin:8px 0}
 .scanitem{display:block;width:100%;text-align:left;border:3px solid #000;border-radius:12px;background:#fff;padding:14px;margin:10px 0;min-height:72px}
@@ -68,7 +68,7 @@ button{font:inherit;cursor:pointer}
 .refover img{max-width:100%;max-height:80vh;object-fit:contain;background:#111}
 .refover button{min-height:52px;margin-top:12px;padding:0 24px;border:2px solid #fff;border-radius:10px;background:#fff;font-weight:800;font-size:17px}
 
-/* ===== Grimdark theme (Diablo II / 40k) ===== */
+/* ===== Grimdark theme ===== */
 @font-face{font-family:'Cinzel';font-weight:700 900;font-display:swap;src:url(fonts/cinzel.woff2) format('woff2')}
 :root{--bg:#050403;--card:#100e0c;--card2:#0b0a09;--line:#3a2c16;--gold:#8a6e34;--gold2:#c4a35a;--blood:#6e1414;--txt:#eee6d6;--dim:#a89878;--ok:#2a5528}
 html,body{background-color:var(--bg);color:var(--txt);
@@ -132,3 +132,38 @@ header h1{text-shadow:0 1px 2px #000,0 0 8px #000}
 .xpfloat.go{transform:translate(-50%,-64px);opacity:0}
 .lvlup{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,.6),transparent 70%)}
 .lvlup b{font-family:Cinzel,Georgia,serif;font-weight:800;font-size:28px;letter-spacing:2px;color:var(--gold2);text-align:center;text-shadow:0 0 10px #e8c76a,0 0 28px #8a6e34,0 0 4px #fff,0 2px 0 #000}
+.herodock{position:fixed;right:10px;bottom:max(12px,env(safe-area-inset-bottom));z-index:8;display:flex;flex-direction:column;align-items:flex-end;gap:6px;pointer-events:none}
+.herodock button{pointer-events:auto}
+.chestbtn{position:relative;min-height:44px;padding:0 12px;border:1px solid var(--gold);border-radius:8px;background:#0c0a08;color:var(--gold2);font:800 12px Cinzel,Georgia,serif;letter-spacing:.4px}
+.chestbadge{display:inline-block;min-width:18px;margin-left:6px;padding:0 5px;border-radius:99px;background:var(--blood);color:var(--gold2);font:800 12px system-ui,sans-serif}
+.herobtn{width:90px;height:122px;padding:0;border:0;background:transparent;filter:drop-shadow(0 2px 6px #000)}
+.herobtn .hero-svg{display:block}
+.chesttoast{position:fixed;left:50%;bottom:150px;z-index:40;transform:translate(-50%,8px);font:800 16px Cinzel,Georgia,serif;color:var(--gold2);text-shadow:0 0 8px #000,0 0 8px var(--gold);pointer-events:none;opacity:0;transition:transform .4s ease,opacity .4s ease}
+.chesttoast.go{transform:translate(-50%,0);opacity:1}
+.chestover{position:fixed;inset:0;z-index:46;background:#000c;display:flex;align-items:center;justify-content:center;padding:16px}
+.cheststage{position:relative;width:180px;height:160px}
+.chest-lid{transition:transform .55s ease}
+.chest-lid.open{transform:translateY(-16px) rotate(-22deg)}
+.chest-glow{animation:chestglow .6s ease forwards}
+@keyframes chestglow{from{opacity:0}to{opacity:1}}
+.chest-sparks{position:absolute;inset:0;pointer-events:none}
+.chest-sparks i{position:absolute;left:50%;top:45%;width:5px;height:5px;margin:-2px;border-radius:50%;background:var(--gold2);box-shadow:0 0 6px var(--gold2);opacity:1;animation:chestspark .8s ease-out forwards}
+@keyframes chestspark{to{transform:translate(var(--dx),var(--dy));opacity:0}}
+.chestreveal{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:16px;background:var(--card);border:1px solid var(--rar,var(--gold));border-radius:12px;box-shadow:0 0 24px var(--rar,var(--gold));min-width:220px}
+.chestreveal b{font-family:Cinzel,Georgia,serif;font-size:20px;color:var(--gold2)}
+.rartag{display:block;font:800 13px system-ui,sans-serif;letter-spacing:.4px;margin-top:2px}
+.armory{position:fixed;inset:0;z-index:45;background:#000c;display:flex;align-items:flex-end;justify-content:center}
+.armbox{background:var(--card);color:var(--txt);width:100%;max-width:720px;max-height:92vh;overflow:auto;border-top:1px solid var(--gold);border-radius:16px 16px 0 0;padding:10px 12px 24px}
+.armhd{display:flex;align-items:center;gap:8px;position:sticky;top:0;background:var(--card);z-index:1;padding:4px 0 8px}
+.armhd h2{flex:1;margin:0;font:800 22px Cinzel,Georgia,serif;color:var(--gold2)}
+.armprev{display:flex;justify-content:center;padding:6px 0 10px}
+.armslots{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.armslot{flex:1 1 28%;min-height:48px;text-align:left;border:1px solid var(--line);border-radius:8px;background:#0c0a08;color:var(--txt);font:800 13px Cinzel,Georgia,serif;padding:6px 8px}
+.armslot small{display:block;font:700 11px system-ui,sans-serif;color:var(--dim);letter-spacing:0}
+.armslot.on{border-color:var(--gold);color:var(--gold2)}
+.armitem{display:flex;align-items:center;gap:8px;padding:8px;margin:6px 0;border:1px solid var(--line);border-radius:10px;background:var(--card2);box-shadow:inset 0 0 0 1px var(--rar,#0000)}
+.armitem.on{border-color:var(--rar,var(--gold))}
+.armico{flex:0 0 56px;height:72px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.armico .hero-svg{width:56px;height:75px}
+.armitem b{display:block;font:800 15px Cinzel,Georgia,serif;color:var(--gold2)}
+.armitem button{min-height:44px;margin-left:auto;padding:0 12px;border:1px solid var(--gold);border-radius:8px;background:#0c0a08;color:var(--gold2);font:800 14px system-ui,sans-serif}
