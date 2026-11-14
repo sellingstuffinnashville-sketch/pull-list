@@ -122,7 +122,7 @@ header h1{text-shadow:0 1px 2px #000,0 0 8px #000}
 .xpfloat.go{transform:translate(-50%,-64px);opacity:0}
 .lvlup{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,.6),transparent 70%)}
 .lvlup b{font-family:Cinzel,Georgia,serif;font-weight:800;font-size:28px;letter-spacing:2px;color:var(--gold2);text-align:center;text-shadow:0 0 10px #e8c76a,0 0 28px #8a6e34,0 0 4px #fff,0 2px 0 #000}
-.herodock{position:fixed;right:4px;bottom:max(6px,env(safe-area-inset-bottom));z-index:8;display:flex;flex-direction:column;align-items:flex-end;gap:6px;pointer-events:none}
+.herodock{position:fixed;right:4px;bottom:calc(var(--strip-h,0px) + max(6px,env(safe-area-inset-bottom)));z-index:8;display:flex;flex-direction:column;align-items:flex-end;gap:6px;pointer-events:none}
 .herodock button{pointer-events:auto}
 .chestbtn{position:relative;min-height:44px;padding:0 12px;border:1px solid var(--gold);border-radius:8px;background:#0c0a08;color:var(--gold2);font:800 12px Cinzel,Georgia,serif;letter-spacing:.4px}
 .chestbadge{display:inline-block;min-width:18px;margin-left:6px;padding:0 5px;border-radius:99px;background:var(--blood);color:var(--gold2);font:800 12px system-ui,sans-serif}
@@ -176,3 +176,10 @@ header h1{text-shadow:0 1px 2px #000,0 0 8px #000}
 .cave-img{display:block;width:100%;height:100%;object-fit:fill;image-rendering:pixelated;image-rendering:crisp-edges}
 #cavecanvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
 @media (prefers-reduced-motion:reduce){#cavecanvas{display:none} .herobtn .hero-svg,.herobtn::before,.cheststage .chest-px{animation:none!important}}
+
+.battlestrip{position:fixed;left:0;right:0;bottom:0;z-index:7;overflow:hidden;padding-bottom:env(safe-area-inset-bottom);background:linear-gradient(#0000,#0000 6%,#0e0a09 14%,#1a120c);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.battlecv{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+.battlekills{position:absolute;right:8px;top:8px;font:800 11px Cinzel,Georgia,serif;color:var(--gold2);text-shadow:0 1px 2px #000,0 0 4px #000;pointer-events:none;opacity:.85}
+.battle-on main{padding-bottom:calc(var(--strip-h,0px) + 90px)}
+.armstats{display:flex;justify-content:center;flex-wrap:wrap;gap:6px 14px;margin:-4px 0 10px;font:700 12px system-ui,sans-serif;color:var(--dim);letter-spacing:.3px}
+.armstats b{color:var(--gold2);font:800 14px Cinzel,Georgia,serif}

@@ -27,12 +27,17 @@
     leaf: ['#0b1707', '#18300f', '#2b541a', '#46842c', '#76b448'],
     stone: ['#121110', '#26221d', '#3e382f', '#5a5248', '#786e62'],
     soil: ['#0e0a07', '#1e1610', '#30241a', '#463626', '#5c4834'],
-    plume: ['#1a0303', '#420808', '#741010', '#a81c18', '#d84030']
+    plume: ['#1a0303', '#420808', '#741010', '#a81c18', '#d84030'],
+    flesh: ['#141a12', '#2c3626', '#4a5a3e', '#6e8058', '#98a87a'],
+    sick: ['#0e1406', '#22300c', '#3e5414', '#62801e', '#9ab83a'],
+    demon: ['#1a0604', '#40100a', '#701c10', '#a02e18', '#d05028'],
+    fur: ['#120c0a', '#2a201a', '#463628', '#62503c', '#7e6a52'],
+    glass: ['#2a0606', '#6a0e0e', '#b01c1c', '#e04040', '#ffa0a0']
   };
   const FLAT = {
     void: [10, 6, 5, 255], glowY: [255, 240, 170, 255], glowC: [190, 246, 255, 255], glowR: [255, 110, 60, 255],
     ember: [255, 170, 60, 255], white: [255, 250, 230, 255], shadow: [0, 0, 0, 120], smoke: [150, 140, 130, 120],
-    fire: [255, 120, 30, 255]
+    fire: [255, 120, 30, 255], glowG: [170, 255, 120, 255], glowP: [210, 150, 255, 255]
   };
   const NONSOLID = { shadow: 1, smoke: 1 };
   const OUTLINE = [12, 7, 5, 255];
@@ -544,13 +549,44 @@
       }
       return;
     }
+    // shooters point toward the enemy (right) and get chunkier with rarity
     if (id === 'wep-rifle') {
-      S.P(); S.rect(ax - 1, ay + 3, 4, 7, 'wood');
-      S.P({ shine: true }); S.rect(ax - 1, ay - 16, 5, 19, 'iron');
-      S.P(); S.rect(ax, ay - 24, 2, 8, 'steel'); S.P({ flat: true, nocs: true }); S.px(ax, ay - 24, 'void'); S.px(ax + 1, ay - 24, 'void');
-      S.P(); S.rect(ax + 4, ay - 9, 3, 6, 'iron', -1);
-      S.P(); S.rect(ax - 2, ay - 14, 2, 4, 'iron', 1);
-      rivet(S, ax, ay - 12); rivet(S, ax, ay - 4);
+      S.P(); S.poly([[ax - 5, ay - 3], [ax, ay - 3], [ax, ay], [ax - 5, ay + 2]], 'wood');
+      S.P({ shine: true }); S.rect(ax, ay - 4, 9, 3, 'iron');
+      S.P(); S.rect(ax + 9, ay - 3, 5, 1, 'steel');
+      S.P(); S.rect(ax + 3, ay - 1, 2, 4, 'iron', -1);
+      S.P({ flat: true, nocs: true }); S.px(ax + 7, ay - 5, 'iron', 3);
+      return;
+    }
+    if (id === 'wep-carbine') {
+      S.P(); S.rect(ax - 4, ay - 3, 4, 3, 'wood');
+      S.P({ shine: true }); S.rect(ax, ay - 5, 10, 4, 'iron');
+      S.P({ shine: true }); S.ell(ax + 4, ay + 1.5, 2.6, 2.6, 'brass');
+      S.P(); S.rect(ax + 10, ay - 4, 4, 2, 'steel'); S.P({ flat: true, nocs: true }); S.px(ax + 13, ay - 4, 'void'); S.px(ax + 13, ay - 3, 'void');
+      S.P({ flat: true, nocs: true }); S.rect(ax + 1, ay - 4, 7, 1, 'iron', 3); S.px(ax + 9, ay - 6, 'iron', 3);
+      return;
+    }
+    if (id === 'wep-slug') {
+      S.P(); S.rect(ax - 5, ay - 4, 5, 4, 'iron', -1);
+      S.P({ shine: true }); S.rect(ax, ay - 7, 10, 7, 'iron');
+      S.P({ nocs: true }); S.rect(ax, ay - 7, 10, 1, 'gold'); S.rect(ax, ay - 1, 10, 1, 'gold', -1);
+      S.P({ shine: true }); S.rect(ax + 10, ay - 6, 4, 4, 'steel');
+      S.P({ flat: true, nocs: true }); S.px(ax + 13, ay - 5, 'void'); S.px(ax + 13, ay - 4, 'void'); S.px(ax + 11, ay - 6, 'void'); S.px(ax + 11, ay - 3, 'void');
+      S.P(); S.rect(ax + 2, ay, 4, 4, 'crimson');
+      S.P({ flat: true, nocs: true }); S.px(ax + 3, ay - 5, 'ember'); S.px(ax + 5, ay - 5, 'ember'); S.px(ax + 7, ay - 5, 'ember');
+      S.glow(ax + 5, ay - 5, 4, 'ember', 0.35);
+      return;
+    }
+    if (id === 'wep-siege') {
+      S.P({ flat: true }); for (let k = 0; k < 5; k++) S.px(ax - 3 - k, ay + 1 + (k & 1), 'brass', 3 - (k & 1));
+      S.P(); S.rect(ax - 5, ay - 5, 5, 5, 'gold', -1);
+      S.P({ shine: true }); S.rect(ax, ay - 9, 10, 9, 'iron');
+      S.P({ nocs: true }); S.rect(ax, ay - 9, 10, 1, 'gold'); S.rect(ax, ay - 1, 10, 1, 'gold'); S.rect(ax + 9, ay - 9, 1, 9, 'gold');
+      S.P({ shine: true }); S.rect(ax + 10, ay - 8, 4, 3, 'steel'); S.P({ shine: true }); S.rect(ax + 10, ay - 4, 4, 3, 'steel');
+      S.P({ flat: true, nocs: true }); S.px(ax + 13, ay - 7, 'glowY'); S.px(ax + 13, ay - 3, 'glowY');
+      skull(S, ax + 4.5, ay - 5.5, 'glowR');
+      seal(S, ax + 6, ay);
+      S.glow(ax + 13.5, ay - 5, 4, 'glowY', 0.5);
       return;
     }
     if (id === 'wep-axe') {
@@ -619,10 +655,12 @@
     }
   }
 
-  function heroSprite(eq, rank, color, only) {
+  function heroSprite(eq, rank, color, only, pose) {
     const S = new Spr(48, 64);
     const armored = !!ARMOR[eq.armor];
-    const ax = armored ? 34 : 32, ay = armored ? 37 : 35, sy = armored ? 18 : 21;
+    let ax = armored ? 34 : 32, ay = armored ? 37 : 35;
+    const sy = armored ? 18 : 21;
+    if (pose === 'raise') { ax += 1; ay -= 7; }
     if (only) {
       if (only === 'base') drawBase(S, eq.base);
       else if (only === 'cape') drawCape(S, eq.cape, 18);
@@ -708,7 +746,7 @@
     return S;
   }
 
-  const cache = new Map();
+  const cache = new Map(), ccache = new Map();
   function url(key, make, crop) {
     let u = cache.get(key);
     if (!u) {
@@ -723,6 +761,14 @@
       return url('h|' + JSON.stringify(eq) + '|' + rank + '|' + color + '|' + (only || ''), () => heroSprite(eq, rank, color, only), only ? 'auto' : null);
     },
     chest(frame, color) { return url('c|' + frame + '|' + (color || ''), () => chestSprite(frame, color)); },
+    // raw canvases for the battle strip (cached)
+    heroCanvas(eq, rank, color, pose) {
+      const k = 'hc|' + JSON.stringify(eq) + '|' + rank + '|' + color + '|' + (pose || '');
+      let c = ccache.get(k);
+      if (!c) { c = toCanvas(heroSprite(eq, rank, color, '', pose)); if (ccache.size > 60) ccache.clear(); ccache.set(k, c); }
+      return c;
+    },
+    Spr: Spr, toCanvas: toCanvas, skull: skull,
     HERO_W: 48, HERO_H: 64, CHEST_W: 52, CHEST_H: 46
   };
 })();

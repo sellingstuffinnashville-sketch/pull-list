@@ -542,6 +542,8 @@ async function applyResetIfNeeded(epoch) {
   await tx('server', 'readwrite', s => s.clear());
   xpState = defaultXp();
   persistXp();
+  localStorage.removeItem('pl_battle'); // battle-strip kills reset with the character
+  if (window.PLBattle) window.PLBattle.reset();
   localStorage.setItem(RESET_KEY, String(target));
   if (window.PLLoot) window.PLLoot.init();
   renderXpBar();
@@ -976,6 +978,7 @@ async function start() {
   if (!DEV) return showWho();
   renderXpBar();
   if (window.PLLoot) window.PLLoot.init();
+  if (window.PLBattle) window.PLBattle.init();
   showHome(); upload();
 }
 

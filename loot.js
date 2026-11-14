@@ -43,10 +43,13 @@ const ITEMS = [
   { id: 'wep-rifle', slot: 'weapon', name: 'Heavy Slug Rifle', rarity: 'common' },
   { id: 'wep-axe', slot: 'weapon', name: 'Toothed Axe', rarity: 'uncommon' },
   { id: 'wep-maul', slot: 'weapon', name: 'Crackling Maul', rarity: 'uncommon' },
+  { id: 'wep-carbine', slot: 'weapon', name: 'Drum-Fed Carbine', rarity: 'uncommon' },
   { id: 'wep-rune', slot: 'weapon', name: 'Rune-Tooth Blade', rarity: 'rare' },
   { id: 'wep-sun', slot: 'weapon', name: 'Sunburst Pistol', rarity: 'rare' },
   { id: 'wep-glaive', slot: 'weapon', name: 'Burning Glaive', rarity: 'relic' },
+  { id: 'wep-slug', slot: 'weapon', name: 'Mass-Slug Cannon', rarity: 'relic' },
   { id: 'wep-storm', slot: 'weapon', name: 'Storm-Head Hammer', rarity: 'legendary' },
+  { id: 'wep-siege', slot: 'weapon', name: 'Siege Repeater', rarity: 'legendary' },
   { id: 'pack-iron', slot: 'pack', name: 'Iron Supply Pack', rarity: 'common' },
   { id: 'pack-banner', slot: 'pack', name: 'Tattered Battle Banner', rarity: 'uncommon' },
   { id: 'pack-rack', slot: 'pack', name: 'Spiked Trophy Rack', rarity: 'uncommon' },
@@ -222,7 +225,7 @@ function renderDock() {
     '<button type="button" id="chestbtn" class="chestbtn"' + (n ? '' : ' hidden') + ' aria-label="Open Reliquary Chest">' +
       (n ? '<img class="chestico" src="' + (window.PLPixel ? PLPixel.chest(0, '') : '') + '" alt="">' : '') + 'Reliquary Chest' + (n ? '<span class="chestbadge">' + n + '</span>' : '') +
     '</button>' +
-    '<button type="button" id="herobtn" class="herobtn' + (function () { const r = bestRarity(xpState.equipped); return r.rank >= 5 ? ' leg' : r.rank === 4 ? ' relic' : ''; })() + '" aria-label="Open Armory">' + heroSvg(xpState.equipped, 90) + '<span class="herohit"></span></button>';
+    (window.PLBattle && PLBattle.active() ? '' : '<button type="button" id="herobtn" class="herobtn' + (function () { const r = bestRarity(xpState.equipped); return r.rank >= 5 ? ' leg' : r.rank === 4 ? ' relic' : ''; })() + '" aria-label="Open Armory">' + heroSvg(xpState.equipped, 90) + '<span class="herohit"></span></button>');
   const cb = $('#chestbtn'), hb = $('#herobtn');
   if (cb) cb.onclick = openChest;
   if (hb) hb.onclick = openArmory;
@@ -236,6 +239,7 @@ function openArmory() {
   el.innerHTML = '<div class="armbox">' +
     '<header class="armhd"><h2>Armory</h2><button type="button" class="hdrbtn" data-arm-close="1">Close</button></header>' +
     '<div class="armprev" id="armprev"></div>' +
+    '<div class="armstats" id="armstats"></div>' +
     '<div class="armslots" id="armslots"></div>' +
     '<div class="armlist" id="armlist"></div>' +
     '</div>';
@@ -243,6 +247,10 @@ function openArmory() {
   let slot = 'helm';
   const paint = () => {
     $('#armprev').innerHTML = heroSvg(xpState.equipped, 240);
+    if (window.PLBattle) {
+      const st = PLBattle.stats(xpState.equipped, xpState.level), k = PLBattle.kills();
+      $('#armstats').innerHTML = '<span>ATK <b>' + st.atk + '</b></span><span>ARM <b>' + st.arm + '</b></span><span>HP <b>' + st.hp + '</b></span><span>Kills <b>' + k.kills + '</b></span>' + (k.elites ? '<span>Elites <b>' + k.elites + '</b></span>' : '');
+    }
     $('#armslots').innerHTML = LOOT_SLOTS.map(([id, lab]) => {
       const on = slot === id ? ' on' : '';
       const eq = ITEM_BY_ID[xpState.equipped[id]];
