@@ -207,58 +207,124 @@
     plains: { skel: 1.3, cult: 1.2, rat: 0.8 }, forest: { mut: 1.8, rat: 1.3, crawl: 1.3 },
     ruins: { cult: 2, skel: 1.6, brute: 1.6 }, cave: { rat: 2, crawl: 1.8 }
   };
-  const layerCache = {};
+  // Each biome is built as tall layers (TH rows) so the scene runs up the whole page.
+  // Rows TH-H..TH line up exactly with the strip; above that it fades into night sky.
+  const layerCache = {}, PAD = 64; let HDR = 64;
   function mkc(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
-  function sky(f, stops) {
-    const grd = f.createLinearGradient(0, 0, 0, H);
-    stops.forEach(([o, c]) => grd.addColorStop(o, c));
-    f.fillStyle = grd; f.fillRect(0, 0, TW, H);
-  }
   function px(g2, x, y, c, w, h) { g2.fillStyle = c; g2.fillRect(x | 0, y | 0, w || 1, h || 1); }
-  function ridge(f, base, amp, f1, f2, col, ph) {
+  function skyGrad(f, TH, stops) {
+    const grd = f.createLinearGradient(0, 0, 0, TH);
+    let last = 0;
+    stops.forEach(([y, c]) => { const o = Math.max(last, Math.min(1, y / TH)); grd.addColorStop(o, c); last = o; });
+    f.fillStyle = grd; f.fillRect(0, 0, TW, TH);
+  }
+  function stars(f, r, top, bottom, n, dim) {
+    const list = [];
+    for (let k = 0; k < n; k++) {
+      const y = top + Math.pow(r(), 1.5) * (bottom - top), x = r() * TW, v = r();
+      const c = v < 0.08 ? '#fff4d8' : v < 0.25 ? '#c8d8ff' : v < 0.35 ? '#e8c0d0' : '#8a90b8';
+      f.globalAlpha = dim * (0.45 + 0.55 * r()); px(f, x, y, c);
+      if (v < 0.05) { f.globalAlpha = dim * 0.45; px(f, x - 1, y, c); px(f, x + 1, y, c); px(f, x, y - 1, c); px(f, x, y + 1, c); }
+      if (v < 0.3) list.push([x | 0, y | 0, c]);
+    }
+    f.globalAlpha = 1; return list;
+  }
+  function ridge(f, base, amp, f1, f2, col, ph, bottom) {
     for (let x = 0; x < TW; x++) {
       const t = (x / TW) * Math.PI * 2;
       const top = Math.round(base - amp * (0.6 * Math.sin(t * f1 + ph) + 0.4 * Math.sin(t * f2 + ph * 2)));
-      px(f, x, top, col, 1, H - top);
+      px(f, x, top, col, 1, bottom - top);
     }
   }
-  function buildBiome(name) {
-    if (layerCache[name]) return layerCache[name];
-    const far = mkc(TW, H), f = far.getContext('2d');
-    const mid = mkc(TW, H), m = mid.getContext('2d');
+  function pine(f, x, top, bottom, w0, col) {
+    for (let y = top; y < bottom; y++) {
+      const d = y - top, w = Math.min(w0, Math.round(d * 0.5 - ((d % 6) < 2 ? 1 : 0)));
+      px(f, x - Math.max(0, w), y, col, Math.max(1, w * 2 + 1), 1);
+    }
+  }
+  // features are drawn on a canvas PAD wider than the tile, then the overflow wraps to the left edge
+  function fold(src) {
+    const o = mkc(TW, src.height), x = o.getContext('2d');
+    x.drawImage(src, 0, 0); x.drawImage(src, -TW, 0); return o;
+  }
+  function buildBiome(name, TH) {
+    TH = Math.max(TH || H, H);
+    const key = name + TH + (name === 'cave' ? '_' + HDR : '');
+    if (layerCache[key]) return layerCache[key];
+    const Y0 = TH - H;
+    const skyC = mkc(TW, TH), f0 = skyC.getContext('2d');
+    const farW = mkc(TW + PAD, TH), f = farW.getContext('2d');
+    const midW = mkc(TW + PAD, TH), m = midW.getContext('2d');
     const fl = mkc(TW, 9), g2 = fl.getContext('2d');
     const r = rng(name.length * 97 + 13);
+    let tw = [], kind = name;
+    f.translate(0, Y0); m.translate(0, Y0); // strip-space coordinates from here (y < 0 is above the strip)
     if (name === 'cave') {
-      sky(f, [[0, '#0a080a'], [1, '#1a120c']]);
+      skyGrad(f0, TH, [[0, '#050404'], [Y0 * 0.5, '#0a0807'], [Y0, '#0e0a08'], [TH, '#1a120c']]);
+      // wall texture and strata
+      for (let k = 0; k < TH * 1.2; k++) px(f0, r() * TW, r() * TH, r() < 0.5 ? '#120d0a' : '#0a0706', 1 + ((r() * 3) | 0));
+      for (let k = 0; k < 7; k++) { const y = (r() * Y0) | 0; for (let x = 0; x < TW; x++) if (r() < 0.8) px(f0, x, y + Math.round(2 * Math.sin(x / 9 + k)), '#140f0b'); }
+      // jagged ceiling with stalactites at the very top of the page
+      const C0 = Math.min(Y0 - 60, HDR + 6);
       for (let x = 0; x < TW; x++) {
-        const top = 18 + Math.round(6 * Math.sin(x / 13) + 4 * Math.sin(x / 5.3 + 1));
+        const d = C0 + Math.round(5 * Math.sin((x / TW) * Math.PI * 4) + 3 * Math.sin((x / TW) * Math.PI * 14 + 1));
+        px(f0, x, 0, '#040303', 1, d); px(f0, x, d, '#2a1e16'); px(f0, x, d - 1, '#140e0a');
+      }
+      for (let k = 0; k < 30; k++) {
+        const x = 2 + ((r() * (TW - 6)) | 0), len = 8 + ((r() * 34) | 0), w = 3 + ((r() * 4) | 0), y0 = C0 - 2;
+        for (let y = 0; y < len; y++) { const ww = Math.max(1, Math.round(w * (1 - y / len))); px(f0, x - (ww >> 1), y0 + y, '#0c0907', ww, 1); px(f0, x - (ww >> 1), y0 + y, '#2a1e16'); if (ww > 2) px(f0, x - (ww >> 1) + ww - 1, y0 + y, '#060404'); }
+        if (r() < 0.35) px(f0, x, y0 + len + 3, '#5aa8c8');
+      }
+      // rising stalagmite columns behind the strip
+      for (let k = 0; k < 5; k++) {
+        const x = 10 + k * 38 + ((r() * 14) | 0), top = Y0 - 40 - ((r() * 110) | 0), w = 9 + ((r() * 6) | 0);
+        for (let y = top; y < TH; y++) { const ww = Math.min(w, Math.round((y - top) * 0.22) + 2); px(f0, x - (ww >> 1), y, '#16100c', ww, 1); px(f0, x - (ww >> 1), y, '#231912'); px(f0, x - (ww >> 1) + ww - 1, y, '#0c0806'); if ((y * 7 + k * 3) % 23 === 0) px(f0, x - (ww >> 1) + 1, y, '#0e0a07', ww - 2, 1); }
+      }
+      // far: rock ridge at the strip and a few crystal clusters / torches up the walls
+      for (let x = 0; x < TW; x++) {
+        const top = 18 + Math.round(6 * Math.sin((x / TW) * Math.PI * 4) + 4 * Math.sin((x / TW) * Math.PI * 12 + 1));
         px(f, x, top, '#17110d', 1, H - top);
         if (r() < 0.25) px(f, x, top + 2 + ((r() * 30) | 0), '#211812');
       }
-      for (let k = 0; k < 10; k++) { const x = (r() * TW) | 0, len = 3 + ((r() * 8) | 0); for (let y = 0; y < len; y++) px(f, x + (y > len / 2 ? 0 : -1), 9 + y, '#100c0a', y > len / 2 ? 1 : 3, 1); }
-      for (let k = 0; k < 5; k++) {
-        const x = (r() * TW) | 0, h = 12 + ((r() * 16) | 0);
-        px(m, x - 3, H - 8 - h, '#2a1f17', 7, h); px(m, x - 3, H - 8 - h, '#3a2c20', 2, h); px(m, x + 3, H - 8 - h, '#120d0a', 1, h); px(m, x - 2, H - 9 - h, '#3a2c20', 5, 1);
+      for (let k = 0; k < 9; k++) {
+        const x = (k * 21 + r() * 14) | 0, y = -20 - r() * (Y0 - C0 - 40), purple = k % 2;
+        const c1 = purple ? '#c070ff' : '#60d8ff', c2 = purple ? '#6a2aa0' : '#20708a';
+        const gr = f.createRadialGradient(x + 2, y, 1, x + 2, y, 18); gr.addColorStop(0, purple ? 'rgba(160,80,255,.22)' : 'rgba(80,200,255,.2)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+        f.fillStyle = gr; f.fillRect(x - 16, y - 18, 36, 36);
+        px(f, x - 3, y + 2, '#1a130e', 12, 2);
+        px(f, x, y - 5, c2, 2, 7); px(f, x + 1, y - 7, c1, 1, 7); px(f, x + 3, y - 2, c2, 2, 4); px(f, x + 4, y - 3, c1, 1, 2); px(f, x - 2, y - 1, c2, 2, 3); px(f, x - 2, y - 2, c1);
+      }
+      for (let k = 0; k < 3; k++) {
+        const x = 40 + k * 64, y = -30 - ((r() * (Y0 - C0 - 60)) | 0);
+        const gr = f.createRadialGradient(x + 1, y - 2, 1, x + 1, y - 2, 26); gr.addColorStop(0, 'rgba(255,140,50,.24)'); gr.addColorStop(1, 'rgba(255,140,50,0)');
+        f.fillStyle = gr; f.fillRect(x - 26, y - 28, 54, 54);
+        px(f, x, y, '#3a2a1c', 2, 5); px(f, x - 1, y, '#5a4430', 4, 1); px(f, x, y - 3, '#ff8a2a', 2, 3); px(f, x, y - 4, '#ffcf5a');
       }
       for (let k = 0; k < 2; k++) {
         const x = 30 + k * 96, y = 30;
-        const gr = m.createRadialGradient(x + 1, y - 2, 1, x + 1, y - 2, 16); gr.addColorStop(0, 'rgba(255,140,50,.35)'); gr.addColorStop(1, 'rgba(255,140,50,0)');
-        m.fillStyle = gr; m.fillRect(x - 16, y - 18, 34, 34);
+        const gr = m.createRadialGradient(x + 1, y - 2, 1, x + 1, y - 2, 22); gr.addColorStop(0, 'rgba(255,140,50,.32)'); gr.addColorStop(1, 'rgba(255,140,50,0)');
+        m.fillStyle = gr; m.fillRect(x - 22, y - 24, 46, 46);
         px(m, x, y, '#3a2a1c', 2, 6); px(m, x - 1, y, '#5a4430', 4, 1); px(m, x, y - 3, '#ff8a2a', 2, 3); px(m, x, y - 4, '#ffcf5a'); px(m, x + 1, y - 2, '#fff2b0');
+      }
+      for (let k = 0; k < 5; k++) {
+        const x = (r() * TW) | 0, h = 12 + ((r() * 16) | 0);
+        px(m, x - 3, H - 8 - h, '#2a1f17', 7, h); px(m, x - 3, H - 8 - h, '#3a2c20', 2, h); px(m, x + 3, H - 8 - h, '#120d0a', 1, h); px(m, x - 2, H - 9 - h, '#3a2c20', 5, 1);
       }
       for (let k = 0; k < 6; k++) { const x = (r() * TW) | 0, y = H - 9; px(m, x, y - 3, '#d8b4e8', 3); px(m, x - 1, y - 2, '#9a6ab0', 5); px(m, x + 1, y - 1, '#c8b8a0', 1, 2); }
       for (let k = 0; k < 3; k++) { const x = (r() * TW) | 0; px(m, x, H - 9, '#d6caae', 3, 2); px(m, x, H - 9, '#0a0605'); px(m, x + 2, H - 9, '#0a0605'); }
       px(g2, 0, 0, '#2a1f16', TW, 9); px(g2, 0, 0, '#4a3624', TW, 1);
       for (let k = 0; k < 170; k++) px(g2, r() * TW, 1 + r() * 8, ['#3a2a1c', '#1c140e', '#5a4430', '#241a12'][(r() * 4) | 0], 1 + ((r() * 2) | 0));
     } else if (name === 'plains') {
-      sky(f, [[0, '#1e1030'], [0.4, '#5a2a40'], [0.62, '#a4503a'], [0.78, '#d88a48'], [1, '#e0a050']]);
-      for (let k = 0; k < 14; k++) px(f, r() * TW, 8 + r() * 18, k % 3 ? '#c8a0b8' : '#fff0d0');
-      // low sun
-      for (let y = -9; y <= 9; y++) for (let x = -9; x <= 9; x++) { const d2 = x * x + y * y; if (d2 <= 81) px(f, 130 + x, 45 + y, d2 < 36 ? '#ffe0a0' : '#ffb868'); }
-      px(f, 112, 44, '#e89058', 36, 1); px(f, 104, 48, '#e89058', 52, 1); px(f, 118, 40, '#f0a060', 24, 1);
-      ridge(f, 50, 6, 2, 5, '#4a2a3a', 0.4);
-      ridge(f, 57, 5, 3, 7, '#2e1c26', 1.7);
-      ridge(m, 64, 3, 4, 9, '#1e1a14', 2.2);
+      skyGrad(f0, TH, [[0, '#03030a'], [Y0 - 260, '#05061a'], [Y0 - 150, '#0c0b28'], [Y0 - 70, '#1c1238'], [Y0 - 20, '#30163e'], [Y0, '#3e1c40'], [Y0 + H * 0.4, '#5a2a40'], [Y0 + H * 0.62, '#a4503a'], [Y0 + H * 0.78, '#d88a48'], [TH, '#e0a050']]);
+      tw = stars(f0, r, 4, Y0 + 14, Math.round(TH * 0.32), 1);
+      // faint band of the galaxy
+      for (let k = 0; k < 160; k++) { const t = r(), x = t * TW, y = Y0 * 0.18 + t * Y0 * 0.25 + (r() - 0.5) * 26; f0.globalAlpha = 0.18; px(f0, x, y, '#a8a0d0'); }
+      f0.globalAlpha = 1;
+      for (let y = -9; y <= 9; y++) for (let x = -9; x <= 9; x++) { const d2 = x * x + y * y; if (d2 <= 81) px(f0, 130 + x, Y0 + 45 + y, d2 < 36 ? '#ffe0a0' : '#ffb868'); }
+      px(f0, 112, Y0 + 44, '#e89058', 36, 1); px(f0, 104, Y0 + 48, '#e89058', 52, 1); px(f0, 118, Y0 + 40, '#f0a060', 24, 1);
+      ridge(f, 50, 6, 2, 5, '#4a2a3a', 0.4, H);
+      ridge(f, 57, 5, 3, 7, '#2e1c26', 1.7, H);
+      ridge(m, 64, 3, 4, 9, '#1e1a14', 2.2, H);
       for (let k = 0; k < 3; k++) {
         const x = (r() * TW) | 0;
         px(m, x, H - 26, '#140e0c', 2, 18); px(m, x - 4, H - 24, '#140e0c', 4, 1); px(m, x + 2, H - 21, '#140e0c', 5, 1); px(m, x - 5, H - 25, '#140e0c'); px(m, x + 6, H - 22, '#140e0c');
@@ -269,45 +335,51 @@
       for (let k = 0; k < 90; k++) px(g2, r() * TW, 3 + r() * 6, ['#4a3622', '#2a1e12', '#5a4630'][(r() * 3) | 0], 1 + ((r() * 2) | 0));
       for (let k = 0; k < 40; k++) { const x = (r() * TW) | 0; px(m, x, H - 10, '#5a6a2a'); px(m, x + 1, H - 11, '#7a8a3a'); px(m, x + 2, H - 10, '#4a5a22'); }
     } else if (name === 'forest') {
-      sky(f, [[0, '#080e0e'], [0.7, '#18241e'], [1, '#22301e']]);
-      for (let k = 0; k < 16; k++) {
-        const x = (r() * TW) | 0, top = 10 + ((r() * 18) | 0), w0 = 7 + ((r() * 6) | 0);
-        for (let y = top; y < H; y++) { const w = Math.min(w0, ((y - top) * 0.55) | 0); px(f, x - w, y, k % 2 ? '#0e1812' : '#122018', w * 2 + 1, 1); }
-      }
+      skyGrad(f0, TH, [[0, '#030408'], [Y0 - 200, '#04060c'], [Y0 - 90, '#070c12'], [Y0, '#0c1416'], [Y0 + H * 0.7, '#18241e'], [TH, '#22301e']]);
+      tw = stars(f0, r, 4, Y0 - 40, Math.round(TH * 0.24), 0.9);
+      // distant pines climb above the strip and fade into the sky
+      for (let k = 0; k < 18; k++) pine(f, (r() * TW) | 0, -60 + ((r() * 50) | 0), H, 9 + ((r() * 6) | 0), '#0a1216');
+      for (let k = 0; k < 16; k++) pine(f, (r() * TW) | 0, -10 + ((r() * 34) | 0), H, 7 + ((r() * 6) | 0), k % 2 ? '#0e1812' : '#122018');
+      // near trees: trunks rise from the ground into dark pine crowns
       for (let k = 0; k < 4; k++) {
-        const x = (r() * TW) | 0, w = 6 + ((r() * 4) | 0);
-        px(m, x, 0, '#1e140e', w, H - 8); px(m, x, 0, '#2e2216', 2, H - 8); px(m, x + w - 1, 0, '#0e0a08', 1, H - 8);
+        const x = 8 + k * 48 + ((r() * 18) | 0), w = 6 + ((r() * 4) | 0), crown = -70 - ((r() * 40) | 0);
+        pine(m, x + (w >> 1), crown, crown + 74, 16, '#0c1610'); pine(m, x + (w >> 1) + 1, crown + 3, crown + 74, 14, '#09110c');
+        px(m, x, crown + 40, '#1e140e', w, H - 8 - crown - 40); px(m, x, crown + 40, '#2e2216', 2, H - 8 - crown - 40); px(m, x + w - 1, crown + 40, '#0e0a08', 1, H - 8 - crown - 40);
         px(m, x - 2, H - 10, '#1e140e', w + 4, 2); px(m, x + 2, 20 + ((r() * 20) | 0), '#2a3a1a', 2, 3);
-        px(m, x - 3, 14 + ((r() * 8) | 0), '#1e140e', 4, 1); px(m, x + w, 18 + ((r() * 8) | 0), '#1e140e', 4, 1);
+        px(m, x - 3, 14 + ((r() * 8) | 0), '#1e140e', 4, 1); px(m, x + w, -6 + ((r() * 8) | 0), '#1e140e', 4, 1);
       }
-      for (let x = 0; x < TW; x++) { const d = 5 + Math.round(3 * Math.sin(x / 7) + 2 * Math.sin(x / 3.1 + 1) + r() * 2); px(m, x, 0, '#0a120c', 1, d); if (r() < 0.3) px(m, x, d, '#0a120c', 1, 2); if (r() < 0.12) px(m, x, d - 1, '#1a2a16'); }
-      for (let k = 0; k < 12; k++) px(m, r() * TW, 20 + r() * 40, '#c8ff70');
       for (let k = 0; k < 4; k++) { const x = (r() * TW) | 0; px(m, x, H - 11, '#c04040', 3, 1); px(m, x + 1, H - 10, '#d8c8a0', 1, 2); }
       px(g2, 0, 0, '#1e2414', TW, 9); px(g2, 0, 0, '#2e4a1e', TW, 1);
       for (let k = 0; k < 150; k++) px(g2, r() * TW, 1 + r() * 8, ['#26341a', '#14180e', '#3a2a1a', '#1a2212'][(r() * 4) | 0], 1 + ((r() * 2) | 0));
       for (let k = 0; k < 6; k++) { const x = (r() * TW) | 0; px(g2, x, 2, '#3a2416', 6, 1); px(g2, x + 5, 3, '#3a2416', 3, 1); }
     } else {
-      // ruins: gothic wasteland at dusk
-      sky(f, [[0, '#120806'], [0.45, '#3e1610'], [0.72, '#7a2c14'], [1, '#b04a1a']]);
-      for (let k = 0; k < 4; k++) {
-        const x = 10 + k * 48 + ((r() * 16) | 0), w = 14 + ((r() * 10) | 0), top = 18 + ((r() * 12) | 0);
-        px(f, x, top, '#1a0e0c', w, H - top);
-        for (let y = 0; y < 10; y++) px(f, x + w / 2 - (y >> 2), top - 10 + y, '#1a0e0c', (y >> 1) + 1, 1);
-        for (let j = 0; j < 3; j++) { const wx = x + 3 + j * 4; if (wx < x + w - 2 && r() < 0.7) { px(f, wx, top + 6, '#ff9a40', 2, 3); px(f, wx, top + 5, '#ff9a40'); } }
-      }
-      ridge(f, 62, 3, 3, 8, '#140a08', 0.9);
+      skyGrad(f0, TH, [[0, '#030202'], [Y0 - 220, '#060303'], [Y0 - 110, '#120605'], [Y0 - 30, '#260c08'], [Y0, '#2e100c'], [Y0 + H * 0.45, '#3e1610'], [Y0 + H * 0.72, '#7a2c14'], [TH, '#b04a1a']]);
+      tw = stars(f0, r, 4, Y0 - 120, Math.round(TH * 0.14), 0.6);
+      // smoke drifting over the horizon
+      for (let k = 0; k < 220; k++) { f0.globalAlpha = 0.12; px(f0, r() * TW, Y0 - 60 + r() * 70, '#3a1a12', 3, 1); }
+      f0.globalAlpha = 1;
+      // a tall cathedral and spires rising above the strip
+      const spire = (x, w, top, col, lit) => {
+        px(f, x, top, col, w, H - top);
+        const tip = Math.round(w * 1.6);
+        for (let y = 0; y < tip; y++) { const ww = Math.max(1, Math.round(w * (1 - y / tip))); px(f, x + ((w - ww) >> 1), top - y, col, ww, 1); }
+        px(f, x + (w >> 1), top - tip - 3, col, 1, 3);
+        for (let yy = top + 6; yy < H - 10; yy += 11) for (let j = 0; j < 3; j++) { const wx = x + 3 + j * 4; if (wx < x + w - 2 && r() < lit) { px(f, wx, yy, '#ff9a40', 2, 3); px(f, wx, yy - 1, '#ffb860', 1, 1); } }
+      };
+      spire(60, 22, -46, '#140a08', 0.35); spire(52, 8, -18, '#140a08', 0.3); spire(84, 8, -12, '#140a08', 0.3);
+      for (let k = 0; k < 4; k++) { const x = (k * 48 + 120 + ((r() * 16) | 0)) % TW, w = 14 + ((r() * 10) | 0); spire(x, w, 8 + ((r() * 18) | 0), '#1a0e0c', 0.5); }
+      ridge(f, 62, 3, 3, 8, '#140a08', 0.9, H);
       for (let k = 0; k < 4; k++) {
         const x = (r() * TW) | 0, h = 14 + ((r() * 20) | 0);
         px(m, x, H - 8 - h, '#3a3230', 6, h); px(m, x, H - 8 - h, '#4e4440', 2, h); px(m, x + 5, H - 8 - h, '#1e1816', 1, h);
         px(m, x - 1, H - 9 - h, '#4e4440', 3, 2); px(m, x + 3, H - 8 - h, '#3a3230', 3, 1);
         if (k % 2) { px(m, x + 8, H - 12, '#d6caae', 3, 2); px(m, x + 8, H - 12, '#0a0605'); px(m, x + 10, H - 12, '#0a0605'); }
       }
-      for (let k = 0; k < 10; k++) px(m, r() * TW, 10 + r() * 40, '#ffb040');
       px(g2, 0, 0, '#2a2420', TW, 9); px(g2, 0, 0, '#4a403a', TW, 1);
       for (let x = 0; x < TW; x += 12) { px(g2, x, 1, '#16120e', 1, 8); px(g2, x + 6, 5, '#16120e', 6, 1); px(g2, x + 1, 1, '#3a322c', 5, 1); }
       for (let k = 0; k < 60; k++) px(g2, r() * TW, 2 + r() * 7, ['#3a2a20', '#1a1410', '#5a2a18'][(r() * 3) | 0]);
     }
-    return (layerCache[name] = { far, mid, fl });
+    return (layerCache[key] = { sky: skyC, far: fold(farW), mid: fold(midW), fl, tw, kind, TH });
   }
 
   // ---------- state ----------
@@ -460,9 +532,89 @@
   }
 
   // ---------- drawing ----------
-  function tiled(c, off, y) {
-    const w = c.width; let x = -(((off % w) + w) % w);
-    for (; x < W; x += w) g.drawImage(c, Math.round(x), y);
+  function tiled(c, off, y, ctx) {
+    ctx = ctx || g;
+    const w = c.width; let x = -(((Math.round(off) % w) + w) % w);
+    for (; x < W; x += w) ctx.drawImage(c, x, y);
+  }
+  function fadeDraw(fn, th, ctx) {
+    ctx = ctx || g; const s = st;
+    if (s.fade && s.prevBiome != null) {
+      fn(buildBiome(BIOMES[s.prevBiome], th));
+      ctx.globalAlpha = 1 - s.fade / FADE; fn(buildBiome(BIOMES[s.biome], th)); ctx.globalAlpha = 1;
+    } else fn(buildBiome(BIOMES[s.biome], th));
+  }
+  // ---------- page background: the same scene continued up to the top of the screen ----------
+  let bcv = null, bg = null, BH = H, bgOn = false, bgTimer = 0, bgParts = [];
+  function bgMount() {
+    if (bcv) return;
+    bcv = document.createElement('canvas'); bcv.id = 'scenebg'; bcv.setAttribute('aria-hidden', 'true');
+    document.body.prepend(bcv); bgOn = true;
+  }
+  function bgSize() {
+    if (!bcv) return;
+    const sa = parseFloat(getComputedStyle(bcv).bottom) || 0;
+    const nh = Math.ceil((window.innerHeight - sa) / scale) + 1;
+    if (nh !== BH) { for (const k in layerCache) delete layerCache[k]; BH = nh; }
+    bcv.width = W; bcv.height = BH;
+    bcv.style.width = (W * scale) + 'px'; bcv.style.height = (BH * scale) + 'px';
+    bg = bcv.getContext('2d'); bg.imageSmoothingEnabled = false;
+    const hd = document.getElementById('top'); if (hd) { const hb = hd.getBoundingClientRect().bottom; const top = window.innerHeight - sa - BH * scale; HDR = Math.max(0, Math.round((hb - top) / scale)); }
+  }
+  function bgParticles(L, k) {
+    // a few moving bits drawn on top: twinkling stars, fireflies or embers (screen space)
+    const t = st.t, sc = st.scroll;
+    for (let i = 0; i < L.tw.length; i += 3) {
+      const [x, y, c] = L.tw[i], a = 0.5 + 0.5 * Math.sin(t * 0.21 + i * 1.7);
+      if (a < 0.6) continue;
+      bg.globalAlpha = k * (a - 0.5) * 1.6; bg.fillStyle = c;
+      for (let xx = x; xx < W; xx += TW) { bg.fillRect(xx, y, 1, 1); if (a > 0.92) { bg.fillRect(xx - 1, y, 3, 1); bg.fillRect(xx, y - 1, 1, 3); } }
+    }
+    bg.globalAlpha = 1;
+    if (L.kind === 'forest' || L.kind === 'ruins') {
+      if (bgParts.length !== 14) bgParts = Array.from({ length: 14 }, (_, i) => ({ x: (i * 53) % W, p: i * 0.9, sp: 0.5 + (i % 5) * 0.2 }));
+      const top = BH - H - (L.kind === 'ruins' ? 170 : 90);
+      for (const q of bgParts) {
+        let x, y, a;
+        if (L.kind === 'forest') {
+          x = ((q.x + Math.sin(t * 0.05 * q.sp + q.p) * 14 - sc * 0.4) % W + W) % W; y = BH - 14 - ((q.p * 37) % (BH - 14 - top)) + Math.sin(t * 0.08 + q.p) * 6;
+          a = 0.5 + 0.5 * Math.sin(t * 0.12 * q.sp + q.p * 3); bg.fillStyle = '#c8ff70';
+        } else {
+          const life = ((t * q.sp * 0.6 + q.p * 40) % 160) / 160;
+          x = ((q.x + Math.sin(life * 6 + q.p) * 8 - sc * 0.3) % W + W) % W; y = BH - 10 - life * (BH - 10 - top);
+          a = 1 - life; bg.fillStyle = life < 0.3 ? '#ffd070' : '#ff8a30';
+        }
+        bg.globalAlpha = k * Math.max(0, a); bg.fillRect(Math.round(x), Math.round(y), 1, 1);
+      }
+      bg.globalAlpha = 1;
+    }
+  }
+  function drawBg() {
+    if (!bg || !st) return;
+    bg.clearRect(0, 0, W, BH);
+    const s = st, fn = (L) => { tiled(L.sky, 0, BH - L.TH, bg); tiled(L.far, s.scroll * 0.2, BH - L.TH, bg); tiled(L.mid, s.scroll * 0.55, BH - L.TH, bg); };
+    fadeDraw(fn, BH, bg);
+    const fadeK = s.fade && s.prevBiome != null ? 1 - s.fade / FADE : 1;
+    if (!reduced()) {
+      if (fadeK < 1) { bgParticles(buildBiome(BIOMES[s.prevBiome], BH), 1 - fadeK); }
+      bgParticles(buildBiome(BIOMES[s.biome], BH), fadeK);
+    }
+    // ground under everything, for when the strip is switched off
+    if (!on) fadeDraw(L => tiled(L.fl, s.scroll, BH - 9, bg), BH, bg);
+  }
+  function advanceScene(n, dscroll) {
+    const s = st;
+    s.t += n; s.scroll += dscroll;
+    s.bt += n;
+    if (s.fade) s.fade = Math.max(0, s.fade - n);
+    if (s.bt >= BIOME_TICKS) { s.bt = 0; s.prevBiome = s.biome; s.biome = (s.biome + 1) % BIOMES.length; s.fade = FADE; }
+  }
+  function bgLoop() {
+    // strip off: scene drifts slowly at 6 fps, no runner
+    bgTimer = 0;
+    if (on || document.hidden || !bcv) return;
+    advanceScene(2, 1); drawBg();
+    bgTimer = setTimeout(bgLoop, 1000 / 6);
   }
   function legShift(c, phase) {
     // running: lift one leg 2px by redrawing the lower body halves
@@ -516,11 +668,9 @@
   function draw() {
     const s = st;
     g.clearRect(0, 0, W, H);
-    const bgOf = (L) => { tiled(L.far, s.scroll * 0.2, 0); tiled(L.mid, s.scroll * 0.55, 0); tiled(L.fl, s.scroll, H - 9); };
-    if (s.fade && s.prevBiome != null) {
-      bgOf(buildBiome(BIOMES[s.prevBiome]));
-      g.globalAlpha = 1 - s.fade / FADE; bgOf(buildBiome(BIOMES[s.biome])); g.globalAlpha = 1;
-    } else bgOf(buildBiome(BIOMES[s.biome]));
+    // the sky, far and mid layers live on the page background canvas; the strip only adds the ground
+    if (!bgOn) { const bgOf = (L) => { tiled(L.sky, 0, H - L.TH); tiled(L.far, s.scroll * 0.2, H - L.TH); tiled(L.mid, s.scroll * 0.55, H - L.TH); }; fadeDraw(bgOf, H); }
+    fadeDraw(L => tiled(L.fl, s.scroll, H - 9), H);
     if (s.fire) drawFire(s.fire.x, s.t);
     // hero
     const base = heroSprite(s.pose);
@@ -622,20 +772,24 @@
     wrap.style.height = (H * scale) + 'px';
     document.documentElement.style.setProperty('--strip-h', (H * scale) + 'px');
     g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
-    if (st) { st.heroX = Math.max(6, Math.min(40, Math.round(W * 0.08))); if (st.mon && st.mon.x > W + 4) st.mon.x = W + 4; draw(); }
+    bgSize();
+    if (st) { st.heroX = Math.max(6, Math.min(40, Math.round(W * 0.08))); if (st.mon && st.mon.x > W + 4) st.mon.x = W + 4; draw(); drawBg(); }
   }
   function loop() {
     timer = 0;
     if (!on || document.hidden) return;
     tick(); draw();
+    if (!(st.t & 1)) drawBg();
     timer = setTimeout(loop, 1000 / FPS);
   }
   function start() {
-    if (timer || !on || document.hidden) return;
-    if (reduced()) { draw(); return; }
+    if (document.hidden) return;
+    if (!on) { if (!bgTimer && bcv) { drawBg(); if (!reduced()) bgTimer = setTimeout(bgLoop, 1000 / 6); } return; }
+    if (timer) return;
+    if (reduced()) { draw(); drawBg(); return; }
     loop();
   }
-  function stop() { if (timer) clearTimeout(timer); timer = 0; }
+  function stop() { if (timer) clearTimeout(timer); timer = 0; if (bgTimer) clearTimeout(bgTimer); bgTimer = 0; }
   function mount() {
     if (wrap) return;
     wrap = document.createElement('div');
@@ -646,7 +800,7 @@
     wrap.append(cv, killEl);
     document.body.append(wrap);
     wrap.onclick = () => { if (typeof openArmory === 'function') openArmory(); };
-    window.addEventListener('resize', () => { if (on) size(); });
+    window.addEventListener('resize', () => size());
     window.addEventListener('pl-class', () => { if (st && g) draw(); });
   }
   function apply() {
@@ -654,12 +808,13 @@
     document.documentElement.classList.toggle('battle-on', on);
     const b = document.getElementById('bat');
     if (b) { b.classList.toggle('off', !on); b.setAttribute('aria-label', on ? 'Battle on' : 'Battle off'); }
+    mount(); bgMount(); stop();
+    if (!st) st = freshState();
     if (on) {
-      mount(); wrap.hidden = false;
-      if (!st) st = freshState();
+      wrap.hidden = false;
       size(); killEl.textContent = '☠ ' + bstats.kills;
       draw(); start();
-    } else { stop(); if (wrap) wrap.hidden = true; document.documentElement.style.setProperty('--strip-h', '0px'); }
+    } else { wrap.hidden = true; size(); document.documentElement.style.setProperty('--strip-h', '0px'); start(); }
     if (typeof renderDock === 'function') renderDock();
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); saveStats(); } else start(); });
@@ -672,14 +827,15 @@
     active() { return on; },
     stats(eq, level, cls) { return stats(eq || eqNow(), level || lvl(), cls); },
     kills() { return bstats; },
-    reset() { bstats = { kills: 0, elites: 0, gold: 0 }; saveStats(); localStorage.removeItem(STAT_KEY); st = null; if (on) { st = freshState(); size(); if (killEl) killEl.textContent = '☠ 0'; } },
+    reset() { bstats = { kills: 0, elites: 0, gold: 0 }; saveStats(); localStorage.removeItem(STAT_KEY); st = freshState(); if (cv) { size(); if (killEl) killEl.textContent = '☠ 0'; } },
     // preview hook: freeze a scene for screenshots
     _scene(opts) {
       st = freshState(); size(); Object.assign(st, opts.st || {});
       if (opts.mon) { monCanvas(opts.mon); const m = MON[opts.mon]; st.mon = Object.assign({ type: opts.mon, x: st.heroX + 47, hp: m.hp, max: m.hp, flash: 0, lunge: 0, dead: 0, walk: 0 }, opts.monSt || {}); }
-      stop(); draw();
+      stop(); draw(); drawBg();
     },
-    _tick(n) { for (let i = 0; i < n; i++) tick(); draw(); },
+    _tick(n) { for (let i = 0; i < n; i++) tick(); draw(); drawBg(); },
+    _bg() { drawBg(); },
     _state() { return st; },
     _mon(t) { return monCanvas(t).c; },
     _stop() { stop(); }
