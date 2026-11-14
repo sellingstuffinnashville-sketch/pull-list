@@ -6,7 +6,7 @@ header h1{font-size:20px;margin:0;white-space:nowrap;overflow:hidden;text-overfl
 .hdrbtn{background:#ffd400;color:#000;border:0;font-weight:800;font-size:17px;padding:10px 12px;border-radius:8px;min-height:44px}
 .pill{font-size:14px;font-weight:700;padding:4px 8px;border-radius:99px;background:#444}
 .pill.ok{background:#1b7f2a}.pill.wait{background:#b35c00}.pill.off{background:#a00}
-main{max-width:720px;margin:0 auto;padding:10px 10px 210px}
+main{position:relative;z-index:3;max-width:720px;margin:0 auto;padding:10px 10px 210px}
 button{font:inherit;cursor:pointer}
 .big{display:block;width:100%;min-height:56px;font-size:20px;font-weight:800;border:3px solid #000;border-radius:10px;background:#ffd400;color:#000;margin:8px 0}
 .scanitem{display:block;width:100%;text-align:left;border:3px solid #000;border-radius:12px;background:#fff;padding:14px;margin:10px 0;min-height:72px}
@@ -50,7 +50,7 @@ button{font:inherit;cursor:pointer}
 .trip{border:3px solid #000;border-radius:12px;padding:12px;background:#fffbe0;margin:8px 0}
 .trip label{font-weight:800}
 .trip input{font-size:20px;min-height:50px;width:100%;border:2px solid #000;border-radius:10px;padding:0 10px;margin:4px 0 8px}
-.login{max-width:420px;margin:40px auto}
+.login{max-width:420px;margin:40px auto;padding:16px 16px 20px;border-radius:12px}
 .login input{font-size:28px;min-height:60px;width:100%;text-align:center;border:3px solid #000;border-radius:10px;letter-spacing:4px}
 .msg{font-weight:700;color:#a00;min-height:1.4em}
 .small{font-size:14px;color:#444}
@@ -70,38 +70,28 @@ button{font:inherit;cursor:pointer}
 
 /* ===== Grimdark theme ===== */
 @font-face{font-family:'Cinzel';font-weight:700 900;font-display:swap;src:url(fonts/cinzel.woff2) format('woff2')}
-:root{--bg:#050403;--card:#100e0c;--card2:#0b0a09;--line:#3a2c16;--gold:#8a6e34;--gold2:#c4a35a;--blood:#6e1414;--txt:#eee6d6;--dim:#a89878;--ok:#2a5528}
+:root{--bg:#050403;--card:rgba(8,6,5,.82);--card2:rgba(12,9,7,.86);--line:#3a2c16;--gold:#8a6e34;--gold2:#c4a35a;--blood:#6e1414;--txt:#eee6d6;--dim:#a89878;--ok:#2a5528}
 html{background-color:var(--bg);color:var(--txt)}
-body{background-color:transparent;color:var(--txt);
-  background-image:
-    radial-gradient(ellipse at 20% 0%,rgba(42,28,14,.22) 0%,transparent 45%),
-    radial-gradient(ellipse at 80% 100%,rgba(20,10,6,.3) 0%,transparent 40%),
-    repeating-linear-gradient(0deg,rgba(255,220,160,.018) 0 1px,transparent 1px 3px),
-    repeating-linear-gradient(90deg,rgba(0,0,0,.18) 0 1px,transparent 1px 5px)}
-body::before{content:"";pointer-events:none;position:fixed;inset:0;z-index:4;
-  background:
-    radial-gradient(ellipse at center,transparent 30%,rgba(0,0,0,.62) 72%,rgba(0,0,0,.78) 100%),
-    radial-gradient(circle at 15% 25%,rgba(70,50,28,.06) 0 1px,transparent 2px),
-    radial-gradient(circle at 70% 60%,rgba(0,0,0,.2) 0 1px,transparent 2px)}
-header{background:#050403;border-bottom:1px solid var(--gold);box-shadow:0 1px 0 #000,0 10px 24px rgba(0,0,0,.7);color:var(--gold2)}
+body{background-color:transparent;color:var(--txt)}
+header{background:rgba(5,4,3,.88);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--gold);box-shadow:0 1px 0 #000,0 10px 24px rgba(0,0,0,.45);color:var(--gold2)}
 header h1,.big,.scanitem b,.rowband,.carhd .name,.pname,.hdrbtn,.trip label,.carbtns button,.sheet .box button,.refover button{font-family:'Cinzel',Georgia,serif;letter-spacing:.5px}
 header h1{text-shadow:0 1px 2px #000,0 0 8px #000}
 .hdrbtn,.big,.pbtns .cambtn{background:linear-gradient(#1c1814,#0c0a08);color:var(--gold2);border:1px solid var(--gold)}
 .big{text-shadow:0 1px 2px #000;box-shadow:0 0 12px #000 inset,0 0 0 1px #000}
 .sfxbtn{flex:0 0 auto;min-width:44px;min-height:44px;padding:0 8px;border:1px solid var(--gold);border-radius:8px;background:#0c0a08;color:var(--gold2);font:20px system-ui,sans-serif;line-height:1}
 .sfxbtn.off{opacity:.5}
-.scanitem{background:var(--card);border:1px solid var(--line);color:var(--txt);box-shadow:0 0 0 1px #000,inset 0 0 20px rgba(0,0,0,.35)}
+.scanitem,.car,.trip,.login{background:var(--card);border:1px solid var(--line);color:var(--txt);box-shadow:0 0 0 1px #000,inset 0 0 20px rgba(0,0,0,.28);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .scanitem b{color:var(--gold2)}
 .rowband{background:linear-gradient(90deg,#120e0a,#050403);color:var(--gold2);border:1px solid var(--gold)}
-.car{border:1px solid var(--line);background:var(--card);box-shadow:0 0 0 1px #000}
-.carhd{background:var(--card2);border-bottom:1px solid var(--line)}
+.car{border:1px solid var(--line);box-shadow:0 0 0 1px #000}
+.carhd{background:var(--card2);border-bottom:1px solid var(--line);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .carhd .code6{color:var(--gold2)}
 .carhd .vin{color:var(--dim)}
 .carbtns button{background:#0c0a08;color:var(--gold2);border:1px solid var(--line)}
 .carbtns button.done{background:var(--ok);color:#f2efe6;border-color:#4a7a40}
 .vinflag{color:var(--gold2)}
 .part{border-top:1px solid #2a2116}
-.part.got{background:#0c140e}
+.part.got{background:rgba(12,20,14,.72)}
 .chk{background:#050403;border:2px solid var(--gold);color:var(--gold2)}
 .part.got .chk{background:var(--ok);border-color:#4a7a40;color:#f2efe6}
 .pcode{color:var(--gold2)}
@@ -115,9 +105,9 @@ header h1{text-shadow:0 1px 2px #000,0 0 8px #000}
 .thumbs .t{border-color:var(--line);background:#0c0a08}
 .removed{background:#1a0a0a;border-top-color:var(--blood)}
 .removed button{background:var(--card2);color:var(--txt);border-color:var(--line)}
-.trip{background:var(--card);border:1px solid var(--gold)}
+.trip{border:1px solid var(--gold)}
 .msg{color:#e07070}
-.sheet .box{background:var(--card);color:var(--txt);border-top:1px solid var(--gold)}
+.sheet .box{background:var(--card);color:var(--txt);border-top:1px solid var(--gold);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .sheet .box button{background:var(--card2);color:var(--gold2);border-color:var(--line)}
 .pref{border-color:var(--gold);background:#0c0a08}
 .elink{color:var(--gold2)}
@@ -153,7 +143,7 @@ header h1{text-shadow:0 1px 2px #000,0 0 8px #000}
 .chestreveal b{font-family:Cinzel,Georgia,serif;font-size:20px;color:var(--gold2)}
 .rartag{display:block;font:800 13px system-ui,sans-serif;letter-spacing:.4px;margin-top:2px}
 .armory{position:fixed;inset:0;z-index:45;background:#000c;display:flex;align-items:flex-end;justify-content:center}
-.armbox{background:var(--card);color:var(--txt);width:100%;max-width:720px;max-height:92vh;overflow:auto;border-top:1px solid var(--gold);border-radius:16px 16px 0 0;padding:10px 12px 24px}
+.armbox{background:var(--card);color:var(--txt);width:100%;max-width:720px;max-height:92vh;overflow:auto;border-top:1px solid var(--gold);border-radius:16px 16px 0 0;padding:10px 12px 24px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .armhd{display:flex;align-items:center;gap:8px;position:sticky;top:0;background:var(--card);z-index:1;padding:4px 0 8px}
 .armhd h2{flex:1;margin:0;font:800 22px Cinzel,Georgia,serif;color:var(--gold2)}
 .armprev{display:flex;justify-content:center;padding:6px 0 10px}
@@ -171,17 +161,8 @@ header h1{text-shadow:0 1px 2px #000,0 0 8px #000}
 .hero-svg.leg .leg-sheen{animation:legSheen 3.2s ease-in-out infinite}
 @keyframes legSheen{0%,100%{opacity:.06}50%{opacity:.32}}
 #cavebg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;background:#050302}
-#cavebg svg{width:100%;height:100%;display:block}
-.cave-fire{transform-origin:50% 90%;animation:caveFlick 1.1s ease-in-out infinite}
-.cave-fire2{transform-origin:50% 90%;animation:caveFlick 1.6s ease-in-out infinite reverse}
-.cave-glow{animation:caveGlow 1.4s ease-in-out infinite}
-.cave-ember{animation:caveEmber 5s linear infinite}
-.cave-smoke{animation:caveSmoke 9s ease-in-out infinite;transform-origin:50% 100%}
-.cave-drip{animation:caveDrip 6.5s ease-in infinite}
-@keyframes caveFlick{0%,100%{transform:scaleY(1) scaleX(1);opacity:.9}40%{transform:scaleY(1.12) scaleX(.92);opacity:1}70%{transform:scaleY(.92) scaleX(1.08);opacity:.75}}
-@keyframes caveGlow{0%,100%{opacity:.35}50%{opacity:.6}}
-@keyframes caveEmber{0%{transform:translate(0,0);opacity:0}8%{opacity:.8}100%{transform:translate(var(--ex,8px),-70px);opacity:0}}
-@keyframes caveSmoke{0%,100%{transform:translate(0,0) scale(1);opacity:.18}50%{transform:translate(10px,-16px) scale(1.08);opacity:.28}}
-@keyframes caveDrip{0%,70%{transform:translateY(0);opacity:0}78%{opacity:.6}100%{transform:translateY(46px);opacity:0}}
-html.pl-paused #cavebg *{animation-play-state:paused !important}
-@media (prefers-reduced-motion:reduce){#cavebg *{animation:none !important} .hero-svg.leg .leg-sheen{animation:none}}
+.cave-fill{position:absolute;inset:-8%;background:#050302 url(bg-cave.webp) center/cover no-repeat;filter:blur(28px) saturate(.85) brightness(.32);transform:scale(1.06)}
+.cave-stage{position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden}
+.cave-img{display:block;width:100%;height:100%;object-fit:fill;image-rendering:pixelated;image-rendering:crisp-edges}
+#cavecanvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
+@media (prefers-reduced-motion:reduce){#cavecanvas{display:none} .hero-svg.leg .leg-sheen{animation:none}}
