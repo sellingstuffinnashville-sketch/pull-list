@@ -71,16 +71,16 @@ button{font:inherit;cursor:pointer}
 /* ===== Grimdark theme ===== */
 @font-face{font-family:'Cinzel';font-weight:700 900;font-display:swap;src:url(fonts/cinzel.woff2) format('woff2')}
 :root{--bg:#050403;--card:#100e0c;--card2:#0b0a09;--line:#3a2c16;--gold:#8a6e34;--gold2:#c4a35a;--blood:#6e1414;--txt:#eee6d6;--dim:#a89878;--ok:#2a5528}
-html,body{background-color:var(--bg);color:var(--txt);
+html{background-color:var(--bg);color:var(--txt)}
+body{background-color:transparent;color:var(--txt);
   background-image:
-    radial-gradient(ellipse at 20% 0%,rgba(42,28,14,.35) 0%,transparent 45%),
-    radial-gradient(ellipse at 80% 100%,rgba(20,10,6,.5) 0%,transparent 40%),
-    repeating-linear-gradient(0deg,rgba(255,220,160,.025) 0 1px,transparent 1px 3px),
-    repeating-linear-gradient(90deg,rgba(0,0,0,.28) 0 1px,transparent 1px 5px),
-    linear-gradient(#0a0806,#050403)}
+    radial-gradient(ellipse at 20% 0%,rgba(42,28,14,.22) 0%,transparent 45%),
+    radial-gradient(ellipse at 80% 100%,rgba(20,10,6,.3) 0%,transparent 40%),
+    repeating-linear-gradient(0deg,rgba(255,220,160,.018) 0 1px,transparent 1px 3px),
+    repeating-linear-gradient(90deg,rgba(0,0,0,.18) 0 1px,transparent 1px 5px)}
 body::before{content:"";pointer-events:none;position:fixed;inset:0;z-index:4;
   background:
-    radial-gradient(ellipse at center,transparent 42%,rgba(0,0,0,.55) 100%),
+    radial-gradient(ellipse at center,transparent 30%,rgba(0,0,0,.62) 72%,rgba(0,0,0,.78) 100%),
     radial-gradient(circle at 15% 25%,rgba(70,50,28,.06) 0 1px,transparent 2px),
     radial-gradient(circle at 70% 60%,rgba(0,0,0,.2) 0 1px,transparent 2px)}
 header{background:#050403;border-bottom:1px solid var(--gold);box-shadow:0 1px 0 #000,0 10px 24px rgba(0,0,0,.7);color:var(--gold2)}
@@ -136,8 +136,8 @@ header h1{text-shadow:0 1px 2px #000,0 0 8px #000}
 .herodock button{pointer-events:auto}
 .chestbtn{position:relative;min-height:44px;padding:0 12px;border:1px solid var(--gold);border-radius:8px;background:#0c0a08;color:var(--gold2);font:800 12px Cinzel,Georgia,serif;letter-spacing:.4px}
 .chestbadge{display:inline-block;min-width:18px;margin-left:6px;padding:0 5px;border-radius:99px;background:var(--blood);color:var(--gold2);font:800 12px system-ui,sans-serif}
-.herobtn{width:90px;height:122px;padding:0;border:0;background:transparent;filter:drop-shadow(0 2px 6px #000)}
-.herobtn .hero-svg{display:block}
+.herobtn{width:90px;height:126px;padding:0;border:0;background:transparent;filter:drop-shadow(0 2px 6px #000)}
+.herobtn .hero-svg{display:block;width:90px;height:126px}
 .chesttoast{position:fixed;left:50%;bottom:150px;z-index:40;transform:translate(-50%,8px);font:800 16px Cinzel,Georgia,serif;color:var(--gold2);text-shadow:0 0 8px #000,0 0 8px var(--gold);pointer-events:none;opacity:0;transition:transform .4s ease,opacity .4s ease}
 .chesttoast.go{transform:translate(-50%,0);opacity:1}
 .chestover{position:fixed;inset:0;z-index:46;background:#000c;display:flex;align-items:center;justify-content:center;padding:16px}
@@ -163,7 +163,25 @@ header h1{text-shadow:0 1px 2px #000,0 0 8px #000}
 .armslot.on{border-color:var(--gold);color:var(--gold2)}
 .armitem{display:flex;align-items:center;gap:8px;padding:8px;margin:6px 0;border:1px solid var(--line);border-radius:10px;background:var(--card2);box-shadow:inset 0 0 0 1px var(--rar,#0000)}
 .armitem.on{border-color:var(--rar,var(--gold))}
-.armico{flex:0 0 56px;height:72px;overflow:hidden;display:flex;align-items:center;justify-content:center}
-.armico .hero-svg{width:56px;height:75px}
+.armprev .hero-svg{width:240px;height:336px;display:block}
+.armico{flex:0 0 76px;height:88px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#0a0806;border-radius:8px;border:1px solid var(--line)}
+.armico .hero-svg{width:76px;height:88px}
 .armitem b{display:block;font:800 15px Cinzel,Georgia,serif;color:var(--gold2)}
 .armitem button{min-height:44px;margin-left:auto;padding:0 12px;border:1px solid var(--gold);border-radius:8px;background:#0c0a08;color:var(--gold2);font:800 14px system-ui,sans-serif}
+.hero-svg.leg .leg-sheen{animation:legSheen 3.2s ease-in-out infinite}
+@keyframes legSheen{0%,100%{opacity:.06}50%{opacity:.32}}
+#cavebg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;background:#050302}
+#cavebg svg{width:100%;height:100%;display:block}
+.cave-fire{transform-origin:50% 90%;animation:caveFlick 1.1s ease-in-out infinite}
+.cave-fire2{transform-origin:50% 90%;animation:caveFlick 1.6s ease-in-out infinite reverse}
+.cave-glow{animation:caveGlow 1.4s ease-in-out infinite}
+.cave-ember{animation:caveEmber 5s linear infinite}
+.cave-smoke{animation:caveSmoke 9s ease-in-out infinite;transform-origin:50% 100%}
+.cave-drip{animation:caveDrip 6.5s ease-in infinite}
+@keyframes caveFlick{0%,100%{transform:scaleY(1) scaleX(1);opacity:.9}40%{transform:scaleY(1.12) scaleX(.92);opacity:1}70%{transform:scaleY(.92) scaleX(1.08);opacity:.75}}
+@keyframes caveGlow{0%,100%{opacity:.35}50%{opacity:.6}}
+@keyframes caveEmber{0%{transform:translate(0,0);opacity:0}8%{opacity:.8}100%{transform:translate(var(--ex,8px),-70px);opacity:0}}
+@keyframes caveSmoke{0%,100%{transform:translate(0,0) scale(1);opacity:.18}50%{transform:translate(10px,-16px) scale(1.08);opacity:.28}}
+@keyframes caveDrip{0%,70%{transform:translateY(0);opacity:0}78%{opacity:.6}100%{transform:translateY(46px);opacity:0}}
+html.pl-paused #cavebg *{animation-play-state:paused !important}
+@media (prefers-reduced-motion:reduce){#cavebg *{animation:none !important} .hero-svg.leg .leg-sheen{animation:none}}
