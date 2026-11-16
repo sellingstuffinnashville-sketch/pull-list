@@ -478,7 +478,7 @@ function partCard(p, st, carLine) {
     <div class="pinfo"><span class="pcode">${esc(p.code)}</span><span class="tier ${p.tier}">${p.tier}</span>${elink}
     <div class="pname">${esc(p.part)}</div>${p.note ? `<div class="pnote">${esc(p.note)}</div>` : ''}
     ${p.pap != null ? `<div class="small">PAP price $${p.pap.toFixed(2)}</div>` : ''}</div>
-    <div class="pnet"><span class="pnetlbl">Est. net</span>${money(p.net)}</div></div>
+    <div class="pnet"><span class="pnetlbl">Est. net</span>${money(p.net)}${p.dollars_per_hour != null ? `<span class="pdph">${money(p.dollars_per_hour)}/hr</span>` : ''}</div></div>
     ${pnBlock(p, st)}
     <div class="pbtns"><button class="cambtn" data-act="part" data-c="${p.code}">📷${pics.length ? ' ' + pics.length : ''}</button>
     <input data-pn="${p.code}" placeholder="Actual part #" value="${esc(val(st, 'pn:' + p.code) || '')}"></div>
@@ -514,7 +514,8 @@ function render() {
     for (const car of row.cars) {
       if (VIEWMODE === 'car') h += `<section class="car">${carHead(car, st)}`;
       const removed = [];
-      for (const p of car.parts) {
+      const parts = car.parts.slice().sort((a, b) => (b.dollars_per_hour || 0) - (a.dollars_per_hour || 0) || (b.net || 0) - (a.net || 0) || String(a.code).localeCompare(String(b.code)));
+      for (const p of parts) {
         all++;
         if (val(st, 'rm:' + p.code)) { removed.push(p); skipN++; continue; }
         if (val(st, 'got:' + p.code)) { gotN++; gotNet += p.net || 0; }

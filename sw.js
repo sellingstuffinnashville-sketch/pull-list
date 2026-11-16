@@ -1,7 +1,7 @@
 // Offline open: app shell is precached; scan data + photos live in IndexedDB. API calls go to Apps Script and are
 // never cached. Same-origin files are network-first with a short timeout, so weak yard signal falls back to the
 // cached copy fast instead of hanging. Reference thumbs (i.ebayimg.com, yard photos) are cached once seen.
-const V = 'pl-pages-v19';
+const V = 'pl-pages-v20';
 const SHELL = ['./', 'index.html', 'style.css', 'fonts/cinzel.woff2', 'app.js', 'zip.js', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' }))))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

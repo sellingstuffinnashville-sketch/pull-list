@@ -96,6 +96,7 @@ header h1{text-shadow:0 1px 2px #000,0 0 8px #000}
 .pnote,.small{color:var(--dim)}
 .pnet{color:var(--gold2)}
 .pnetlbl{color:var(--dim);font-family:system-ui,-apple-system,sans-serif;letter-spacing:0}
+.pdph{display:block;font-size:12px;font-weight:700;color:var(--dim);margin-top:3px;font-family:system-ui,-apple-system,sans-serif;letter-spacing:0}
 .carphoto{border-color:var(--gold);background:#050403}
 .pbtns .rmbtn{background:transparent;color:#e07070;border-color:var(--blood)}
 .pbtns input,.trip input,.login input{background:#050403;color:var(--txt);border:1px solid var(--line)}
