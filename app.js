@@ -13,16 +13,472 @@ function ebaySize(u, n) {
   return u.replace(/s-l\d+/i, 's-l' + n);
 }
 
-// One-time cleanup: drop leftover keys from the old game build (XP, battle, sound, music). Login and device stay.
-(function cleanLocal() {
-  const keep = new Set(['pl_token', 'pl_dev', 'pl_devname', 'pl_reset_epoch', 'pl_lastsync', 'pl_view']);
+// ---------- sounds (original Web Audio synth; no samples, no copyrighted audio) ----------
+const SFX_KEY = 'pl_sfx';
+let SFX = localStorage.getItem(SFX_KEY) !== '0'; // on by default
+let actx, master, noiseBufCache;
+
+function unlockAudio() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  if (!actx) {
+    actx = new AC();
+    master = actx.createGain();
+    master.gain.value = 0.4; // keep the whole set quiet
+    master.connect(actx.destination);
+  }
+  if (actx.state === 'suspended') actx.resume();
+  if (typeof startBgm === 'function') startBgm();
+}
+['pointerdown', 'touchstart', 'click', 'keydown'].forEach(ev =>
+  document.addEventListener(ev, unlockAudio, { capture: true }));
+
+function sfxReady() { return SFX && actx && master; }
+
+function noiseBuf() {
+  if (noiseBufCache) return noiseBufCache;
+  const n = Math.ceil(0.35 * actx.sampleRate);
+  const b = actx.createBuffer(1, n, actx.sampleRate);
+  const d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  noiseBufCache = b;
+  return b;
+}
+function tone(type, freq, t, dur, vol, freqEnd) {
+  const o = actx.createOscillator();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, t);
+  if (freqEnd) o.frequency.exponentialRampToValueAtTime(Math.max(freqEnd, 1), t + dur);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(master);
+  o.start(t);
+  o.stop(t + dur + 0.02);
+}
+function burst(t, dur, vol, startHz, endHz) {
+  const src = actx.createBufferSource();
+  src.buffer = noiseBuf();
+  const f = actx.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.setValueAtTime(startHz, t);
+  f.frequency.exponentialRampToValueAtTime(endHz, t + dur);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f).connect(g).connect(master);
+  src.start(t);
+  src.stop(t + dur);
+}
+
+function playThud(reverse) {
+  if (!sfxReady()) return;
+  const t = actx.currentTime;
+  const vol = reverse ? 0.22 : 0.32;
+  tone('sine', reverse ? 96 : 68, t, reverse ? 0.2 : 0.28, vol, reverse ? 150 : 36);
+  tone('square', reverse ? 210 : 170, t, 0.08, vol * 0.08, 55);
+  burst(t, reverse ? 0.14 : 0.2, vol * 0.45, reverse ? 900 : 520, 110);
+}
+function playClink() {
+  if (!sfxReady()) return;
+  const t = actx.currentTime;
+  [[1760, 0, 0.11, 0.16], [2340, 0.028, 0.09, 0.12], [1310, 0.05, 0.08, 0.1]].forEach(([freq, delay, dur, vol]) => {
+    tone('sine', freq, t + delay, dur, vol, freq * 0.9);
+  });
+}
+function playGong() {
+  if (!sfxReady()) return;
+  const t = actx.currentTime;
+  [[82, 0.28, 1.1], [110, 0.2, 1.0], [164, 0.1, 0.85], [220, 0.06, 0.7], [277, 0.035, 0.55]].forEach(([freq, vol, dur]) => {
+    tone('sine', freq, t, dur, vol, freq * 0.97);
+  });
+}
+function playQuest() {
+  if (!sfxReady()) return;
+  const t = actx.currentTime;
+  // deep grim "quest complete" chord (original, not a copied motif)
+  [[73.42, 0, 0.28, 0.9], [110, 0.03, 0.18, 0.85], [146.83, 0.06, 0.16, 0.8], [174.61, 0.14, 0.12, 0.75], [220, 0.22, 0.1, 0.7]].forEach(([freq, delay, vol, dur]) => {
+    tone('triangle', freq, t + delay, dur, vol, freq * 0.99);
+  });
+}
+function playLevelUp() {
+  if (!sfxReady()) return;
+  const t = actx.currentTime;
+  // original rising fanfare (not a copied motif)
+  [[146.83, 0, 0.2, 0.35], [174.61, 0.08, 0.2, 0.38], [220, 0.16, 0.22, 0.45],
+   [293.66, 0.28, 0.26, 0.7], [440, 0.42, 0.16, 0.65], [587.33, 0.52, 0.14, 0.85]].forEach(([freq, delay, vol, dur]) => {
+    tone('triangle', freq, t + delay, dur, vol, freq * 1.03);
+    tone('sine', freq * 2, t + delay, dur * 0.65, vol * 0.22, freq * 2.03);
+  });
+}
+const BGM_KEY = 'pl_bgm';
+let BGM = localStorage.getItem(BGM_KEY) === '1'; // off by default
+let bgmGain, bgmTimer, bgmNodes = [], bgmNext = 0, bgmBar = 0, bgmBus, bgmFilter, bgmComp, bgmGen = 0;
+
+function syncBgmBtn() {
+  const b = $('#bgm');
+  if (!b) return;
+  b.textContent = BGM ? '♪' : '♪';
+  b.setAttribute('aria-label', BGM ? 'Music on' : 'Music off');
+  b.classList.toggle('off', !BGM);
+}
+function stopBgm() {
+  bgmGen++;
+  if (bgmTimer) { clearTimeout(bgmTimer); bgmTimer = null; }
+  (bgmNodes || []).forEach(n => {
+    try {
+      if (n.gain) {
+        n.gain.cancelScheduledValues(0);
+        n.gain.value = 0;
+      }
+    } catch (e) {}
+    try { if (n.frequency && n.frequency.cancelScheduledValues) n.frequency.cancelScheduledValues(0); } catch (e) {}
+    try { if (n.stop) n.stop(); } catch (e) {}
+    try { n.disconnect(); } catch (e) {}
+  });
+  bgmNodes = [];
+  [bgmGain, bgmBus, bgmFilter, bgmComp].forEach(n => { try { if (n) n.disconnect(); } catch (e) {} });
+  bgmGain = bgmBus = bgmFilter = bgmComp = null;
+}
+// Brian's own loop (music.mp3) is the music; the procedural tavern loop below is only a fallback if it can't load.
+const BGM_FILE = 'music.mp3', BGM_FILE_GAIN = 0.12;
+let bgmBuf = null, bgmBufP = null, bgmFileFailed = false;
+function loadBgmFile() {
+  if (bgmBuf) return Promise.resolve(bgmBuf);
+  if (!bgmBufP) {
+    bgmBufP = fetch(BGM_FILE).then(r => { if (!r.ok) throw new Error('music ' + r.status); return r.arrayBuffer(); })
+      .then(ab => new Promise((res, rej) => actx.decodeAudioData(ab, res, rej)))
+      .then(b => {
+        // skip decoder padding / silence at both ends so the loop has no gap
+        const d = b.getChannelData(0), th = 0.002;
+        let a = 0, z = d.length - 1;
+        while (a < z && Math.abs(d[a]) < th) a++;
+        while (z > a && Math.abs(d[z]) < th) z--;
+        b._ls = a / b.sampleRate; b._le = (z + 1) / b.sampleRate;
+        bgmBuf = b;
+        return b;
+      })
+      .catch(e => { bgmBufP = null; bgmFileFailed = true; throw e; });
+  }
+  return bgmBufP;
+}
+function startBgm() {
+  if (!BGM || !SFX || document.hidden) return;
+  if (!actx) return;
+  if (bgmGain) return;
+  if (actx.state === 'suspended') actx.resume();
+  if (bgmFileFailed) return startProcBgm();
+  const gen = ++bgmGen;
+  bgmGain = actx.createGain();
+  bgmGain.gain.value = 0;
+  bgmGain.connect(actx.destination);
+  bgmNodes.push(bgmGain);
+  loadBgmFile().then(buf => {
+    if (gen !== bgmGen || !bgmGain) return;
+    bgmComp = actx.createDynamicsCompressor(); // gentle limiter so no peak can spike
+    bgmComp.threshold.value = -10;
+    bgmComp.knee.value = 6;
+    bgmComp.ratio.value = 12;
+    bgmComp.attack.value = 0.005;
+    bgmComp.release.value = 0.2;
+    const src = actx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    src.loopStart = buf._ls;
+    src.loopEnd = buf._le;
+    src.connect(bgmComp).connect(bgmGain);
+    const t = actx.currentTime;
+    bgmGain.gain.setValueAtTime(0, t);
+    bgmGain.gain.linearRampToValueAtTime(BGM_FILE_GAIN, t + 1.5);
+    src.start(t, buf._ls);
+    bgmNodes.push(src, bgmComp);
+  }).catch(() => {
+    if (gen !== bgmGen) return;
+    try { bgmGain.disconnect(); } catch (e) {}
+    bgmGain = null; bgmNodes = [];
+    startProcBgm();
+  });
+}
+function startProcBgm() {
+  if (!BGM || !SFX || document.hidden || !actx || bgmGain) return;
+  const gen = ++bgmGen;
+  bgmGain = actx.createGain();
+  bgmGain.gain.value = 0.06;
+  bgmFilter = actx.createBiquadFilter();
+  bgmFilter.type = 'lowpass';
+  bgmFilter.frequency.value = 5000;
+  bgmFilter.Q.value = 0.7;
+  bgmComp = actx.createDynamicsCompressor();
+  bgmComp.threshold.value = -18;
+  bgmComp.knee.value = 4;
+  bgmComp.ratio.value = 20;
+  bgmComp.attack.value = 0.003;
+  bgmComp.release.value = 0.12;
+  bgmBus = actx.createGain();
+  bgmBus.gain.value = 1;
+  bgmBus.connect(bgmFilter);
+  bgmFilter.connect(bgmComp);
+  bgmComp.connect(bgmGain);
+  bgmGain.connect(actx.destination);
+  bgmNodes.push(bgmBus, bgmFilter, bgmComp, bgmGain);
+  // Drone in D Dorian (D, A, F)
+  [[73.42, 0.35], [110, 0.22], [87.31, 0.12]].forEach(([freq, vol]) => {
+    const o = actx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = freq;
+    const g = actx.createGain();
+    g.gain.value = vol;
+    o.connect(g).connect(bgmBus);
+    o.start();
+    bgmNodes.push(o, g);
+  });
+  // Soft crowd murmur: looping filtered noise
+  const nlen = Math.ceil(2 * actx.sampleRate);
+  const nb = actx.createBuffer(1, nlen, actx.sampleRate);
+  const nd = nb.getChannelData(0);
+  let v = 0;
+  for (let i = 0; i < nlen; i++) { v = v * 0.98 + (Math.random() * 2 - 1) * 0.02; nd[i] = v; }
+  const crowd = actx.createBufferSource();
+  crowd.buffer = nb;
+  crowd.loop = true;
+  const cf = actx.createBiquadFilter();
+  cf.type = 'lowpass';
+  cf.frequency.value = 700;
+  const cg = actx.createGain();
+  cg.gain.value = 0.22;
+  crowd.connect(cf).connect(cg).connect(bgmBus);
+  crowd.start();
+  bgmNodes.push(crowd, cf, cg);
+  bgmNext = actx.currentTime + 0.05;
+  bgmBar = 0;
+  if (gen !== bgmGen) return;
+  schedBgm();
+}
+function pluckAt(freq, t, dur, vol) {
+  if (!bgmBus) return;
+  [1, 2, 3.02, 4.05].forEach((h, i) => {
+    const o = actx.createOscillator();
+    o.type = i ? 'sine' : 'triangle';
+    o.frequency.setValueAtTime(freq * h, t);
+    const g = actx.createGain();
+    const v = vol * (i ? 0.22 / i : 1);
+    g.gain.setValueAtTime(v, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur * (i ? 0.45 : 1));
+    o.connect(g).connect(bgmBus);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+    bgmNodes.push(o, g);
+  });
+}
+function drumAt(t, lo) {
+  if (!bgmBus) return;
+  const src = actx.createBufferSource();
+  src.buffer = noiseBuf();
+  const f = actx.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.setValueAtTime(lo ? 180 : 700, t);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(lo ? 0.28 : 0.1, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + (lo ? 0.12 : 0.05));
+  src.connect(f).connect(g).connect(bgmBus);
+  src.start(t);
+  src.stop(t + 0.15);
+  bgmNodes.push(src, f, g);
+}
+// Original 8-bar D Dorian lute phrase (not a known tune). Values are [eighths from loop start, Hz, eighths long].
+const BGM_TUNE = [
+  [0, 293.66, 2], [2, 349.23, 2], [4, 392.00, 2], [6, 440.00, 2],
+  [8, 392.00, 2], [10, 349.23, 2], [12, 329.63, 2], [14, 293.66, 2],
+  [16, 349.23, 2], [18, 440.00, 2], [20, 523.25, 2], [22, 440.00, 2],
+  [24, 392.00, 2], [26, 349.23, 2], [28, 293.66, 4],
+  [32, 220.00, 2], [34, 293.66, 2], [36, 349.23, 2], [38, 329.63, 2],
+  [40, 349.23, 2], [42, 392.00, 2], [44, 440.00, 2], [46, 392.00, 2],
+  [48, 349.23, 2], [50, 329.63, 2], [52, 293.66, 2], [54, 261.63, 2],
+  [56, 293.66, 4], [60, 220.00, 2], [62, 293.66, 2]
+];
+const BGM_BEAT = 60 / 86; // ~86 BPM, eighth = BGM_BEAT/2
+const BGM_EIGHTH = BGM_BEAT / 2;
+function schedBgm() {
+  if (!BGM || !bgmGain || !bgmBus || !actx || document.hidden) return;
+  const gen = bgmGen;
+  const horizon = actx.currentTime + 1.25;
+  while (bgmNext < horizon) {
+    const t = bgmNext;
+    const i = bgmBar % 64;
+    BGM_TUNE.forEach(([step, freq, len]) => {
+      if (step === i) pluckAt(freq, t, len * BGM_EIGHTH * 0.95, 0.22);
+    });
+    if (i % 4 === 0) drumAt(t, true);
+    else if (i % 4 === 2) drumAt(t, false);
+    bgmBar++;
+    bgmNext += BGM_EIGHTH;
+  }
+  bgmTimer = setTimeout(() => { if (gen === bgmGen) schedBgm(); }, 350);
+}
+
+document.addEventListener('visibilitychange', () => {
+  document.documentElement.classList.toggle('pl-paused', document.hidden);
+  if (document.hidden) { stopBgm(); }
+  else {
+    if (BGM && actx) startBgm();
+  }
+});
+
+function syncSfxBtn() {
+  const b = $('#sfx');
+  if (!b) return;
+  b.textContent = SFX ? '🔊' : '🔇';
+  b.setAttribute('aria-label', SFX ? 'Sound on' : 'Sound off');
+  b.classList.toggle('off', !SFX);
+}
+function carForPart(code) {
+  if (!scan) return null;
+  for (const row of scan.rows) for (const car of row.cars)
+    if (car.parts.some(p => p.code === code)) return car;
+  return null;
+}
+function carAllGot(car, st, override) {
+  let any = false;
+  for (const p of car.parts) {
+    const rm = override && p.code === override.code && 'rm' in override ? !!override.rm : !!val(st, 'rm:' + p.code);
+    if (rm) continue;
+    any = true;
+    const got = override && p.code === override.code && 'got' in override ? !!override.got : !!val(st, 'got:' + p.code);
+    if (!got) return false;
+  }
+  return any;
+}
+
+
+// ---------- XP / levels (local only: the server sync is per-scan and won't take a lifetime key) ----------
+const XP_KEY = 'pl_xp';
+function defaultXp() { return { xp: 0, level: 1, grants: {}, pulled: 0, net: 0, chests: 0, chestAwarded: {}, levelChests: {}, inventory: {}, equipped: {}, cls: 'warrior', classes: {} }; }
+function loadXp() {
   try {
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const k = localStorage.key(i);
-      if (k && k.startsWith('pl_') && !keep.has(k)) localStorage.removeItem(k);
-    }
-  } catch (e) {}
-})();
+    const s = JSON.parse(localStorage.getItem(XP_KEY) || '');
+    if (!s || typeof s.xp !== 'number') return defaultXp();
+    return {
+      xp: Math.max(0, s.xp | 0),
+      level: Math.max(1, s.level | 0),
+      grants: s.grants && typeof s.grants === 'object' ? s.grants : {},
+      pulled: Math.max(0, s.pulled | 0),
+      net: Math.max(0, s.net | 0),
+      chests: Math.max(0, s.chests | 0),
+      chestAwarded: s.chestAwarded && typeof s.chestAwarded === 'object' ? s.chestAwarded : {},
+      levelChests: s.levelChests && typeof s.levelChests === 'object' ? s.levelChests : {},
+      inventory: s.inventory && typeof s.inventory === 'object' ? s.inventory : {},
+      equipped: s.equipped && typeof s.equipped === 'object' ? s.equipped : {},
+      cls: ['warrior', 'shooter', 'mage'].includes(s.cls) ? s.cls : 'warrior',
+      classes: s.classes && typeof s.classes === 'object' ? s.classes : {},
+      classesV: s.classesV | 0
+    };
+  } catch { return defaultXp(); }
+}
+let xpState = loadXp();
+function xpToNext(level) { return Math.round(100 * Math.pow(level, 1.5)); }
+function totalXpForLevel(level) {
+  let t = 0;
+  for (let i = 1; i < level; i++) t += xpToNext(i);
+  return t;
+}
+function levelFromXp(xp) {
+  let lvl = 1;
+  while (totalXpForLevel(lvl + 1) <= xp && lvl < 200) lvl++;
+  return lvl;
+}
+function xpProgress(xp, level) {
+  const start = totalXpForLevel(level), need = xpToNext(level);
+  return { have: xp - start, need };
+}
+function partXp(part) {
+  const n = part && part.net != null && isFinite(part.net) ? Math.round(Number(part.net)) : 0;
+  return Math.max(5, n);
+}
+function partNet(part) {
+  return part && part.net != null && isFinite(part.net) ? Math.max(0, Math.round(Number(part.net))) : 0;
+}
+function gotId(code, d = date) { return 'got:' + d + ':' + code; }
+function photoId(name, d = date) { return 'photo:' + d + ':' + name; }
+function vinId(code, d = date) { return 'vin:' + d + ':' + code; }
+function carId(car, d = date) { return 'car:' + d + ':' + car.code6; }
+function grantAmount(rec) { return !rec ? 0 : (typeof rec === 'number' ? rec : rec.xp || 0); }
+function grantSilent(id, amount, extras) {
+  if (!(amount > 0) || xpState.grants[id]) return 0;
+  const rec = { xp: amount };
+  if (extras && extras.pulled) rec.pulled = extras.pulled;
+  if (extras && extras.net) rec.net = extras.net;
+  xpState.grants[id] = rec;
+  xpState.xp += amount;
+  xpState.pulled += rec.pulled || 0;
+  xpState.net += rec.net || 0;
+  return amount;
+}
+function revokeSilent(id) {
+  const rec = xpState.grants[id];
+  if (!rec) return 0;
+  const amount = grantAmount(rec);
+  delete xpState.grants[id];
+  xpState.xp = Math.max(0, xpState.xp - amount);
+  xpState.pulled = Math.max(0, xpState.pulled - (rec.pulled || 0));
+  xpState.net = Math.max(0, xpState.net - (rec.net || 0));
+  return amount;
+}
+function persistXp() { localStorage.setItem(XP_KEY, JSON.stringify(xpState)); }
+function applyXp(changes, ev) {
+  if (!changes || !changes.length) return;
+  const oldLevel = xpState.level;
+  let gained = 0;
+  for (const c of changes) {
+    if (c.revoke) revokeSilent(c.id);
+    else gained += grantSilent(c.id, c.amount, c.extras);
+  }
+  xpState.level = levelFromXp(xpState.xp);
+  persistXp();
+  renderXpBar();
+  for (const c of changes) {
+    if (!c.revoke && c.id && c.id.indexOf('car:') === 0 && window.PLLoot) window.PLLoot.award(c.id);
+  }
+  if (gained > 0) floatXp(gained, ev);
+  if (xpState.level > oldLevel) {
+    if (window.PLLoot && window.PLLoot.awardLevels) window.PLLoot.awardLevels(oldLevel, xpState.level);
+    setTimeout(() => { playLevelUp(); showLevelUp(xpState.level); }, 280);
+  }
+}
+function xpAnchor(ev) {
+  if (ev && ev.clientX != null) return ev;
+  const el = $('#xpwrap') || $('#lvlbadge');
+  if (!el) return { clientX: window.innerWidth / 2, clientY: 80 };
+  const r = el.getBoundingClientRect();
+  return { clientX: r.left + r.width / 2, clientY: r.bottom };
+}
+function floatXp(n, ev) {
+  const pt = xpAnchor(ev);
+  const el = document.createElement('div');
+  el.className = 'xpfloat';
+  el.textContent = '+' + n + ' XP';
+  el.style.left = pt.clientX + 'px';
+  el.style.top = pt.clientY + 'px';
+  document.body.append(el);
+  requestAnimationFrame(() => el.classList.add('go'));
+  setTimeout(() => el.remove(), 1100);
+}
+function showLevelUp(level) {
+  document.querySelectorAll('.lvlup').forEach(n => n.remove());
+  const el = document.createElement('div');
+  el.className = 'lvlup';
+  el.innerHTML = '<b>LEVEL UP — Level ' + level + '</b>';
+  document.body.append(el);
+  setTimeout(() => el.remove(), 2200);
+}
+function renderXpBar() {
+  const badge = $('#lvlbadge'), fill = $('#xpfill'), wrap = $('#xpwrap');
+  if (!badge || !fill) return;
+  const { have, need } = xpProgress(xpState.xp, xpState.level);
+  badge.textContent = 'Lv ' + xpState.level;
+  if (wrap) wrap.title = have + ' / ' + need + ' XP to level ' + (xpState.level + 1);
+  fill.style.width = Math.min(100, need ? (have / need) * 100 : 0) + '%';
+}
 
 // ---------- IndexedDB ----------
 let dbp;
@@ -93,7 +549,13 @@ async function applyResetIfNeeded(epoch) {
   await tx('ops', 'readwrite', s => s.clear());
   await tx('photos', 'readwrite', s => s.clear());
   await tx('server', 'readwrite', s => s.clear());
+  xpState = defaultXp();
+  persistXp();
+  localStorage.removeItem('pl_battle'); // battle-strip kills reset with the character
+  if (window.PLBattle) window.PLBattle.reset();
   localStorage.setItem(RESET_KEY, String(target));
+  if (window.PLLoot) window.PLLoot.init();
+  renderXpBar();
   if (scan && date) render();
   return true;
 }
@@ -313,6 +775,9 @@ async function capture(kind, code, d = date) {
   const pairs = [['photo:' + name, { kind, code, by: DEVNAME || DEV, size: blob.size, day: chiDay() }]];
   if (kind === 'vin') pairs.push(['vin:' + code, { file: name, verify: 'pending' }]);
   await ops(pairs, d);
+  if (kind === 'vin') playGong(); else playClink();
+  if (kind === 'part') applyXp([{ id: photoId(name, d), amount: 5 }], xpAnchor());
+  if (kind === 'vin') applyXp([{ id: vinId(code, d), amount: 10 }], xpAnchor());
   upload();
 }
 const urlCache = new Map();
@@ -413,11 +878,13 @@ async function showHome() {
   status();
   const draw = idx => {
     if (screen !== 'home') return;
-    main.innerHTML = `<div class="tools"><button data-act="trip">Trip days</button><button data-act="ready">Ready to list</button></div><p class="small">Newest first. Tap a scan to open it.</p>` + (idx && idx.length ? idx.map(s =>
+    const stats = `Level ${xpState.level} · ${xpState.xp} XP · ${xpState.pulled} parts pulled · est. net ${money(xpState.net)}`;
+    main.innerHTML = `<div class="tools"><button data-act="trip">Trip days</button><button data-act="ready">Ready to list</button></div><p class="xpstats">${stats}</p>${window.PLLoot ? window.PLLoot.picker() : ''}<p class="small">Newest first. Tap a scan to open it.</p>` + (idx && idx.length ? idx.map(s =>
       `<button class="scanitem" data-d="${esc(s.date)}"><b>${esc(s.date)}</b>${esc(s.label)}<br><span class="small">${s.cars} cars · ${s.parts} parts</span></button>`).join('')
       : `<p>${navigator.onLine ? 'Loading scans…' : 'No scans saved on this phone yet. Open the app once with signal.'}</p>`)
       + `<p class="small">This phone: ${esc(DEVNAME)} · <a href="#" class="chg">settings</a></p>`;
     main.querySelectorAll('.scanitem').forEach(b => b.onclick = () => openScan(b.dataset.d));
+    if (window.PLLoot) window.PLLoot.wirePicker(main);
   };
   const cached = await kvGet('index') || [];
   draw(cached);
@@ -439,12 +906,12 @@ async function openScan(d) {
   scan = await kvGet('scan:' + d);
   serverState = ((await tx('server', 'readonly', s => req(s.get(d)))) || {}).state || {};
   localOps = (await tx('ops', 'readonly', s => req(s.getAll()))).filter(o => o.date === d);
-  if (scan) { render(); sync(); }
+  if (scan) { render(); sync(); playGong(); }
   else main.innerHTML = '<p>Loading…</p>';
   if (!navigator.onLine) { if (!scan) main.innerHTML = '<p>This scan is not saved on this phone yet. Open it once with signal.</p>'; return; }
   try {
     const fresh = (await api('getScan', d)).scan;
-    if (fresh) { await kvSet('scan:' + d, fresh); if (date === d) { const first = !scan; scan = fresh; render(); if (first) sync(); } }
+    if (fresh) { await kvSet('scan:' + d, fresh); if (date === d) { const first = !scan; scan = fresh; render(); if (first) { sync(); playGong(); } } }
   } catch (e) {
     if (e.login) return showLogin();
     if (!scan && date === d) main.innerHTML = '<p>This scan is not saved on this phone yet. Open it once with signal.</p>';
@@ -570,15 +1037,54 @@ main.addEventListener('click', async e => {
   const st = view();
   switch (t.dataset.act) {
     case 'mode': VIEWMODE = VIEWMODE === 'row' ? 'car' : 'row'; localStorage.setItem('pl_view', VIEWMODE); return render();
-    case 'got': return val(st, 'got:' + c) ? op('got:' + c, false) : ops([['got:' + c, true], ['day:' + c, chiDay()]]);
+    case 'got': {
+      const next = !val(st, 'got:' + c);
+      const car = carForPart(c);
+      const part = car && car.parts.find(p => p.code === c);
+      const wasDone = car && carAllGot(car, st);
+      const nowDone = car && carAllGot(car, st, { code: c, got: next });
+      const xp = [];
+      if (next) {
+        playThud(false);
+        xp.push({ id: gotId(c), amount: partXp(part), extras: { pulled: 1, net: partNet(part) } });
+        if (nowDone && !wasDone) { playQuest(); xp.push({ id: carId(car), amount: 50 }); }
+      } else {
+        playThud(true);
+        xp.push({ id: gotId(c), revoke: 1 });
+        if (wasDone && !nowDone) xp.push({ id: carId(car), revoke: 1 });
+      }
+      applyXp(xp, e);
+      return next ? ops([['got:' + c, true], ['day:' + c, chiDay()]]) : op('got:' + c, false);
+    }
     case 'pnok': {
       const p = scan.rows.flatMap(r => r.cars).flatMap(x => x.parts).find(x => x.code === c);
       if (!p || !p.expected_pn) return;
       const cur = val(st, 'pn:' + c) || '';
       return op('pn:' + c, pnNorm(cur) === pnNorm(p.expected_pn) ? '' : p.expected_pn);
     }
-    case 'why': return ops([['rm:' + c, true], ['why:' + c, t.dataset.why]]); // gone / damaged / skip, logged in the op file
-    case 'undo': return ops([['rm:' + c, false], ['why:' + c, '']]);
+    case 'why': {
+      const car = carForPart(c);
+      const wasDone = car && carAllGot(car, st);
+      const nowDone = car && carAllGot(car, st, { code: c, rm: true });
+      const xp = [];
+      if (val(st, 'got:' + c)) xp.push({ id: gotId(c), revoke: 1 });
+      if (wasDone && !nowDone) xp.push({ id: carId(car), revoke: 1 });
+      if (!wasDone && nowDone) xp.push({ id: carId(car), amount: 50 });
+      applyXp(xp, e);
+      return ops([['rm:' + c, true], ['why:' + c, t.dataset.why]]); // gone / damaged / skip, logged in the op file
+    }
+    case 'undo': {
+      const car = carForPart(c);
+      const part = car && car.parts.find(p => p.code === c);
+      const wasDone = car && carAllGot(car, st);
+      const nowDone = car && carAllGot(car, st, { code: c, rm: false });
+      const xp = [];
+      if (val(st, 'got:' + c)) xp.push({ id: gotId(c), amount: partXp(part), extras: { pulled: 1, net: partNet(part) } });
+      if (wasDone && !nowDone) xp.push({ id: carId(car), revoke: 1 });
+      if (!wasDone && nowDone) { playQuest(); xp.push({ id: carId(car), amount: 50 }); }
+      applyXp(xp, e);
+      return ops([['rm:' + c, false], ['why:' + c, '']]);
+    }
     case 'part': return capture('part', c);
     case 'vin': return capture('vin', c);
     case 'x': return capture('x', c);
@@ -607,6 +1113,9 @@ async function photoSheet(name, d = date) {
       el.remove();
       await tx('photos', 'readwrite', s => s.delete(`${d}/${name}`));
       urlCache.delete(`${d}/${name}`); urlCache.delete(`${d}/${name}#full`);
+      if (meta.kind === 'part') applyXp([{ id: photoId(name, d), revoke: 1 }]);
+      if (meta.kind === 'vin' && photosFor(st, 'vin', meta.code).filter(n => n !== name).length === 0)
+        applyXp([{ id: vinId(meta.code, d), revoke: 1 }]);
       return op('del:' + name, true, d);
     }
   };
@@ -756,10 +1265,37 @@ async function exportZip() {
 }
 
 $('#back').onclick = () => { if ((screen === 'trip' || screen === 'ready') && lastScan) openScan(lastScan); else showHome(); };
+const sfxBtn = $('#sfx');
+if (sfxBtn) {
+  syncSfxBtn();
+  sfxBtn.onclick = () => {
+    SFX = !SFX;
+    localStorage.setItem(SFX_KEY, SFX ? '1' : '0');
+    syncSfxBtn();
+    unlockAudio();
+    if (SFX) { playClink(); if (BGM) startBgm(); }
+    else stopBgm();
+  };
+}
+const bgmBtn = $('#bgm');
+if (bgmBtn) {
+  syncBgmBtn();
+  bgmBtn.onclick = () => {
+    BGM = !BGM;
+    localStorage.setItem(BGM_KEY, BGM ? '1' : '0');
+    syncBgmBtn();
+    unlockAudio();
+    if (BGM) startBgm();
+    else stopBgm();
+  };
+}
 async function start() {
   if (!TOKEN) return showLogin(navigator.onLine ? '' : 'Needs signal the first time.');
   await applyResetIfNeeded(0);
   ensureDevice();
+  renderXpBar();
+  if (window.PLLoot) window.PLLoot.init();
+  if (window.PLBattle) window.PLBattle.init();
   showHome();
   status();
   retryNow(); // resume any photos/changes still queued from last time
