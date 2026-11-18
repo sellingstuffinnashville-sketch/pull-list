@@ -1154,27 +1154,33 @@
     }
     const run = loco === 'run';
     // 16-frame stride. Stance foot stays planted and slides back; swing foot lifts and passes.
-    // Arms opposite the legs. Run: longer stride, forward lean, arm pump. Walk: smaller bob, heel-toe.
-    const stride = run ? 7.2 : 3.6, lift = run ? 4.2 : 2.2;
-    const flight = run ? Math.max(0, Math.sin(tau * 2) - 0.55) * 0.8 : 0;
+    // Arms opposite the legs (right foot forward → right arm back). Walk: smaller bob, heel-toe.
+    // Run: longer stride, high knees, whole-body lean from the ankles, arm pump, weapon ready.
+    const stride = run ? 7.6 : 3.6, lift = run ? 5.8 : 2.2;
+    const flight = run ? Math.max(0, Math.sin(tau * 2) - 0.45) * 1.1 : 0;
     // COM is highest at mid-stance (single support), dips at the double-support plants.
-    const bob = -Math.abs(Math.sin(tau)) * (run ? 0.9 : 0.45) + (run ? 0.15 : 0);
+    const bob = -Math.abs(Math.sin(tau)) * (run ? 0.7 : 0.45) + (run ? 0.1 : 0);
+    const rSwing = Math.max(0, -Math.sin(tau)), lSwing = Math.max(0, Math.sin(tau));
     return {
       rx: Math.cos(tau) * stride,
-      rLift: Math.max(0, -Math.sin(tau)) * lift + flight,
-      rAng: Math.cos(tau) * (run ? 0.7 : 1.05),
+      rLift: rSwing * lift + flight,
+      rAng: Math.cos(tau) * (run ? 0.55 : 1.05),
+      rKneeX: run ? rSwing * 2.4 : 0,
+      rKneeY: run ? rSwing * 2.6 : 0,
       lx: -Math.cos(tau) * stride,
-      lLift: Math.max(0, Math.sin(tau)) * lift + flight,
-      lAng: -Math.cos(tau) * (run ? 0.7 : 1.05),
+      lLift: lSwing * lift + flight,
+      lAng: -Math.cos(tau) * (run ? 0.55 : 1.05),
+      lKneeX: run ? lSwing * 2.4 : 0,
+      lKneeY: run ? lSwing * 2.6 : 0,
       bob,
-      head: bob * 0.55 + (run ? 0.15 : 0),
-      cape: -4 - Math.sin(tau - 0.8) * (run ? 3.4 : 1.4) - (run ? 3 : 0),
-      flutter: Math.sin(tau - 0.8) * (run ? 3 : 1.2),
-      lean: run ? 5.2 : 0.6,
-      armR: -Math.cos(tau) * (run ? 7.2 : 2.8),
-      armL: Math.cos(tau) * (run ? 7.2 : 2.8),
-      armRY: Math.sin(tau) * (run ? 2.2 : 0.8),
-      armLY: -Math.sin(tau) * (run ? 2.2 : 0.8),
+      head: bob * 0.55 + (run ? 0.2 : 0),
+      cape: -4 - Math.sin(tau - 0.8) * (run ? 3.8 : 1.4) - (run ? 4 : 0),
+      flutter: Math.sin(tau - 0.8) * (run ? 3.2 : 1.2),
+      lean: run ? 7.6 : 0.6,
+      armR: -Math.cos(tau) * (run ? 6.4 : 3.4),
+      armL: Math.cos(tau) * (run ? 6.4 : 3.4),
+      armRY: Math.sin(tau) * (run ? 2.4 : 0.9),
+      armLY: -Math.sin(tau) * (run ? 2.4 : 0.9),
       run
     };
   }
@@ -1200,15 +1206,19 @@
     const a = ARMOR[eq.armor];
     return { body: a ? a[0] : 'cloth', trim: a ? (a[1] === 'white' ? 'gold' : a[1]) : 'leather', boot: a ? 'iron' : 'rag', pants: a ? (a[0] === 'gold' ? 'gold' : 'iron') : 'skin', skin: 'skin', armored: !!a };
   }
-  function sideLeg(S, hipX, hipY, footX, lift, mat, boot, thick, footAng) {
-    const fy = SIDE_FEET - lift, fx = hipX + footX, mx = hipX + footX * 0.5, my = (hipY + fy) * 0.5, t = thick || 2.2;
+  function sideLeg(S, hipX, hipY, footX, lift, mat, boot, thick, footAng, kneeX, kneeY) {
+    const fy = SIDE_FEET - lift, fx = hipX + footX;
+    const mx = hipX + footX * 0.5 + (kneeX || 0), my = (hipY + fy) * 0.5 - (kneeY || 0), t = thick || 2.2;
     const toeUp = Math.max(0, footAng || 0), heelUp = Math.max(0, -(footAng || 0));
     S.P({ shine: true }); S.poly([[hipX - t, hipY], [hipX + t, hipY], [mx + t, my], [mx - t, my]], mat);
     S.P({ shine: true }); S.poly([[mx - t, my], [mx + t, my], [fx + t, fy - 3 - toeUp], [fx - t * 0.8, fy - 3 - heelUp]], mat);
     S.P(); S.poly([[fx - 3, fy - 3 - heelUp], [fx + 5, fy - 3 - toeUp], [fx + 6, fy - toeUp], [fx - 2, fy - heelUp]], boot);
   }
-  function sideArm(S, shX, shY, handX, handY, mat, skin, thick) {
-    const mx = (shX + handX) * 0.5, my = (shY + handY) * 0.5 + 1, t = thick || 1.8;
+  function sideArm(S, shX, shY, handX, handY, mat, skin, thick, bent) {
+    const k = bent ? 0.38 : 0.5;
+    const mx = shX + (handX - shX) * k + (bent ? -1.2 : 0);
+    const my = shY + (handY - shY) * 0.5 + (bent ? 3 : 1);
+    const t = thick || 1.8;
     S.P({ shine: true }); S.poly([[shX - t, shY], [shX + t, shY + 1], [mx + t, my], [mx - t, my]], mat);
     S.P({ shine: true }); S.poly([[mx - t, my], [mx + t, my], [handX + t, handY], [handX - t, handY]], mat);
     S.P({ shine: true }); S.ell(handX, handY, 1.8, 1.7, skin);
@@ -1372,15 +1382,31 @@
   function drawHeroSide(S, eq, cls, loco, frame) {
     const G = gaitPose(loco, frame), M = bodyMats(eq, cls);
     const bob = G.bob, lean = G.lean;
-    const hipX = SIDE_CX + lean * 0.12, hipY = 44 + bob;
-    const chestX = SIDE_CX + lean * 0.55, chestY = 22 + bob;
-    const headX = chestX + 2, headY = 11 + G.head;
-    const shX = chestX + 0.5, shY = 20 + bob;
+    let hipX, hipY, chestX, chestY, headX, headY, shX, shY;
+    hipY = 44 + bob;
+    if (G.run) {
+      // Whole body leans forward from the ankles as one unit so hips and torso stay connected.
+      const pivotY = SIDE_FEET, chestOff = lean, at = y => chestOff * (pivotY - y) / (pivotY - 22);
+      chestY = 22 + bob;
+      shY = 20 + bob;
+      hipX = SIDE_CX + at(hipY);
+      chestX = SIDE_CX + at(chestY);
+      shX = chestX + 0.5;
+      headX = chestX + 3;
+      headY = 10 + G.head;
+    } else {
+      hipX = SIDE_CX + lean * 0.12;
+      chestX = SIDE_CX + lean * 0.55; chestY = 22 + bob;
+      headX = chestX + 2; headY = 11 + G.head;
+      shX = chestX + 0.5; shY = 20 + bob;
+    }
+    const waistX = G.run ? hipX : chestX;
     S.P({ flat: true }); S.ell(SIDE_CX + (G.rx + G.lx) * 0.15, SIDE_FEET + 0.5, 12, 2.2, 'shadow');
-    if (cls !== 'mage') sideLeg(S, hipX - 1, hipY, G.lx, G.lLift, M.pants, M.boot, 2, G.lAng);
+    if (cls !== 'mage') sideLeg(S, hipX - 1, hipY, G.lx, G.lLift, M.pants, M.boot, 2, G.lAng, G.lKneeX, G.lKneeY);
     drawCapeSide(S, eq.cape, shX - 3, shY, G);
     drawPackSide(S, eq.pack, cls, shX - 7, shY + 4);
-    sideArm(S, shX - 2, shY + 2, shX - 2 + G.armL - 1, shY + 16 + G.armLY, M.body, M.skin, 1.6);
+    // Rear (left) arm: swing is centered on the shoulder so it clearly comes forward opposite the back leg.
+    sideArm(S, shX - 2, shY + 2, shX + G.armL, shY + 15 + G.armLY, M.body, M.skin, 1.6, G.run);
     if (cls === 'mage') {
       // Both boots peek from a raised hem so the walk reads forward (same gait as the other classes).
       const mageBoot = (footX, lift, footAng) => {
@@ -1390,27 +1416,32 @@
       };
       mageBoot(G.lx, G.lLift, G.lAng);
       S.P({ round: true, shine: true });
-      S.poly([[chestX - 3, chestY], [chestX + 5, chestY], [chestX + 6, hipY], [chestX + 6 + G.flutter * 0.25, SIDE_FEET - 5], [chestX - 3 + G.cape * 0.15, SIDE_FEET - 5], [chestX - 4, hipY]], M.body);
-      if (M.trim && M.trim !== 'iron') { S.P({ flat: true, nocs: true }); S.line(chestX - 3, SIDE_FEET - 6, chestX + 6, SIDE_FEET - 6, M.trim, 2); }
+      S.poly([[chestX - 3, chestY], [chestX + 5, chestY], [waistX + 6, hipY], [waistX + 6 + G.flutter * 0.25, SIDE_FEET - 5], [waistX - 3 + G.cape * 0.15, SIDE_FEET - 5], [waistX - 4, hipY]], M.body);
+      if (M.trim && M.trim !== 'iron') { S.P({ flat: true, nocs: true }); S.line(waistX - 3, SIDE_FEET - 6, waistX + 6, SIDE_FEET - 6, M.trim, 2); }
       mageBoot(G.rx, G.rLift, G.rAng);
-      if (M.runes) { S.P({ flat: true, nocs: true }); S.px(chestX + 1, hipY, M.runes); S.glow(chestX + 1, hipY - 4, 5, M.runes, 0.25); }
-      if (M.stars) { S.P({ flat: true, nocs: true }); S.px(chestX, hipY - 6, 'white'); S.px(chestX + 3, hipY + 4, 'white'); }
+      if (M.runes) { S.P({ flat: true, nocs: true }); S.px(waistX + 1, hipY, M.runes); S.glow(waistX + 1, hipY - 4, 5, M.runes, 0.25); }
+      if (M.stars) { S.P({ flat: true, nocs: true }); S.px(waistX, hipY - 6, 'white'); S.px(waistX + 3, hipY + 4, 'white'); }
     } else {
       S.P({ shine: true, round: true });
-      S.poly([[chestX - 3, chestY], [chestX + 6, chestY + 1], [chestX + 5, hipY + 2], [chestX - 3, hipY + 3]], M.body);
-      if (M.trim) { S.P({ nocs: true }); S.rect(chestX - 2, hipY - 2, 8, 2, M.trim === 'white' ? 'gold' : M.trim); }
-      sideLeg(S, hipX + 1, hipY, G.rx, G.rLift, M.pants, M.boot, 2.3, G.rAng);
+      S.poly([[chestX - 3, chestY], [chestX + 6, chestY + 1], [waistX + 6, hipY + 2], [waistX - 3, hipY + 3]], M.body);
+      if (M.trim) { S.P({ nocs: true }); S.rect(waistX - 2, hipY - 2, 8, 2, M.trim === 'white' ? 'gold' : M.trim); }
+      sideLeg(S, hipX + 1, hipY, G.rx, G.rLift, M.pants, M.boot, 2.3, G.rAng, G.rKneeX, G.rKneeY);
     }
     S.P(); S.rect(chestX, chestY - 3, 3, 4, M.skin, -1);
     drawPaulSide(S, eq.pauldrons, cls, shX + 2, shY);
     drawHeadSide(S, eq, cls, headX, headY);
     if (cls === 'shooter') {
-      const hx = shX + 8, hy = shY + 10 + G.armRY * 0.3;
-      sideArm(S, shX + 2, shY, hx, hy, M.body, 'leather', 1.8);
+      const hx = shX + 8, hy = shY + 9 + G.armRY * 0.25;
+      sideArm(S, shX + 2, shY, hx, hy, M.body, 'leather', 1.8, G.run);
+      drawWepSide(S, eq.weapon, cls, hx, hy, G);
+    } else if (G.run) {
+      // Weapon held ready in front, slight pump — not a full back-swing.
+      const hx = shX + 6 + G.armR * 0.32, hy = shY + 10 + G.armRY * 0.4;
+      sideArm(S, shX + 2, shY, hx, hy, M.body, M.skin, 1.9, true);
       drawWepSide(S, eq.weapon, cls, hx, hy, G);
     } else {
-      const hx = shX + 4 + G.armR, hy = shY + 15 + G.armRY;
-      sideArm(S, shX + 2, shY, hx, hy, M.body, M.skin, 1.9);
+      const hx = shX + 2 + G.armR, hy = shY + 15 + G.armRY;
+      sideArm(S, shX + 2, shY, hx, hy, M.body, M.skin, 1.9, false);
       drawWepSide(S, eq.weapon, cls, hx, hy, G);
     }
     if (eq.pack === 'pack-skull' || eq.pack === 'sh-pack-drone' || eq.pack === 'mg-pack-grimoire') {

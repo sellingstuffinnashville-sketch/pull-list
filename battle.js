@@ -897,7 +897,7 @@
   let lyricData = null, lyricP = null, lyricLast = '', lyricTimer = 0;
   let st = null;
   function freshState() {
-    return { mode: 'run', t: 0, scroll: 0, hp: 1, max: 1, heroX: 22, mon: null, mons: [], spawn: 40, fx: [], nums: [], coins: [], fire: null, atkT: 0, monT: 0, pose: '', lunge: 0, flashH: 0, potion: 0, eqKey: '', biome: 0, bt: 0, seq: null, seqI: 0, move: '', forceMove: null, forceCls: null, forceLoco: null, forcePack: null, alpha: 0, loco: 'run', facing: 'side', turn: 0, turnTo: 'side', gaitF: 0, coolWalk: 0, props: [], nextProp: 30, digCd: 24, digT: 0, hopT: 0, hopY: 0, pullT: 0, pullCd: 0, leap: null, toast: null, npc: null, npcCd: 200, greetT: 0, deathCd: 0, healCd: 0, fightXp: 0, awardXp: undefined, noDeath: false, vendor: null, vendorCd: 900, vendorT: 0, partsHeld: 0, pace: 1, paceTarget: 1, scrollSpd: 2 };
+    return { mode: 'run', t: 0, scroll: 0, hp: 1, max: 1, heroX: 22, mon: null, mons: [], spawn: 40, fx: [], nums: [], coins: [], fire: null, atkT: 0, monT: 0, pose: '', lunge: 0, flashH: 0, potion: 0, eqKey: '', biome: 0, bt: 0, seq: null, seqI: 0, move: '', forceMove: null, forceCls: null, forceLoco: null, forcePack: null, alpha: 0, loco: 'run', facing: 'side', turn: 0, turnTo: 'side', gaitF: 0, coolWalk: 0, props: [], nextProp: 30, digCd: 24, digT: 0, hopT: 0, hopY: 0, pullT: 0, pullCd: 0, leap: null, toast: null, npc: null, npcCd: 200, greetT: 0, deathCd: 0, healCd: 0, fightXp: 0, awardXp: undefined, noDeath: false, vendor: null, vendorCd: 900, vendorT: 0, partsHeld: 0, pace: 1, paceTarget: 1, scrollSpd: 2, weather: null, weatherCd: 540 + ((Math.random() * 1260) | 0) };
   }
   function eqNow() { return (typeof xpState !== 'undefined' && xpState.equipped) || {}; }
   function lvl() { return (typeof xpState !== 'undefined' && xpState.level) || 1; }
@@ -1374,9 +1374,11 @@
   }
   function paceForDist(d) {
     if (!(d > 0) || !(d < 1e8)) return 1; // behind / overlapping / none: run
-    if (d > 160) return 1;
-    if (d > 90) return 0.48 + (d - 90) / 70 * 0.52;
-    if (d > 16) return 0.28 + (d - 16) / 74 * 0.20;
+    // Full run until ~50px from the stop / engage point, then brake quickly.
+    // encounterDist already subtracts ranged/melee engageDist, so shooters/mages
+    // only slow near their attack range, not half a screen early.
+    if (d > 52) return 1;
+    if (d > 16) return 0.22 + (d - 16) / 36 * 0.78;
     return 0.16; // creep the last few pixels; the encounter zeros pace
   }
   function encounterDist(s, eq, heroFront) {
@@ -1435,7 +1437,7 @@
     billboard: { w: 72, h: 42, sx: 2.2, sy: 2.55, set: 1, cool: 8, mid: 1 },
     cabin: { w: 64, h: 36, sx: 2.2, sy: 2.55, set: 1, cool: 8, mid: 1 },
     boulder: { w: 26, h: 16, sx: 1.25, sy: 1.25, hop: 1, cool: 3 },
-    skeleton: { w: 28, h: 10, sx: 1.2, sy: 1.2, cool: 4 },
+    skeleton: { w: 34, h: 16, sx: 1.35, sy: 1.35, cool: 4 },
     rubble: { w: 28, h: 14, sx: 1.25, sy: 1.25, dig: 1, cool: 3 },
     debris: { w: 16, h: 9, sx: 1.15, sy: 1.15, cool: 3 },
     deadtree: { w: 22, h: 36, sx: 2.1, sy: 2.55, cool: 3 },
@@ -1813,9 +1815,17 @@
         P(2, gnd - 3, b, 8, 2); P(10, gnd - 5, b, 10, 3); P(6, gnd - 8, bh, 6, 5); P(7, gnd - 10, b, 5, 3);
         P(8, gnd - 9, C.ink); P(10, gnd - 9, C.ink); P(18, gnd - 4, b, 5, 2); P(4, gnd - 6, b, 2, 4);
       } else {
-        P(2, gnd - 6, b, 6, 5); P(3, gnd - 7, bh, 4, 2); P(3, gnd - 5, C.ink); P(5, gnd - 5, C.ink); P(4, gnd - 3, C.ink, 2, 1);
-        P(8, gnd - 4, b, 12, 2); P(9, gnd - 6, b, 1, 3); P(11, gnd - 7, b); P(13, gnd - 6, b); P(15, gnd - 5, b);
-        P(8, gnd - 3, b, 3, 2); P(18, gnd - 3, b, 8, 2); P(22, gnd - 5, b, 2, 3);
+        // Fallen skeleton: skull (sockets + jaw), spine, ribcage, scattered limbs.
+        P(2, gnd - 14, b, 9, 8); P(3, gnd - 15, bh, 7, 4); P(3, gnd - 15, C.boneL, 1, 7); P(9, gnd - 14, C.boneL, 1, 6);
+        P(4, gnd - 12, C.ink, 2, 2); P(7, gnd - 12, C.ink, 2, 2);
+        P(6, gnd - 10, C.ink, 2, 1);
+        P(3, gnd - 8, b, 7, 3); P(4, gnd - 8, C.ink); P(6, gnd - 8, C.ink); P(8, gnd - 8, C.ink);
+        P(10, gnd - 11, b, 2, 9); P(10, gnd - 11, bh, 2, 1); P(10, gnd - 8, bh, 2, 1); P(10, gnd - 5, bh, 2, 1);
+        P(12, gnd - 11, b, 7, 1); P(12, gnd - 9, b, 8, 1); P(12, gnd - 7, b, 7, 1); P(12, gnd - 5, b, 5, 1);
+        P(7, gnd - 11, b, 3, 1); P(7, gnd - 9, b, 3, 1); P(8, gnd - 7, b, 2, 1);
+        P(12, gnd - 3, b, 10, 2); P(20, gnd - 6, b, 2, 4); P(21, gnd - 3, bh, 3, 2);
+        P(1, gnd - 5, b, 6, 2); P(0, gnd - 8, b, 2, 4); P(22, gnd - 2, b, 8, 2); P(28, gnd - 5, bh, 3, 2);
+        P(16, gnd - 2, C.boneL, 2, 2);
       }
     } else if (type === 'rubble') {
       P(1, gnd - 1, C.char, 26, 1);
@@ -2502,30 +2512,255 @@
     'The grave can wait.',
     'Rise. The road is not finished.'
   ];
-  let spiritCan = null;
-  function paintSpirit() {
-    if (spiritCan) return spiritCan;
-    const c = mkc(28, 48), x = c.getContext('2d'), gnd = 46;
+  let spiritCache = {};
+  function paintSpirit(flap) {
+    const f = ((flap | 0) % 3 + 3) % 3;
+    if (spiritCache[f]) return spiritCache[f];
+    const W0 = 80, H0 = 58, c = mkc(W0, H0), x = c.getContext('2d');
     const P = (xx, yy, col, w, h) => px(x, xx, yy, col, w, h);
-    P(10, 18, '#d8c890', 10, 16); P(11, 17, '#f0e8c0', 8, 4);
-    P(8, 20, '#e8dcb0', 4, 12); P(18, 22, '#e8dcb0', 6, 14);
-    P(11, 32, '#c8b878', 3, 12); P(16, 32, '#c8b878', 3, 12);
-    P(11, 8, '#f8e0a0', 8, 10); P(12, 9, '#fff6d0', 6, 6); P(13, 11, '#3a2010'); P(16, 11, '#3a2010');
-    P(10, 6, '#f0d878', 10, 5); P(8, 8, '#f0d878', 4, 8); P(18, 7, '#f8e8a0', 5, 10);
-    P(20, 16, '#e8d070', 2, 16); P(19, 14, '#fff0b0', 3, 3);
-    P(6, 16, 'rgba(255,230,160,0.0)', 1, 1);
+    const fy = f === 1 ? -2 : (f === 2 ? 2 : 0);
+    const fy2 = f === 1 ? -1 : (f === 2 ? 1 : 0);
+    const poly = (pts, col) => {
+      x.fillStyle = col; x.beginPath();
+      x.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length; i++) x.lineTo(pts[i][0], pts[i][1]);
+      x.closePath(); x.fill();
+    };
+    const cx = 40;
+    // Back wing layers, spread wide, slight flap on the outer feathers.
+    const wing = (dir) => {
+      const d = dir, lift = fy, lift2 = fy2;
+      poly([[cx, 20], [cx + d * 8, 16], [cx + d * 22, 8 + lift], [cx + d * 36, 6 + lift], [cx + d * 38, 14 + lift], [cx + d * 24, 20 + lift2], [cx + d * 10, 24]], '#e8d090');
+      poly([[cx, 22], [cx + d * 10, 20], [cx + d * 26, 14 + lift2], [cx + d * 38, 16 + lift], [cx + d * 36, 24 + lift], [cx + d * 20, 26], [cx + d * 8, 26]], '#f4e8b0');
+      poly([[cx, 24], [cx + d * 8, 26], [cx + d * 24, 26 + lift2], [cx + d * 34, 30 + lift], [cx + d * 30, 36 + lift], [cx + d * 16, 32], [cx + d * 6, 28]], '#dcc878');
+      poly([[cx + d * 2, 22], [cx + d * 18, 12 + lift2], [cx + d * 28, 10 + lift], [cx + d * 26, 16 + lift], [cx + d * 14, 22]], '#fff6d0');
+      // feather shafts
+      P(cx + d * 12, 18 + lift2, '#c8a858', d > 0 ? 14 : 14, 1);
+      P(cx + d * 10, 24, '#c8a858', 16, 1);
+      P(cx + d * 12, 28 + lift2, '#c8a858', 14, 1);
+    };
+    wing(-1); wing(1);
+    // Robe / body
+    P(34, 20, '#e8dcb0', 12, 22); P(35, 19, '#f8eec0', 10, 4);
+    P(33, 28, '#d8c890', 14, 16); P(32, 40, '#c8b878', 16, 12);
+    P(34, 48, '#d8c890', 5, 8); P(41, 48, '#d8c890', 5, 8);
+    P(36, 22, '#fff6d0', 8, 8);
+    // Hair + face
+    P(35, 8, '#f0d878', 10, 10); P(34, 10, '#f8e8a0', 12, 8); P(36, 6, '#fff0b0', 8, 5);
+    P(33, 12, '#f0d878', 3, 8); P(44, 11, '#f8e8a0', 4, 10);
+    P(37, 11, '#fff6d0', 6, 7);
+    P(38, 13, '#3a2010'); P(41, 13, '#3a2010');
+    P(39, 16, '#c89070', 3, 1);
+    // Raised blessing arm
+    P(46, 22, '#e8dcb0', 8, 3); P(52, 18, '#e8dcb0', 3, 6); P(53, 16, '#fff6d0', 3, 3);
+    P(30, 24, '#e8dcb0', 4, 8); P(29, 30, '#fff6d0', 3, 3);
     inkOutline(c);
-    const grd = x.createRadialGradient(14, 22, 2, 14, 22, 20);
-    grd.addColorStop(0, 'rgba(255,230,140,0.28)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+    const grd = x.createRadialGradient(cx, 26, 4, cx, 26, 38);
+    grd.addColorStop(0, 'rgba(255,230,160,0.38)'); grd.addColorStop(0.45, 'rgba(255,230,160,0.12)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
     x.globalCompositeOperation = 'destination-over';
-    x.fillStyle = grd; x.fillRect(0, 0, 28, 48);
+    x.fillStyle = grd; x.fillRect(0, 0, W0, H0);
     x.globalCompositeOperation = 'source-over';
-    return (spiritCan = c);
+    return (spiritCache[f] = c);
+  }
+  // ---------- occasional weather (rain / storm; skipped in the cave) ----------
+  const RAIN_MAX = 48, SPLASH_MAX = 10;
+  let rainDrops = null, rainSplashes = null;
+  function weatherBiomeOk(s) {
+    if (!s) return false;
+    if (BIOMES[s.biome] === 'cave') return false;
+    if (s.fade && s.prevBiome != null && BIOMES[s.prevBiome] === 'cave') return false;
+    return true;
+  }
+  function allocRain() {
+    if (rainDrops) return;
+    rainDrops = [];
+    for (let i = 0; i < RAIN_MAX; i++) rainDrops.push({ x: 0, y: -8, len: 4, spd: 4, a: 0.4, on: 0 });
+    rainSplashes = [];
+    for (let i = 0; i < SPLASH_MAX; i++) rainSplashes.push({ x: 0, y: 0, t: 0, life: 0 });
+  }
+  function makeBolt(h) {
+    const pts = [];
+    let x = 16 + Math.random() * Math.max(24, (W || 200) - 32), y = 2;
+    pts.push([x | 0, y | 0]);
+    const dest = Math.max(36, (h || 80) * 0.42 + Math.random() * 24);
+    while (y < dest) {
+      y += 5 + Math.random() * 8;
+      x += Math.random() * 16 - 8;
+      pts.push([x | 0, y | 0]);
+    }
+    if (pts.length > 3 && Math.random() < 0.55) {
+      const i = 2 + ((Math.random() * (pts.length - 3)) | 0);
+      const fork = [pts[i].slice()];
+      let fx = pts[i][0], fy = pts[i][1];
+      for (let k = 0; k < 3; k++) { fy += 6; fx += 8 + Math.random() * 6; fork.push([fx | 0, fy | 0]); }
+      return { pts, fork };
+    }
+    return { pts, fork: null };
+  }
+  function startWeather(s, kind, forced) {
+    allocRain();
+    const storm = kind === 'storm' || (kind !== 'drizzle' && Math.random() < 0.38);
+    const secs = 30 + ((Math.random() * 61) | 0);
+    s.weather = {
+      kind: storm ? 'storm' : 'drizzle',
+      t: 0,
+      life: FPS * secs,
+      flash: 0,
+      bolt: null,
+      boltLife: 0,
+      nextBolt: storm ? (28 + ((Math.random() * 50) | 0)) : (90 + ((Math.random() * 150) | 0)),
+      forced: !!forced
+    };
+    const n = storm ? RAIN_MAX : 22;
+    for (let i = 0; i < RAIN_MAX; i++) {
+      const d = rainDrops[i];
+      d.on = i < n ? 1 : 0;
+      d.x = Math.random() * ((W || 200) + 40) - 16;
+      d.y = Math.random() * (H + 16) - 16;
+      d.len = storm ? 5 + ((Math.random() * 4) | 0) : 3 + ((Math.random() * 3) | 0);
+      d.spd = storm ? 5.5 + Math.random() * 3 : 3.2 + Math.random() * 1.8;
+      d.a = storm ? 0.42 + Math.random() * 0.38 : 0.26 + Math.random() * 0.28;
+    }
+    for (const sp of rainSplashes) sp.life = 0;
+    s.weatherCd = 0;
+    return s.weather;
+  }
+  function tickWeather(s) {
+    if (!s) return;
+    if (!s.weather) {
+      if (s.weatherCd > 0) s.weatherCd--;
+      else if (on && !s.noDeath && weatherBiomeOk(s)) startWeather(s);
+      return;
+    }
+    const w = s.weather;
+    if (!w.forced && !weatherBiomeOk(s)) w.t = Math.max(w.t, w.life - 12);
+    w.t++;
+    if (w.flash) w.flash--;
+    if (w.boltLife) { w.boltLife--; if (w.boltLife <= 0) w.bolt = null; }
+    if (w.t >= w.life) {
+      s.weather = null;
+      s.weatherCd = FPS * (120 + ((Math.random() * 180) | 0)); // 2–5 minutes until the next spell
+      return;
+    }
+    if (reduced()) return;
+    allocRain();
+    const storm = w.kind === 'storm';
+    const wind = 1.5 + (s.scrollSpd || 0) * 0.4;
+    const n = storm ? RAIN_MAX : 22;
+    const ww = W || 200;
+    for (let i = 0; i < n; i++) {
+      const d = rainDrops[i];
+      d.x += wind * 0.85;
+      d.y += d.spd;
+      if (d.y >= GROUND - 1) {
+        if (d.x > 0 && d.x < ww && Math.random() < (storm ? 0.4 : 0.2)) {
+          let slot = null;
+          for (let k = 0; k < SPLASH_MAX; k++) if (!rainSplashes[k].life) { slot = rainSplashes[k]; break; }
+          if (slot) { slot.x = d.x; slot.y = GROUND - 1; slot.t = 0; slot.life = 3 + ((Math.random() * 2) | 0); }
+        }
+        d.y = -d.len - Math.random() * 14;
+        d.x = Math.random() * (ww + 28) - 16;
+      }
+      if (d.x > ww + 14) d.x -= ww + 28;
+    }
+    for (let k = 0; k < SPLASH_MAX; k++) {
+      const sp = rainSplashes[k];
+      if (sp.life) { sp.t++; if (sp.t >= sp.life) sp.life = 0; }
+    }
+    if (w.nextBolt > 0) w.nextBolt--;
+    if (w.nextBolt <= 0 && !w.flash) {
+      const strike = storm ? (Math.random() < 0.7) : (Math.random() < 0.22);
+      if (strike) {
+        w.flash = storm ? 3 : 2;
+        w.bolt = makeBolt(bgOn && BH ? BH - H : 36);
+        w.boltLife = 4;
+      }
+      w.nextBolt = storm ? (30 + ((Math.random() * 70) | 0)) : (100 + ((Math.random() * 180) | 0));
+    }
+  }
+  function drawBolt(ctx, bolt, ox, oy, fade) {
+    if (!bolt || !bolt.pts) return;
+    const stroke = (pts, col, a, w) => {
+      ctx.fillStyle = col; ctx.globalAlpha = a * fade;
+      for (let i = 1; i < pts.length; i++) {
+        const x0 = pts[i - 1][0] + ox, y0 = pts[i - 1][1] + oy, x1 = pts[i][0] + ox, y1 = pts[i][1] + oy;
+        const n = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0)));
+        for (let k = 0; k <= n; k++) ctx.fillRect(Math.round(x0 + (x1 - x0) * k / n), Math.round(y0 + (y1 - y0) * k / n), w, w);
+      }
+    };
+    stroke(bolt.pts, '#b8d0ff', 0.45, 3);
+    stroke(bolt.pts, '#f4f8ff', 0.95, 1);
+    if (bolt.fork) { stroke(bolt.fork, '#b8d0ff', 0.35, 2); stroke(bolt.fork, '#f4f8ff', 0.8, 1); }
+    ctx.globalAlpha = 1;
+  }
+  function drawWeather(ctx, s, a, bgMode) {
+    if (!s || !s.weather) return;
+    const w = s.weather;
+    if (!w.forced && !weatherBiomeOk(s)) return;
+    const storm = w.kind === 'storm';
+    const fade = Math.min(1, w.t / 14, (w.life - w.t) / 14);
+    const H0 = bgMode && BH ? BH : H, wW = W || 200;
+    const tintHere = bgMode || !bgOn, flashHere = bgMode || !bgOn;
+    if (tintHere) {
+      ctx.save();
+      ctx.globalAlpha = (storm ? 0.28 : 0.16) * fade;
+      ctx.fillStyle = storm ? '#0c1420' : '#121a24';
+      ctx.fillRect(0, 0, wW, bgMode ? H0 : GROUND);
+      ctx.restore();
+    }
+    if (bgMode && w.bolt && w.boltLife) drawBolt(ctx, w.bolt, 0, 0, fade * (w.boltLife / 4));
+    if (!bgMode && w.bolt && w.boltLife && !bgOn) drawBolt(ctx, w.bolt, 0, 0, fade * (w.boltLife / 4));
+    if (reduced() || !rainDrops) {
+      if (flashHere && w.flash) { ctx.save(); ctx.globalAlpha = (w.flash / (storm ? 3 : 2)) * (storm ? 0.5 : 0.32) * fade; ctx.fillStyle = '#d8e8ff'; ctx.fillRect(0, 0, wW, H0); ctx.restore(); }
+      return;
+    }
+    const wind = 1.5 + (s.scrollSpd || 0) * 0.4;
+    const aa = a || 0;
+    const n = storm ? RAIN_MAX : 22;
+    const yOff = 0;
+    const reps = bgMode ? 3 : 1;
+    const gap = bgMode && BH ? Math.max(40, ((BH - BAND) / 3) | 0) : 0;
+    ctx.save();
+    for (let rep = 0; rep < reps; rep++) {
+      for (let i = 0; i < n; i++) {
+        const d = rainDrops[i];
+        if (!d.on) continue;
+        const x = d.x + wind * 0.85 * aa;
+        const y = d.y + d.spd * aa - rep * gap + yOff;
+        if (bgMode && BH && y > BH - H) continue;
+        if (!bgMode && (y < -6 || y > GROUND + 2)) continue;
+        ctx.globalAlpha = d.a * fade * (rep ? 0.7 : 1);
+        ctx.fillStyle = storm ? '#c4d4e8' : '#a8b8cc';
+        const dx = wind * 0.45;
+        for (let k = 0; k < d.len; k++) ctx.fillRect(Math.round(x + dx * k / d.len), Math.round(y + k * 0.9), 1, 1);
+      }
+    }
+    if (!bgMode) {
+      for (let k = 0; k < SPLASH_MAX; k++) {
+        const sp = rainSplashes[k];
+        if (!sp.life) continue;
+        const p = sp.t / sp.life;
+        ctx.globalAlpha = (1 - p) * 0.55 * fade;
+        ctx.fillStyle = '#c8d4e0';
+        const sx = Math.round(sp.x), sy = Math.round(sp.y);
+        ctx.fillRect(sx, sy, 1, 1);
+        ctx.fillRect(sx - 2 - (p * 2) | 0, sy - 1, 1, 1);
+        ctx.fillRect(sx + 1 + (p * 2) | 0, sy - 1, 1, 1);
+      }
+    }
+    ctx.restore();
+    if (flashHere && w.flash) {
+      ctx.save();
+      ctx.globalAlpha = (w.flash / (storm ? 3 : 2)) * (storm ? 0.52 : 0.34) * fade;
+      ctx.fillStyle = '#d8e8ff';
+      ctx.fillRect(0, 0, wW, H0);
+      ctx.restore();
+    }
   }
   function startDeath(s, slayer) {
     s.mode = 'death'; s.deathT = 0; s.deathPhase = 'fall'; s.deathAng = 0; s.deathY = 0;
     s.deathLine = DEATH_LINES[(Math.random() * DEATH_LINES.length) | 0];
-    s.spiritY = -36; s.spiritA = 0; s.pose = ''; s.seq = null; s.leap = null; s.loco = 'idle';
+    s.spiritY = 0; s.spiritA = 0; s.pose = ''; s.seq = null; s.leap = null; s.loco = 'idle';
     s.hp = 0; s.flashH = 5; s.fire = null;
     if (s.npc) { s.npc.mode = 'leave'; s.npc.wave = 0; }
     if (s.vendor && s.vendor.mode === 'deal') s.vendor.mode = 'done';
@@ -2554,11 +2789,11 @@
     } else if (s.deathPhase === 'lie') {
       if (t >= 14) { s.deathPhase = 'spirit'; s.deathT = 0; }
     } else if (s.deathPhase === 'spirit') {
-      s.spiritA = Math.min(1, t / 6);
-      s.spiritY = -36 + Math.min(40, t * 2.4);
-      if (t >= 18) { s.deathPhase = 'speak'; s.deathT = 0; }
+      // Fade in standing / hovering beside the fallen hero (no descent from the sky).
+      s.spiritA = Math.min(1, t / 7);
+      if (t >= 14) { s.deathPhase = 'speak'; s.deathT = 0; }
     } else if (s.deathPhase === 'speak') {
-      s.spiritA = 1; s.spiritY = 4;
+      s.spiritA = 1;
       if (t >= 26) { s.deathPhase = 'raise'; s.deathT = 0; }
     } else if (s.deathPhase === 'raise') {
       s.spiritA = Math.max(0, 1 - t / 14);
@@ -2635,6 +2870,7 @@
     s.coins = s.coins.filter(c => c.t < 12);
     for (const m of allMons(s)) { if (m.hurt) m.hurt--; if (m.flash) m.flash = Math.max(0, (m.flash | 0) - 1); if (m.lunge) m.lunge--; tickTurn(m); }
     tickTurn(s);
+    tickWeather(s);
     const stepFor = loco => loco === 'walk' || loco === 'dig' || loco === 'climb' ? 1 : (loco === 'idle' ? 0 : 2);
     const moving = (step) => {
       step = step || 0;
@@ -2666,7 +2902,7 @@
         const tgt = paceForDist(encounterDist(s, eq, heroFront));
         s.paceTarget = tgt;
         const cur = (s.pace != null) ? s.pace : 1;
-        const rate = tgt < cur ? 0.12 : 0.07;
+        const rate = tgt < cur ? 0.18 : 0.07;
         s.pace = cur + (tgt < cur ? -1 : 1) * Math.min(Math.abs(tgt - cur), rate);
         s.loco = s.pace < 0.07 ? 'idle' : (s.pace < 0.5 ? 'walk' : 'run');
       }
@@ -2895,10 +3131,16 @@
       if (s.potion > 18) { goRun(s, true); s.pose = ''; }
     }
   }
+  let lastHeal = '';
   function startHeal(forced) {
     st.potion = 0; st.seq = null; st.pose = ''; st.fire = null; st.loco = 'idle'; st.leap = null; st.hopY = 0; st.healCd = 240;
     beginTurn(st, 'front');
-    const r = forced || (Math.random() < 0.34 ? 'potion' : Math.random() < 0.5 ? 'rest' : 'band');
+    let r = forced;
+    if (!r) {
+      const opts = ['potion', 'rest', 'band'].filter(k => k !== lastHeal);
+      r = opts[(Math.random() * opts.length) | 0] || 'potion';
+    }
+    lastHeal = r;
     if (r === 'potion') st.mode = 'potion';
     else if (r === 'rest') { st.mode = 'rest'; st.fire = { x: st.heroX + 46 }; }
     else st.mode = 'band';
@@ -2998,6 +3240,7 @@
     const a = on ? (s.alpha || 0) : 0;
     const scStep = on ? scrollStep(s) : 0;
     const cam = camX(s.scroll, a, scStep);
+    if (s.weather) drawWeather(bg, s, a, true);
     // ground under everything, for when the strip is switched off
     if (!on) fadeDraw(L => tiled(L.fl, cam, BH - 9, bg), BH, bg);
     else drawProps(bg, s.scroll, a, scStep, 'mid');
@@ -3239,12 +3482,19 @@
     if (s.mode === 'pull') drawPullGear(g, s, plant, hy, a);
     if (s.mode === 'greet' && s.npc && s.npc.mode === 'wave') drawWaveArm(g, plant, hy, (s.greetT || 0) + a);
     if (s.mode === 'death' && (s.deathPhase === 'spirit' || s.deathPhase === 'speak' || s.deathPhase === 'raise') && (s.spiritA || 0) > 0) {
-      const sp = paintSpirit();
-      const sx0 = Math.round(plant + 10), sy0 = Math.round((s.spiritY || 0) + 2);
-      g.globalAlpha = Math.max(0.15, s.spiritA);
+      const sp = paintSpirit(Math.floor(((s.deathT || 0) + a) * 0.45));
+      const hover = Math.sin(((s.deathT || 0) + a) * 0.35) * 2;
+      const sx0 = Math.round(plant + 8);
+      const sy0 = Math.round(GROUND - sp.height + 2 + hover);
+      const glowR = 28 + Math.sin(((s.deathT || 0) + a) * 0.4) * 3;
+      const gr0 = g.createRadialGradient(sx0 + 40, sy0 + 28, 4, sx0 + 40, sy0 + 28, glowR);
+      gr0.addColorStop(0, 'rgba(255,230,150,' + (0.34 * s.spiritA) + ')');
+      gr0.addColorStop(1, 'rgba(255,230,150,0)');
+      g.fillStyle = gr0; g.fillRect(sx0, sy0, sp.width, sp.height);
+      g.globalAlpha = Math.max(0.12, s.spiritA);
       g.drawImage(sp, sx0, sy0);
       g.globalAlpha = 1;
-      if (s.deathPhase === 'speak' && s.deathLine) drawBubble(g, sx0 + 14, sy0 + 6, s.deathLine);
+      if (s.deathPhase === 'speak' && s.deathLine) drawBubble(g, sx0 + 40, sy0 + 8, s.deathLine);
     }
     if (s.mode === 'death' && s.deathPhase === 'raise') {
       const p = Math.min(1, (s.deathT || 0) / 12);
@@ -3260,14 +3510,14 @@
       g.fillStyle = '#b01c1c'; g.fillRect(fx, fy - 1, 3, 4); g.fillStyle = '#ff7070'; g.fillRect(fx, fy - 1, 1, 2); g.fillStyle = '#ffd0d0'; g.fillRect(fx, fy - 1, 1, 1);
     }
     if (s.mode === 'band') {
-      const ax = hx2 + 30, ay = hy + 28, ang = (s.potion + a) * 0.7;
+      const ax = hx2 + 28, ay = hy + 26, ang = (s.potion + a) * 0.7;
       g.fillStyle = '#e8dcc0';
-      for (let i = 0; i < 6; i++) {
-        const t = ang - i * 0.45;
-        g.fillRect(Math.round(ax + Math.cos(t) * 5), Math.round(ay + Math.sin(t) * 3), 2, 1);
+      for (let i = 0; i < 8; i++) {
+        const t = ang - i * 0.4;
+        g.fillRect(Math.round(ax + Math.cos(t) * 6), Math.round(ay + Math.sin(t) * 4), 2, 2);
       }
       g.fillStyle = '#c8b898';
-      g.fillRect(Math.round(ax + Math.cos(ang) * 5), Math.round(ay + Math.sin(ang) * 3 + 1), 3, 1);
+      g.fillRect(Math.round(ax + Math.cos(ang) * 6), Math.round(ay + Math.sin(ang) * 4 + 1), 3, 2);
     }
     bar(hx2 + 14, 2, 20, s.hp / s.max, s.hp / s.max > 0.4 ? '#50d050' : '#e0a030');
     for (const m of allMons(s)) {
@@ -3459,6 +3709,7 @@
     drawVendor(g, s, a);
     drawNpc(g, s, a);
     if (s.toast) text(g, s.toast.msg, s.heroX + 8, 8, '#ffe070');
+    drawWeather(g, s, a, false);
     drawLyrics();
   }
 
@@ -3863,6 +4114,12 @@
         if (!st.npc && waved) break;
       }
       return { waved, left, ended: !st.npc || st.mode === 'run', line, greetMode: greetSeen, scrollMovedDuringGreet: !!(scrollAtGreet != null && scrollEndGreet != null && scrollEndGreet > scrollAtGreet), frames: frames.length, error: null };
+    },
+    _forceWeather(kind) {
+      if (!st) st = freshState();
+      if (kind === 'off' || kind === 'clear' || kind === false) { st.weather = null; st.weatherCd = FPS * 180; return null; }
+      const k = (kind === 'drizzle' || kind === 'storm') ? kind : null;
+      return startWeather(st, k, true);
     },
     _forceDeath(line) {
       if (!st) st = freshState();
