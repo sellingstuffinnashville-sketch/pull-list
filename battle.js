@@ -743,7 +743,7 @@
     const FL_H = 8 + BAND;
     const fl = mkc(TW, FL_H), g2 = fl.getContext('2d');
     const r = rng(name.length * 97 + 13);
-    let tw = [], kind = name;
+    let tw = [], kind = name, celest = null;
     f.translate(0, Y0); m.translate(0, Y0); // strip-space coordinates from here (y < 0 is above the strip)
     if (name === 'cave') {
       skyGrad(f0, TH, [[0, '#050404'], [Y0 * 0.5, '#0a0807'], [Y0, '#0e0a08'], [TH, '#1a120c']]);
@@ -806,8 +806,8 @@
       // faint band of the galaxy
       for (let k = 0; k < 160; k++) { const t = r(), x = t * TW, y = Y0 * 0.18 + t * Y0 * 0.25 + (r() - 0.5) * 26; f0.globalAlpha = 0.18; px(f0, x, y, '#a8a0d0'); }
       f0.globalAlpha = 1;
-      for (let y = -9; y <= 9; y++) for (let x = -9; x <= 9; x++) { const d2 = x * x + y * y; if (d2 <= 81) px(f0, 130 + x, Y0 + 45 + y, d2 < 36 ? '#ffe0a0' : '#ffb868'); }
-      px(f0, 112, Y0 + 44, '#e89058', 36, 1); px(f0, 104, Y0 + 48, '#e89058', 52, 1); px(f0, 118, Y0 + 40, '#f0a060', 24, 1);
+      // Sun is drawn once in screen space (see drawCelestial) so the repeating sky tile never shows two.
+      celest = { kind: 'sun', y: 45 };
       ridge(f, 50, 6, 2, 5, '#4a2a3a', 0.4, GROUND);
       ridge(f, 57, 5, 3, 7, '#2e1c26', 1.7, GROUND);
       ridge(m, 64, 3, 4, 9, '#1e1a14', 2.2, GROUND);
@@ -889,7 +889,7 @@
       }
       for (let k = 0; k < Math.round(60 * FL_H / 9); k++) px(g2, r() * TW, 2 + r() * (FL_H - 2), ['#3a2a20', '#1a1410', '#5a2a18'][(r() * 3) | 0]);
     }
-    return (layerCache[key] = { sky: skyC, far: fold(farW), mid: fold(midW), fl, tw, kind, TH });
+    return (layerCache[key] = { sky: skyC, far: fold(farW), mid: fold(midW), fl, tw, kind, TH, celest });
   }
 
   // ---------- state ----------
@@ -1491,10 +1491,10 @@
   const PROP = {
     // sx/sy are draw scales vs the authored sprite. Hero is ~61px tall; cars should read as
     // ~0.8-1x as tall and ~2.5-3x as long, buildings several hero-heights (and may overflow the strip).
-    car: { w: 72, h: 44, sx: 2.35, sy: 1.28 },
-    carbrush: { w: 72, h: 44, sx: 2.3, sy: 1.28 },
-    bike: { w: 32, h: 18, sx: 2.85, sy: 2.2 },
-    bus: { w: 78, h: 30, sx: 2.85, sy: 2.35 },
+    car: { w: 72, h: 44, sx: 2.35, sy: 1.28, cool: 5 },
+    carbrush: { w: 72, h: 44, sx: 2.3, sy: 1.28, cool: 5 },
+    bike: { w: 32, h: 18, sx: 2.85, sy: 2.2, cool: 4 },
+    bus: { w: 78, h: 30, sx: 2.85, sy: 2.35, cool: 5 },
     gas: { w: 92, h: 54, sx: 2.35, sy: 2.55, rare: 1, set: 1, cool: 10, mid: 1 },
     house: { w: 70, h: 46, sx: 2.55, sy: 3.15, set: 1, cool: 8, mid: 1 },
     hospital: { w: 96, h: 52, sx: 2.7, sy: 3.35, rare: 1, set: 1, cool: 12, mid: 1 },
@@ -1526,9 +1526,9 @@
   function propWeights(biome) {
     const name = BIOMES[biome] || 'plains';
     if (name === 'forest') return [
-      ['cabin', 1.5], ['carbrush', 1.4], ['house', 0.45], ['church', 0.22],
-      ['skeleton', 0.9], ['rubble', 1.2], ['deadtree', 1.6], ['stump', 1.3], ['log', 1.3],
-      ['boulder', 1.0], ['debris', 0.9], ['bush', 1.3], ['fence', 0.8], ['pole', 0.45],
+      ['cabin', 1.5], ['carbrush', 2.0], ['house', 0.45], ['church', 0.22],
+      ['skeleton', 0.9], ['rubble', 1.2], ['deadtree', 1.6], ['stump', 1.15], ['log', 1.15],
+      ['boulder', 0.75], ['debris', 0.7], ['bush', 1.2], ['fence', 0.8], ['pole', 0.45],
       ['mailbox', 0.3], ['sign', 0.4], ['barrel', 0.4]
     ];
     if (name === 'cave') return [
@@ -1538,18 +1538,18 @@
     ];
     if (name === 'ruins') return [
       ['house', 0.7], ['hospital', 0.28], ['church', 0.32], ['diner', 0.22],
-      ['billboard', 0.4], ['watertower', 0.25], ['bus', 0.5], ['car', 1.5], ['bike', 0.9],
+      ['billboard', 0.4], ['watertower', 0.25], ['bus', 0.72], ['car', 2.2], ['bike', 1.3],
       ['gas', 0.16], ['cabin', 0.2], ['pole', 0.8], ['fence', 0.7], ['sign', 0.7],
-      ['barrel', 0.9], ['rubble', 1.4], ['debris', 1.2], ['skeleton', 1.2], ['mailbox', 0.2],
-      ['boulder', 0.6], ['deadtree', 0.4]
+      ['barrel', 0.8], ['rubble', 1.2], ['debris', 0.9], ['skeleton', 1.1], ['mailbox', 0.2],
+      ['boulder', 0.45], ['deadtree', 0.4]
     ];
     // plains / wasteland / town
     return [
-      ['car', 1.8], ['bike', 1.2], ['bus', 0.45], ['gas', 0.22], ['house', 0.4],
+      ['car', 2.6], ['bike', 1.7], ['bus', 0.65], ['gas', 0.22], ['house', 0.4],
       ['hospital', 0.16], ['diner', 0.22], ['church', 0.18], ['watertower', 0.22],
-      ['billboard', 0.3], ['boulder', 1.1], ['skeleton', 1.0], ['rubble', 1.4],
-      ['debris', 1.1], ['deadtree', 0.8], ['sign', 0.8], ['barrel', 0.9],
-      ['mailbox', 0.4], ['fence', 0.8], ['pole', 0.7]
+      ['billboard', 0.3], ['boulder', 0.8], ['skeleton', 0.95], ['rubble', 1.15],
+      ['debris', 0.8], ['deadtree', 0.75], ['sign', 0.8], ['barrel', 0.8],
+      ['mailbox', 0.4], ['fence', 0.75], ['pole', 0.7]
     ];
   }
   function shuffleBag(list) {
@@ -2072,7 +2072,8 @@
       // Walk-line props lock to the ground (par === 1). Only far/mid buildings and hanging props use a slower, consistent parallax.
       let par = 1;
       if (meta.hang || meta.mid) par = 0.55;
-      const gap = (meta.rare || meta.set ? 160 : 40) + ((Math.random() * (meta.rare || meta.set ? 240 : 100)) | 0);
+      const vehicle = type === 'car' || type === 'carbrush' || type === 'bike' || type === 'bus';
+      const gap = (meta.rare || meta.set ? 160 : (vehicle ? 72 : 40)) + ((Math.random() * (meta.rare || meta.set ? 240 : (vehicle ? 80 : 100))) | 0);
       const mid = !!(meta.mid && !meta.hang);
       const sc = (mid ? 0.72 : 1) * (0.92 + Math.random() * 0.16);
       const p0 = { k: type, wx: Math.round(s.nextProp), v: (Math.random() * 6) | 0, par, w: meta.w, h: meta.h, hop: !!meta.hop, dig: !!meta.dig, hang: !!meta.hang, glow: !!meta.glow, flip: Math.random() < 0.5, sc, yOff: meta.hang ? 0 : (mid ? -12 : 0) };
@@ -2855,7 +2856,7 @@
       const strike = storm ? (Math.random() < 0.7) : (Math.random() < 0.22);
       if (strike) {
         w.flash = storm ? 3 : 2;
-        w.bolt = makeBolt(bgOn && BH ? BH - H : 36);
+        w.bolt = makeBolt(Math.max(36, Math.round(H * 0.45)));
         w.boltLife = 4;
       }
       w.nextBolt = storm ? (30 + ((Math.random() * 70) | 0)) : (100 + ((Math.random() * 180) | 0));
@@ -2882,17 +2883,18 @@
     if (!w.forced && !weatherBiomeOk(s)) return;
     const storm = w.kind === 'storm';
     const fade = Math.min(1, w.t / 14, (w.life - w.t) / 14);
-    const H0 = bgMode && BH ? BH : H, wW = W || 200;
-    const tintHere = bgMode || !bgOn, flashHere = bgMode || !bgOn;
+    // Rain, tint, and lightning stay on the battle strip only — never on the page backdrop behind the list UI.
+    if (bgMode) return;
+    const H0 = H, wW = W || 200;
+    const tintHere = true, flashHere = true;
     if (tintHere) {
       ctx.save();
       ctx.globalAlpha = (storm ? 0.28 : 0.16) * fade;
       ctx.fillStyle = storm ? '#0c1420' : '#121a24';
-      ctx.fillRect(0, 0, wW, bgMode ? H0 : GROUND);
+      ctx.fillRect(0, 0, wW, GROUND);
       ctx.restore();
     }
-    if (bgMode && w.bolt && w.boltLife) drawBolt(ctx, w.bolt, 0, 0, fade * (w.boltLife / 4));
-    if (!bgMode && w.bolt && w.boltLife && !bgOn) drawBolt(ctx, w.bolt, 0, 0, fade * (w.boltLife / 4));
+    if (w.bolt && w.boltLife) drawBolt(ctx, w.bolt, 0, 0, fade * (w.boltLife / 4));
     if (reduced() || !rainDrops) {
       if (flashHere && w.flash) { ctx.save(); ctx.globalAlpha = (w.flash / (storm ? 3 : 2)) * (storm ? 0.5 : 0.32) * fade; ctx.fillStyle = '#d8e8ff'; ctx.fillRect(0, 0, wW, H0); ctx.restore(); }
       return;
@@ -2901,8 +2903,8 @@
     const aa = a || 0;
     const n = storm ? RAIN_MAX : 32;
     const yOff = 0;
-    const reps = bgMode ? 3 : 1;
-    const gap = bgMode && BH ? Math.max(40, ((BH - BAND) / 3) | 0) : 0;
+    const reps = 1;
+    const gap = 0;
     ctx.save();
     for (let rep = 0; rep < reps; rep++) {
       for (let i = 0; i < n; i++) {
@@ -3387,6 +3389,32 @@
     const w = c.width; let x = -(((Math.round(off) % w) + w) % w);
     for (; x < W; x += w) ctx.drawImage(c, x, y);
   }
+  function celestialX() {
+    const ww = W || 200, t = (st && st.scroll) || 0;
+    // Almost fixed: a few pixels of very slow drift, never a repeating tile copy.
+    return Math.max(18, Math.min(ww - 18, Math.round(ww * 0.68 + Math.sin(t * 0.003) * 8)));
+  }
+  function drawCelestial(ctx, L, yBase) {
+    if (!L || !L.celest || !ctx) return;
+    const c = L.celest, cx = celestialX(), cy = Math.round((yBase || 0) + (L.TH - H) + (c.y || 45));
+    if (cy < -20 || cy > ((ctx.canvas && ctx.canvas.height) || H) + 20) return;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    if (c.kind === 'sun' || !c.kind) {
+      for (let y = -9; y <= 9; y++) for (let x = -9; x <= 9; x++) {
+        const d2 = x * x + y * y;
+        if (d2 <= 81) { ctx.fillStyle = d2 < 36 ? '#ffe0a0' : '#ffb868'; ctx.fillRect(cx + x, cy + y, 1, 1); }
+      }
+      ctx.fillStyle = '#e89058'; ctx.fillRect(cx - 18, cy - 1, 36, 1); ctx.fillRect(cx - 26, cy + 3, 52, 1);
+      ctx.fillStyle = '#f0a060'; ctx.fillRect(cx - 12, cy - 5, 24, 1);
+    } else if (c.kind === 'moon') {
+      for (let y = -7; y <= 7; y++) for (let x = -7; x <= 7; x++) {
+        const d2 = x * x + y * y;
+        if (d2 <= 49) { ctx.fillStyle = d2 < 20 ? '#e8e0c8' : '#b8b09a'; ctx.fillRect(cx + x, cy + y, 1, 1); }
+      }
+    }
+    ctx.restore();
+  }
   function fadeDraw(fn, th, ctx) {
     ctx = ctx || g; const s = st;
     if (s.fade && s.prevBiome != null) {
@@ -3443,7 +3471,7 @@
     if (!bg || !st) return;
     bg.clearRect(0, 0, W, BH);
     const s = st, a0 = on ? (s.alpha || 0) : 0, cam0 = camX(s.scroll, a0, on ? scrollStep(s) : 0);
-    const fn = (L) => { tiled(L.sky, 0, BH - L.TH, bg); tiled(L.far, cam0 * 0.2, BH - L.TH, bg); tiled(L.mid, cam0 * 0.55, BH - L.TH, bg); };
+    const fn = (L) => { tiled(L.sky, 0, BH - L.TH, bg); drawCelestial(bg, L, BH - L.TH); tiled(L.far, cam0 * 0.2, BH - L.TH, bg); tiled(L.mid, cam0 * 0.55, BH - L.TH, bg); };
     fadeDraw(fn, BH, bg);
     const fadeK = s.fade && s.prevBiome != null ? 1 - s.fade / FADE : 1;
     if (!reduced()) {
@@ -3453,7 +3481,7 @@
     const a = on ? (s.alpha || 0) : 0;
     const scStep = on ? scrollStep(s) : 0;
     const cam = camX(s.scroll, a, scStep);
-    if (s.weather) drawWeather(bg, s, a, true);
+    // Weather stays on the strip canvas, not this full-page backdrop.
     // ground under everything, for when the strip is switched off
     if (!on) fadeDraw(L => tiled(L.fl, cam, BH - 9, bg), BH, bg);
     else drawProps(bg, s.scroll, a, scStep, 'mid');
@@ -3668,7 +3696,7 @@
     const cam = camX(s.scroll, a, scStep);
     if (bgOn) drawBg();
     else {
-      const bgOf = (L) => { tiled(L.sky, 0, H - L.TH); tiled(L.far, cam * 0.2, H - L.TH); tiled(L.mid, cam * 0.55, H - L.TH); };
+      const bgOf = (L) => { tiled(L.sky, 0, H - L.TH); drawCelestial(g, L, H - L.TH); tiled(L.far, cam * 0.2, H - L.TH); tiled(L.mid, cam * 0.55, H - L.TH); };
       fadeDraw(bgOf, H);
       // No scenebg: still paint mid buildings behind the grass strip.
       drawProps(g, s.scroll, a, scStep, 'mid');
