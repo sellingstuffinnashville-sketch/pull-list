@@ -661,6 +661,7 @@ async function api(fn, ...args) {
   if (r && r.error === 'login') { const e = new Error('login'); e.login = 1; throw e; }
   if (r && r.resetEpoch) await applyResetIfNeeded(r.resetEpoch);
   if (r && r.checkResetEpoch) await applyCheckoffResetIfNeeded(r.checkResetEpoch);
+  if (r && r.partNoteResetEpoch) await applyPartNoteResetIfNeeded(r.partNoteResetEpoch);
   if (r && r.error === 'reset') { const e = new Error('reset'); e.reset = 1; throw e; }
   if (r && r.error) throw new Error(r.error);
   return r;
@@ -693,9 +694,10 @@ async function applyResetIfNeeded(epoch) {
 }
 
 // Field Test Reset (pre-yard-trip, 2026-11-18): wipe got/rm/why/day marks in local cache so phones
-// pick up the cleared shared list. Do not touch photos, notes, hero/XP profiles, or login.
+// pick up the cleared shared list. Do not touch hero/XP profiles or login. A second pass
+// (applyPartNoteResetIfNeeded) also drops per-part notes, VIN marks, and part photos.
 const CHECK_RESET_KEY = 'pl_checkoff_reset_epoch';
-const LOCAL_CHECKOFF_RESET_EPOCH = 1795030000000; // keep in sync with Apps Script CHECKOFF_RESET_EPOCH
+const LOCAL_CHECKOFF_RESET_EPOCH = 1795030000000; // shipped in v45; do not lower (already applied on phones)
 const checkEpochNow = () => Number(localStorage.getItem(CHECK_RESET_KEY) || 0);
 function isCheckoffKey(k) { return /^(got|rm|why|day):/.test(String(k || '')); }
 async function applyCheckoffResetIfNeeded(epoch) {
@@ -724,6 +726,98 @@ async function applyCheckoffResetIfNeeded(epoch) {
     }
   }));
   localStorage.setItem(CHECK_RESET_KEY, String(target));
+  if (scan && date) render();
+  return true;
+}
+
+// Field Test Reset pass 2: also clear per-part notes, VIN marks, photo deletions, and
+// uploaded part/VIN photos. Keep receipts (tday / RECEIPT_*), hero profiles, XP, and login.
+// Cutoff is 1:21:00 PM CT Nov 18 (after leftover test marks, before new yard activity).
+const PARTNOTE_RESET_KEY = 'pl_partnote_reset_epoch';
+const LOCAL_PARTNOTE_RESET_EPOCH = 1795029660000; // keep in sync with Apps Script PARTNOTE_RESET_EPOCH
+const partNoteEpochNow = () => Number(localStorage.getItem(PARTNOTE_RESET_KEY) || 0);
+function isReceiptName(name) { return /^RECEIPT_/i.test(String(name || '')); }
+function isPartNoteKey(k, rec) {
+  const s = String(k || '');
+  if (/^(pn|vin|assign):/.test(s)) return true;
+  const m = /^(del|up|photo):/.exec(s);
+  if (!m) return false;
+  const name = s.slice(m[1].length + 1);
+  if (isReceiptName(name)) return false;
+  let kind;
+  if (rec && typeof rec === 'object') kind = rec.kind || (rec.v && rec.v.kind);
+  if (kind === 'rcpt') return false;
+  return true;
+}
+function partNoteNamesFrom(k, rec) {
+  const s = String(k || '');
+  const names = [];
+  const m = /^(del|up|photo|assign):/.exec(s);
+  if (m) names.push(s.slice(m[1].length + 1));
+  const v = rec && typeof rec === 'object' ? (rec.file || rec.v) : rec;
+  if (v && typeof v === 'object' && v.file) names.push(v.file);
+  return names.filter(n => n && !isReceiptName(n));
+}
+function stripPartNotesFromState(st, target, names) {
+  if (!st) return false;
+  let changed = false;
+  for (const k of Object.keys(st)) {
+    const rec = st[k];
+    const ts = (rec && typeof rec === 'object' && rec.ts != null) ? Number(rec.ts) : 0;
+    if (isPartNoteKey(k, rec) && ts < target) {
+      partNoteNamesFrom(k, rec).forEach(n => names.add(n));
+      delete st[k];
+      changed = true;
+    }
+  }
+  return changed;
+}
+async function applyPartNoteResetIfNeeded(epoch) {
+  const target = Math.max(Number(epoch || 0), LOCAL_PARTNOTE_RESET_EPOCH);
+  if (partNoteEpochNow() >= target) return false;
+  const names = new Set();
+  localOps = (localOps || []).filter(o => {
+    if (isPartNoteKey(o.k, o.v) && Number(o.ts || 0) < target) {
+      partNoteNamesFrom(o.k, o.v).forEach(n => names.add(n));
+      return false;
+    }
+    return true;
+  });
+  stripPartNotesFromState(serverState, target, names);
+  if (typeof VIEWS !== 'undefined') {
+    for (const d of Object.keys(VIEWS)) stripPartNotesFromState(VIEWS[d], target, names);
+  }
+  await tx('ops', 'readwrite', s => req(s.getAll()).then(rs => {
+    for (const o of rs) {
+      if (isPartNoteKey(o.k, o.v) && Number(o.ts || 0) < target) {
+        partNoteNamesFrom(o.k, o.v).forEach(n => names.add(n));
+        s.delete(o.id);
+      }
+    }
+  }));
+  await tx('server', 'readwrite', s => req(s.getAll()).then(rs => {
+    for (const rec of rs) {
+      if (!rec || !rec.state) continue;
+      if (stripPartNotesFromState(rec.state, target, names)) s.put(rec);
+    }
+  }));
+  // Drop locally cached part/VIN photos that belonged to the wiped marks; leave receipts
+  // and any photos taken at or after the cutoff (including today's new yard work).
+  await tx('photos', 'readwrite', s => req(s.getAll()).then(rs => {
+    for (const r of rs) {
+      if (!r) continue;
+      const old = Number(r.t || 0) < target;
+      if (old && (names.has(r.name) || /(?:_VIN_|_X_|^[A-Z0-9]{6}-\d{2}_)/.test(r.name || ''))) {
+        try {
+          const u = urlCache && urlCache.get(`${r.date}/${r.name}`);
+          if (u && String(u).startsWith('blob:')) URL.revokeObjectURL(u);
+          if (urlCache) urlCache.delete(`${r.date}/${r.name}`);
+        } catch (e) {}
+        s.delete(r.key);
+      }
+    }
+  }));
+  localStorage.setItem(PARTNOTE_RESET_KEY, String(target));
   if (scan && date) render();
   return true;
 }
@@ -830,6 +924,7 @@ async function sync(extra = []) {
   if (syncing) return;
   await applyResetIfNeeded(0);
   await applyCheckoffResetIfNeeded(0);
+  await applyPartNoteResetIfNeeded(0);
   if (!navigator.onLine) { status(); return; }
   syncing = true;
   try {
@@ -844,8 +939,9 @@ async function sync(extra = []) {
       if (d === date) for (const o of localOps) if (o.pending && !pend.some(p => p.id === o.id)) pend.push(o);
       const epoch = epochNow();
       const checkEpoch = checkEpochNow();
+      const partNoteEpoch = partNoteEpochNow();
       let j;
-      try { j = await api('sync', d, pend.map(({ id, k, v, dev, ts }) => ({ id, k, v, dev, ts })), epoch, checkEpoch); }
+      try { j = await api('sync', d, pend.map(({ id, k, v, dev, ts }) => ({ id, k, v, dev, ts })), epoch, checkEpoch, partNoteEpoch); }
       catch (e) { if (e.login) throw e; break; } // no signal or server hiccup: ops stay pending for next time
       if (epochNow() > epoch) continue; // a reset landed mid-call; those ops were wiped
       await tx('server', 'readwrite', s => s.put({ date: d, state: j.state || {} }));
@@ -1584,6 +1680,7 @@ async function start() {
   if (!TOKEN) return showLogin(navigator.onLine ? '' : 'Needs signal the first time.');
   await applyResetIfNeeded(0);
   await applyCheckoffResetIfNeeded(0);
+  await applyPartNoteResetIfNeeded(0);
   ensureDevice();
   if (RPG) {
     renderXpBar();
