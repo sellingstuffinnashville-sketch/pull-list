@@ -465,7 +465,11 @@
     if (!(T.tint || elite)) return c;
     const x = c.getContext('2d');
     x.globalCompositeOperation = 'source-atop';
-    if (T.tint) { x.fillStyle = 'rgba(' + T.tint.join(',') + ')'; x.fillRect(0, 0, c.width, c.height); }
+    if (T.tint) {
+      const ta = T.tint[3] > 1 ? T.tint[3] / 255 : (T.tint[3] || 0);
+      x.fillStyle = 'rgba(' + (T.tint[0]|0) + ',' + (T.tint[1]|0) + ',' + (T.tint[2]|0) + ',' + ta + ')';
+      x.fillRect(0, 0, c.width, c.height);
+    }
     if (elite) { x.fillStyle = 'rgba(180,140,40,0.22)'; x.fillRect(0, 0, c.width, c.height); }
     x.globalCompositeOperation = 'source-over';
     return c;
@@ -1369,7 +1373,7 @@
     return 1 + ((pace - 0.5) / 0.5) * 2; // walk 1 … run 3
   }
   function paceForDist(d) {
-    if (!(d < 1e8)) return 1;
+    if (!(d > 0) || !(d < 1e8)) return 1; // behind / overlapping / none: run
     if (d > 160) return 1;
     if (d > 90) return 0.48 + (d - 90) / 70 * 0.52;
     if (d > 16) return 0.28 + (d - 16) / 74 * 0.20;
@@ -1379,16 +1383,17 @@
     let d = Infinity;
     const plant = s.heroX + 28;
     const ed = typeof engageDist === 'function' ? engageDist(eq) : 20;
-    for (const m of living(s)) d = Math.min(d, m.x - heroFront - ed);
+    const ahead = dist => { if (dist > 0 && dist < d) d = dist; };
+    for (const m of living(s)) ahead(m.x - heroFront - ed);
     for (const p of (s.props || [])) {
       if (p.used || p.looted || p.hang) continue;
-      if ((p.par || 1) < 0.9 || (p.par || 1) > 1.05) continue;
+      if ((p.par || 1) !== 1) continue;
       if (!(isCarProp(p) || p.dig)) continue;
       const sx = propScreenX(p, s.scroll, 0, 0);
-      d = Math.min(d, sx - plant);
+      ahead(sx - plant);
     }
-    if (s.vendor && s.vendor.mode === 'wait') d = Math.min(d, (s.vendor.wx - s.scroll) - (s.heroX + 36));
-    if (s.npc && s.npc.mode === 'approach') d = Math.min(d, s.npc.x - (s.heroX + 50));
+    if (s.vendor && s.vendor.mode === 'wait') ahead((s.vendor.wx - s.scroll) - (s.heroX + 36));
+    if (s.npc && s.npc.mode === 'approach') ahead(s.npc.x - (s.heroX + 50));
     return d;
   }
   function heroLoco(s) {
@@ -1397,13 +1402,19 @@
   }
   function goRun(s, walkFirst) {
     s.mode = 'run'; s.potion = 0; s.pose = ''; s.leap = null; s.hopT = 0; s.hopY = 0; s.digT = 0; s.pullT = 0; s.pullOf = null; s.pullPart = null; s.pullY = 0;
+    s.paceTarget = 1;
     if (walkFirst) {
       s.coolWalk = 12; s.loco = 'walk';
-      s.pace = Math.min(s.pace == null ? 0.4 : s.pace, 0.42); s.paceTarget = 1;
+      // Stops leave pace at 0; lift to a real walk so we accelerate back to a run.
+      let p = (s.pace == null ? 0 : s.pace);
+      if (p < 0.38) p = 0.38;
+      if (p > 0.45) p = 0.42;
+      s.pace = p;
     } else {
       s.loco = s.coolWalk ? 'walk' : 'run';
-      s.paceTarget = 1; if (s.pace == null) s.pace = s.loco === 'walk' ? 0.4 : 1;
+      if (s.pace == null) s.pace = s.loco === 'walk' ? 0.4 : 1;
     }
+    s.scrollSpd = scrollSpeed(s.pace);
     beginTurn(s, 'side');
   }
 
@@ -1898,19 +1909,18 @@
       const recentSet = s.props.some(p => PROP[p.k] && PROP[p.k].set && p.wx > s.scroll - 80);
       const type = pickPropType(s, recentSet);
       const meta = PROP[type] || PROP.debris;
+      // Walk-line props lock to the ground (par === 1). Only far/mid buildings and hanging props use a slower, consistent parallax.
       let par = 1;
-      if (meta.hang || meta.mid || (meta.set && Math.random() < 0.7)) par = 0.5 + Math.random() * 0.12;
-      else if (meta.fg || Math.random() < 0.12) par = 1.12;
-      else if ((type === 'deadtree' || type === 'pole' || type === 'sign') && Math.random() < 0.35) par = 0.55;
+      if (meta.hang || meta.mid) par = 0.55;
       const gap = (meta.rare || meta.set ? 160 : 40) + ((Math.random() * (meta.rare || meta.set ? 240 : 100)) | 0);
       const sc = 0.92 + Math.random() * 0.16;
-      const p0 = { k: type, wx: s.nextProp, v: (Math.random() * 6) | 0, par, w: meta.w, h: meta.h, hop: !!meta.hop, dig: !!meta.dig, hang: !!meta.hang, glow: !!meta.glow, flip: Math.random() < 0.5, sc, yOff: meta.hang ? 0 : (par < 0.9 ? -2 : 0) };
+      const p0 = { k: type, wx: Math.round(s.nextProp), v: (Math.random() * 6) | 0, par, w: meta.w, h: meta.h, hop: !!meta.hop, dig: !!meta.dig, hang: !!meta.hang, glow: !!meta.glow, flip: Math.random() < 0.5, sc, yOff: meta.hang ? 0 : (par < 0.9 ? -2 : 0) };
       if (type === 'car' || type === 'carbrush') p0.car = rollCar(type);
       s.props.push(p0);
       for (const ck in s.propCool) if (s.propCool[ck] > 0) s.propCool[ck]--;
       s.propCool[type] = meta.cool || (meta.rare || meta.set ? 8 : 3);
       s.recentProps.push(type); if (s.recentProps.length > 8) s.recentProps.shift();
-      s.nextProp += Math.round(propDrawSize(p0).dw + gap);
+      s.nextProp = Math.round(s.nextProp + propDrawSize(p0).dw + gap);
     }
     s.props = s.props.filter(p => p.wx - s.scroll * (p.par || 1) > -280);
     if (s.props.length > 22) s.props = s.props.slice(-22);
@@ -1918,14 +1928,27 @@
   function addProp(s, type, opts) {
     opts = opts || {};
     const meta = PROP[type] || PROP.debris;
-    const p0 = { k: type, wx: opts.wx != null ? opts.wx : s.scroll + (opts.x != null ? opts.x : W - 10), v: opts.v || 0, par: opts.par || (meta.hang || meta.mid ? 0.55 : 1), w: meta.w, h: meta.h, hop: !!meta.hop, dig: !!meta.dig, hang: !!meta.hang, glow: !!meta.glow, flip: !!opts.flip, sc: opts.sc || 1, yOff: meta.hang ? 0 : 0 };
+    const wx = Math.round(opts.wx != null ? opts.wx : s.scroll + (opts.x != null ? opts.x : W - 10));
+    const p0 = { k: type, wx, v: opts.v || 0, par: opts.par != null ? opts.par : (meta.hang || meta.mid ? 0.55 : 1), w: meta.w, h: meta.h, hop: !!meta.hop, dig: !!meta.dig, hang: !!meta.hang, glow: !!meta.glow, flip: !!opts.flip, sc: opts.sc || 1, yOff: meta.hang ? 0 : 0 };
     if (type === 'car' || type === 'carbrush') p0.car = opts.car || rollCar(type);
     if (!s.props) s.props = [];
     s.props.push(p0);
     return p0;
   }
+  function camX(scroll, a, step) {
+    return Math.round((scroll || 0) + (a || 0) * (step || 0));
+  }
+  function scrollStep(s) {
+    if (s.mode === 'run' && s.scrollSpd != null) return s.scrollSpd;
+    if (s.mode === 'run' || s.mode === 'hop') return (heroLoco(s) === 'walk' || heroLoco(s) === 'climb' ? 1 : 2);
+    if (s.mode === 'fight' && heroLoco(s) === 'walk') return 1;
+    return 0;
+  }
   function propScreenX(p, scroll, a, step) {
-    return p.wx - (scroll + (a || 0) * (step || 0)) * (p.par || 1);
+    const cam = camX(scroll, a, step);
+    const par = (p.par == null ? 1 : p.par);
+    if (par === 1) return p.wx - cam;
+    return p.wx - cam * par;
   }
   function propDrawSize(p) {
     const meta = PROP[p.k] || {};
@@ -2415,7 +2438,7 @@
     opts = opts || {};
     const line = opts.line || VENDOR_LINES[(Math.random() * VENDOR_LINES.length) | 0];
     s.vendor = {
-      wx: opts.wx != null ? opts.wx : s.scroll + W + 24,
+      wx: Math.round(opts.wx != null ? opts.wx : s.scroll + W + 24),
       mode: 'wait',
       t: 0,
       line,
@@ -2457,7 +2480,7 @@
     if (!s.vendor) return;
     const v = s.vendor;
     const c = paintVendor(v.nod);
-    const sx = Math.round(v.wx - s.scroll);
+    const sx = Math.round(v.wx - camX(s.scroll, a || 0, scrollStep(s)));
     const y = GROUND - c.height + 1;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(c, sx, y);
@@ -2610,7 +2633,7 @@
     const got = s.coins.filter(c => c.t >= 12).length;
     if (got) { bstats.gold += got; }
     s.coins = s.coins.filter(c => c.t < 12);
-    for (const m of allMons(s)) { if (m.hurt) m.hurt--; if (m.flash) m.flash--; if (m.lunge) m.lunge--; tickTurn(m); }
+    for (const m of allMons(s)) { if (m.hurt) m.hurt--; if (m.flash) m.flash = Math.max(0, (m.flash | 0) - 1); if (m.lunge) m.lunge--; tickTurn(m); }
     tickTurn(s);
     const stepFor = loco => loco === 'walk' || loco === 'dig' || loco === 'climb' ? 1 : (loco === 'idle' ? 0 : 2);
     const moving = (step) => {
@@ -2753,11 +2776,13 @@
         if (v) v.nod = (t < 28) ? 1 : 0;
         if (t >= 40) { if (v) v.mode = 'done'; goRun(s, true); }
       }
-      s.gaitF = heroGaitFrame(s);
-      s.pace = 0; s.paceTarget = 0; s.scrollSpd = 0;
-      beginTurn(s, 'side');
-      moving(0);
-      tickVendor(s);
+      if (s.mode === 'vendor') {
+        s.gaitF = heroGaitFrame(s);
+        s.pace = 0; s.paceTarget = 0; s.scrollSpd = 0;
+        beginTurn(s, 'side');
+        moving(0);
+        tickVendor(s);
+      }
     } else if (s.mode === 'greet') {
       s.loco = 'idle'; s.gaitF = heroGaitFrame(s);
       s.pace = 0; s.paceTarget = 0; s.scrollSpd = 0;
@@ -2962,20 +2987,20 @@
   function drawBg() {
     if (!bg || !st) return;
     bg.clearRect(0, 0, W, BH);
-    const s = st, fn = (L) => { tiled(L.sky, 0, BH - L.TH, bg); tiled(L.far, s.scroll * 0.2, BH - L.TH, bg); tiled(L.mid, s.scroll * 0.55, BH - L.TH, bg); };
+    const s = st, a0 = on ? (s.alpha || 0) : 0, cam0 = camX(s.scroll, a0, on ? scrollStep(s) : 0);
+    const fn = (L) => { tiled(L.sky, 0, BH - L.TH, bg); tiled(L.far, cam0 * 0.2, BH - L.TH, bg); tiled(L.mid, cam0 * 0.55, BH - L.TH, bg); };
     fadeDraw(fn, BH, bg);
     const fadeK = s.fade && s.prevBiome != null ? 1 - s.fade / FADE : 1;
     if (!reduced()) {
       if (fadeK < 1) { bgParticles(buildBiome(BIOMES[s.prevBiome], BH), 1 - fadeK); }
       bgParticles(buildBiome(BIOMES[s.biome], BH), fadeK);
     }
+    const a = on ? (s.alpha || 0) : 0;
+    const scStep = on ? scrollStep(s) : 0;
+    const cam = camX(s.scroll, a, scStep);
     // ground under everything, for when the strip is switched off
-    if (!on) fadeDraw(L => tiled(L.fl, s.scroll, BH - 9, bg), BH, bg);
-    else {
-      const a = s.alpha || 0;
-      const scStep = (s.mode === 'run' && s.scrollSpd != null) ? s.scrollSpd : ((s.mode === 'run' || s.mode === 'hop') ? (heroLoco(s) === 'walk' || heroLoco(s) === 'climb' ? 1 : 2) : (s.mode === 'fight' && heroLoco(s) === 'walk' ? 1 : 0));
-      drawProps(bg, s.scroll, a, scStep, 'mid');
-    }
+    if (!on) fadeDraw(L => tiled(L.fl, cam, BH - 9, bg), BH, bg);
+    else drawProps(bg, s.scroll, a, scStep, 'mid');
   }
   function advanceScene(n, dscroll) {
     const s = st;
@@ -3138,7 +3163,7 @@
     const gait = (MON[m.type] && MON[m.type].gait) || 'walk';
     const phase = (m.walk || 0) + a;
     const frame = moving ? ((phase * (gait === 'lumber' ? 0.5 : gait === 'scurry' ? 1.4 : gait === 'flap' ? 1.3 : 1)) | 0) % 8 : 0;
-    const key = (m.type || '') + '|' + (m.tier | 0) + (m.elite ? 'e' : '') + '|' + view + '|' + gait + '|' + (moving ? frame : 'idle');
+    const key = (m.type || '') + '|' + (m.tier | 0) + ((m.elite || m.leader) ? 'e' : '') + '|' + view + '|' + gait + '|' + (moving ? frame : 'idle');
     let hit = poseCache.get(key);
     if (hit) return hit;
     const src = view === 'front' ? (spr.front || spr.c) : spr.c;
@@ -3170,9 +3195,11 @@
   function draw() {
     const s = st, a = s.alpha || 0;
     g.clearRect(0, 0, W, H);
-    const scStep = (s.mode === 'run' && s.scrollSpd != null) ? s.scrollSpd : ((s.mode === 'run' || s.mode === 'hop') ? (heroLoco(s) === 'walk' || heroLoco(s) === 'climb' ? 1 : 2) : (s.mode === 'fight' && heroLoco(s) === 'walk' ? 1 : 0));
-    if (!bgOn) { const bgOf = (L) => { tiled(L.sky, 0, H - L.TH); tiled(L.far, (s.scroll + a * scStep) * 0.2, H - L.TH); tiled(L.mid, (s.scroll + a * scStep) * 0.55, H - L.TH); }; fadeDraw(bgOf, H); }
-    fadeDraw(L => tiled(L.fl, s.scroll + a * scStep, GROUND - 8), H);
+    const scStep = scrollStep(s);
+    const cam = camX(s.scroll, a, scStep);
+    if (bgOn) drawBg();
+    else { const bgOf = (L) => { tiled(L.sky, 0, H - L.TH); tiled(L.far, cam * 0.2, H - L.TH); tiled(L.mid, cam * 0.55, H - L.TH); }; fadeDraw(bgOf, H); }
+    fadeDraw(L => tiled(L.fl, cam, GROUND - 8), H);
     drawProps(g, s.scroll, a, scStep, 'mid');
     drawProps(g, s.scroll, a, scStep, 'ground');
     if (s.fire) drawFire(s.fire.x, s.t);
@@ -3266,7 +3293,7 @@
         g.imageSmoothingEnabled = false;
         g.globalAlpha = m.dead ? Math.max(0, 1 - m.dead / 7) : 1;
         g.drawImage(posed.c, dxm, dym, dwm, ih);
-        if (m.flash || m.dead) { g.globalAlpha = m.dead ? 0.5 : 0.65; g.drawImage(posed.f, dxm, dym, dwm, ih); }
+        if ((m.flash > 0) || (m.dead > 0)) { g.globalAlpha = m.dead ? 0.5 : 0.65; g.drawImage(posed.f, dxm, dym, dwm, ih); }
         g.globalAlpha = 1;
       }
       if (!m.dead && (s.mode === 'fight' || m.boss || m.elite || m.leader)) bar(mx + mw / 2 - 8, Math.max(2, dym - 5), 16, Math.max(0, m.hp / m.max), m.boss ? '#b070ff' : (m.elite || m.leader) ? '#ffc040' : '#d04030');
@@ -3467,7 +3494,7 @@
     while (acc >= STEP) { tick(); acc -= STEP; stepped++; if (stepped > 6) { acc = 0; break; } }
     if (st) st.alpha = acc / STEP;
     draw();
-    if (stepped && !(st.t & 1)) drawBg();
+    if (!on && stepped && !(st.t & 1)) drawBg();
     raf = requestAnimationFrame(loop);
   }
   function start() {
