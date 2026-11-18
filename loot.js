@@ -2,9 +2,9 @@
 'use strict';
 
 const CLASSES = {
-  warrior: { name: 'Warrior', blurb: 'Plate and steel', slots: { helm: 'Helm', pauldrons: 'Pauldrons', armor: 'Armor', weapon: 'Weapon', pack: 'Pack', cape: 'Cape', base: 'Base' } },
-  shooter: { name: 'Shooter', blurb: 'Guns and carapace', slots: { helm: 'Helmet', pauldrons: 'Shoulders', armor: 'Armor', weapon: 'Gun', pack: 'Pack', cape: 'Coat', base: 'Base' } },
-  mage: { name: 'Mage', blurb: 'Staff and warp fire', slots: { helm: 'Hood', pauldrons: 'Mantle', armor: 'Robe', weapon: 'Staff', pack: 'Tome', cape: 'Cloak', base: 'Base' } }
+  warrior: { name: 'Torque Knight', blurb: 'Plate and steel', slots: { helm: 'Helm', pauldrons: 'Pauldrons', armor: 'Armor', weapon: 'Weapon', pack: 'Pack', cape: 'Cape' } },
+  shooter: { name: 'Gunwright', blurb: 'Guns and carapace', slots: { helm: 'Helmet', pauldrons: 'Shoulders', armor: 'Armor', weapon: 'Gun', pack: 'Pack', cape: 'Coat' } },
+  mage: { name: 'Tech-Priest', blurb: 'Staff and warp fire', slots: { helm: 'Hood', pauldrons: 'Mantle', armor: 'Robe', weapon: 'Staff', pack: 'Tome', cape: 'Cloak' } }
 };
 const LOOT_SLOTS = [
   ['helm', 'Helm'],
@@ -12,8 +12,7 @@ const LOOT_SLOTS = [
   ['armor', 'Armor'],
   ['weapon', 'Weapon'],
   ['pack', 'Pack'],
-  ['cape', 'Cape'],
-  ['base', 'Base']
+  ['cape', 'Cape']
 ];
 const RARITY = {
   common: { rank: 1, color: '#9a958c', name: 'Common' },
@@ -63,10 +62,7 @@ const ITEMS = [
   { id: 'cape-ash', slot: 'cape', name: 'Tattered Ash Cape', rarity: 'common' },
   { id: 'cape-crimson', slot: 'cape', name: 'Crimson Cape', rarity: 'uncommon' },
   { id: 'cape-night', slot: 'cape', name: 'Gold-Trimmed Night Cape', rarity: 'rare' },
-  { id: 'base-rubble', cls: 'all', slot: 'base', name: 'Rubble Base', rarity: 'common' },
-  { id: 'base-gear', cls: 'all', slot: 'base', name: 'Brass Gear Base', rarity: 'uncommon' },
-  { id: 'base-skulls', cls: 'all', slot: 'base', name: 'Skull-Strewn Base', rarity: 'rare' },
-  // Shooter pool (grimdark gunner); the guns above are his too
+  // Gunwright pool (grimdark gunner); the guns above are his too
   { id: 'wep-revolver', cls: 'shooter', slot: 'weapon', name: 'Heavy Revolver', rarity: 'common' },
   { id: 'wep-boltc', cls: 'shooter', slot: 'weapon', name: 'Bolt Carbine', rarity: 'rare' },
   { id: 'sh-helm-cap', cls: 'shooter', slot: 'helm', name: 'Field Cap', rarity: 'common' },
@@ -93,7 +89,7 @@ const ITEMS = [
   { id: 'sh-cape-coat', cls: 'shooter', slot: 'cape', name: 'Field Greatcoat', rarity: 'common' },
   { id: 'sh-cape-camo', cls: 'shooter', slot: 'cape', name: 'Camo Cloak', rarity: 'uncommon' },
   { id: 'sh-cape-officer', cls: 'shooter', slot: 'cape', name: 'Black Officer\'s Coat', rarity: 'rare' },
-  // Mage pool (hooded psychic caster)
+  // Tech-Priest pool (hooded psychic caster)
   { id: 'mg-helm-hood', cls: 'mage', slot: 'helm', name: 'Deep Hood', rarity: 'common' },
   { id: 'mg-helm-cowl', cls: 'mage', slot: 'helm', name: 'Rune Cowl', rarity: 'uncommon' },
   { id: 'mg-helm-circlet', cls: 'mage', slot: 'helm', name: 'Silver Circlet', rarity: 'uncommon' },
@@ -138,8 +134,35 @@ function lootEnsure() {
   if (typeof xpState.chests !== 'number' || xpState.chests < 0) xpState.chests = 0;
   if (!CLASSES[xpState.cls]) xpState.cls = 'warrior';
   if (!xpState.classes || typeof xpState.classes !== 'object') xpState.classes = {};
+  // Drop leftover base/stand items from saved bags without touching XP or other gear.
+  const isBaseLoot = (id) => {
+    const it = ITEM_BY_ID[id];
+    return !!(it && it.slot === 'base') || (typeof id === 'string' && id.indexOf('base-') === 0);
+  };
+  const stripBases = (inv, eq) => {
+    let n = 0;
+    inv = inv || {};
+    eq = eq || {};
+    for (const id of Object.keys(inv)) if (isBaseLoot(id)) { delete inv[id]; n++; }
+    if (eq.base) { delete eq.base; n++; }
+    for (const slot of Object.keys(eq)) if (isBaseLoot(eq[slot])) { delete eq[slot]; n++; }
+    return n;
+  };
+  let stripped = stripBases(xpState.inventory, xpState.equipped);
+  if (xpState.classes) {
+    for (const c in xpState.classes) {
+      const bag = xpState.classes[c] || {};
+      if (!bag.inventory) bag.inventory = {};
+      if (!bag.equipped) bag.equipped = {};
+      stripped += stripBases(bag.inventory, bag.equipped);
+    }
+  }
+  if (stripped) {
+    if (typeof persistXp === 'function') persistXp();
+    else if (typeof XP_KEY !== 'undefined') { try { localStorage.setItem(XP_KEY, JSON.stringify(xpState)); } catch (e) {} }
+  }
   if (!xpState.classesV) {
-    // one-time: guns now belong to the Shooter, so move any the Warrior found over to him
+    // one-time: guns now belong to the Gunwright, so move any the Torque Knight found over to him
     xpState.classesV = 1;
     if (xpState.cls === 'warrior') {
       const sh = xpState.classes.shooter || (xpState.classes.shooter = { inventory: {}, equipped: {} });
@@ -225,8 +248,7 @@ const SLOT_BONUS = {
   helm: { def: 2, hp: 2 },
   pauldrons: { def: 2 },
   cape: { def: 1, hp: 2 },
-  pack: { atk: 1, spd: 1 },
-  base: { def: 1 }
+  pack: { atk: 1, spd: 1 }
 };
 function itemBonuses(item) {
   const rk = ITEM_RR[item && item.rarity] || 0;

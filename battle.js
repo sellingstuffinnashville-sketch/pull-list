@@ -3,7 +3,8 @@
 'use strict';
 (function () {
   const BAT_KEY = 'pl_battler', STAT_KEY = 'pl_battle';
-  const H = 76, FPS = 12, HERO_Y = H - 69;
+  // Taller strip: extra ground under the hero for synced lyrics.
+  const BAND = 36, H = 140, FPS = 12, GROUND = H - BAND, HERO_Y = GROUND - 61;
   const RR = { common: 1, uncommon: 2, rare: 3, relic: 4, legendary: 5 };
   const GUNS = { 'wep-rifle': 1, 'wep-carbine': 1, 'wep-sun': 1, 'wep-slug': 1, 'wep-siege': 1 };
 
@@ -19,7 +20,7 @@
     eq = eq || {}; level = Math.max(1, level | 0);
     cls = cls || clsNow();
     const m = CLS_MOD[cls] || CLS_MOD.warrior;
-    const def = Math.floor((level + 1) / 2) + 2 * (rk(eq, 'armor') + rk(eq, 'helm') + rk(eq, 'pauldrons')) + rk(eq, 'cape') + rk(eq, 'base');
+    const def = Math.floor((level + 1) / 2) + 2 * (rk(eq, 'armor') + rk(eq, 'helm') + rk(eq, 'pauldrons')) + rk(eq, 'cape');
     return {
       atk: Math.round((5 + 2 * level + 4 * rk(eq, 'weapon') + rk(eq, 'pack')) * m[0]),
       arm: def,
@@ -556,6 +557,63 @@
     lines.forEach((ln, i) => text(ctx, ln, x + 3, y + 3 + i * 7, '#f0e6c8'));
   }
 
+  // ---------- synced lyrics (shown on the ground under the hero) ----------
+  function loadLyrics() {
+    if (lyricData) return Promise.resolve(lyricData);
+    if (!lyricP) {
+      lyricP = fetch('lyrics.json').then(r => { if (!r.ok) throw new Error('lyrics'); return r.json(); })
+        .then(d => { lyricData = d; return d; })
+        .catch(() => { lyricP = null; return null; });
+    }
+    return lyricP;
+  }
+  function escHtml(str) {
+    return String(str).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  }
+  function lyricAt(t) {
+    const lines = lyricData && lyricData.lines;
+    if (!lines || t < 0) return null;
+    for (let i = 0; i < lines.length; i++) {
+      const L = lines[i];
+      if (t >= L.s - 0.08 && t < L.e + 0.2) return { cur: L, next: lines[i + 1] || null };
+      if (t < L.s) return null;
+    }
+    return null;
+  }
+  function drawLyrics() {
+    if (!lyricEl) return;
+    const playing = window.PLBgm && PLBgm.playing && PLBgm.playing();
+    if (!playing) {
+      if (lyricLast !== '') { lyricEl.hidden = true; lyricEl.innerHTML = ''; lyricLast = ''; }
+      return;
+    }
+    if (!lyricData) { loadLyrics(); return; }
+    const t = PLBgm.time();
+    const hit = lyricAt(t);
+    if (!hit) {
+      if (lyricLast !== '') { lyricEl.hidden = true; lyricEl.innerHTML = ''; lyricLast = ''; }
+      return;
+    }
+    const { cur, next } = hit;
+    let wi = -1;
+    if (cur.w && cur.w.length) {
+      for (let i = 0; i < cur.w.length; i++) { if (t >= cur.w[i].s) wi = i; else break; }
+    }
+    const key = cur.s + '|' + wi + '|' + (next && next.s || '');
+    if (key === lyricLast) { lyricEl.hidden = false; return; }
+    lyricLast = key;
+    const words = (cur.w && cur.w.length) ? cur.w : [{ t: cur.t, s: cur.s, e: cur.e }];
+    const line = words.map((w, i) => {
+      const txt = escHtml(String(w.t || '').trim());
+      if (!txt) return '';
+      const cls = i === wi ? ' on' : (i < wi ? ' gone' : '');
+      return '<span class="' + cls.trim() + '">' + txt + '</span>';
+    }).join(' ');
+    const nxt = (next && next.t) ? '<div class="nxt">' + escHtml(next.t) + '</div>' : '';
+    lyricEl.innerHTML = '<div class="lyric-cur">' + line + '</div>' + nxt;
+    lyricEl.hidden = false;
+  }
+
   // ---------- background layers ----------
   function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
   const TW = 192;
@@ -698,7 +756,7 @@
       // far: rock ridge at the strip and a few crystal clusters / torches up the walls
       for (let x = 0; x < TW; x++) {
         const top = 18 + Math.round(6 * Math.sin((x / TW) * Math.PI * 4) + 4 * Math.sin((x / TW) * Math.PI * 12 + 1));
-        px(f, x, top, '#17110d', 1, H - top);
+        px(f, x, top, '#17110d', 1, Math.max(1, GROUND - top));
         if (r() < 0.25) px(f, x, top + 2 + ((r() * 30) | 0), '#211812');
       }
       for (let k = 0; k < 9; k++) {
@@ -723,10 +781,10 @@
       }
       for (let k = 0; k < 5; k++) {
         const x = (r() * TW) | 0, h = 12 + ((r() * 16) | 0);
-        px(m, x - 3, H - 8 - h, '#2a1f17', 7, h); px(m, x - 3, H - 8 - h, '#3a2c20', 2, h); px(m, x + 3, H - 8 - h, '#120d0a', 1, h); px(m, x - 2, H - 9 - h, '#3a2c20', 5, 1);
+        px(m, x - 3, GROUND - h, '#2a1f17', 7, h); px(m, x - 3, GROUND - h, '#3a2c20', 2, h); px(m, x + 3, GROUND - h, '#120d0a', 1, h); px(m, x - 2, GROUND - 1 - h, '#3a2c20', 5, 1);
       }
-      for (let k = 0; k < 6; k++) { const x = (r() * TW) | 0, y = H - 9; px(m, x, y - 3, '#d8b4e8', 3); px(m, x - 1, y - 2, '#9a6ab0', 5); px(m, x + 1, y - 1, '#c8b8a0', 1, 2); }
-      for (let k = 0; k < 3; k++) { const x = (r() * TW) | 0; px(m, x, H - 9, '#d6caae', 3, 2); px(m, x, H - 9, '#0a0605'); px(m, x + 2, H - 9, '#0a0605'); }
+      for (let k = 0; k < 6; k++) { const x = (r() * TW) | 0, y = GROUND - 1; px(m, x, y - 3, '#d8b4e8', 3); px(m, x - 1, y - 2, '#9a6ab0', 5); px(m, x + 1, y - 1, '#c8b8a0', 1, 2); }
+      for (let k = 0; k < 3; k++) { const x = (r() * TW) | 0; px(m, x, GROUND - 1, '#d6caae', 3, 2); px(m, x, GROUND - 1, '#0a0605'); px(m, x + 2, GROUND - 1, '#0a0605'); }
       px(g2, 0, 0, '#2a1f16', TW, 9); px(g2, 0, 0, '#4a3624', TW, 1);
       for (let k = 0; k < 170; k++) px(g2, r() * TW, 1 + r() * 8, ['#3a2a1c', '#1c140e', '#5a4430', '#241a12'][(r() * 4) | 0], 1 + ((r() * 2) | 0));
     } else if (name === 'plains') {
@@ -737,49 +795,49 @@
       f0.globalAlpha = 1;
       for (let y = -9; y <= 9; y++) for (let x = -9; x <= 9; x++) { const d2 = x * x + y * y; if (d2 <= 81) px(f0, 130 + x, Y0 + 45 + y, d2 < 36 ? '#ffe0a0' : '#ffb868'); }
       px(f0, 112, Y0 + 44, '#e89058', 36, 1); px(f0, 104, Y0 + 48, '#e89058', 52, 1); px(f0, 118, Y0 + 40, '#f0a060', 24, 1);
-      ridge(f, 50, 6, 2, 5, '#4a2a3a', 0.4, H);
-      ridge(f, 57, 5, 3, 7, '#2e1c26', 1.7, H);
-      ridge(m, 64, 3, 4, 9, '#1e1a14', 2.2, H);
+      ridge(f, 50, 6, 2, 5, '#4a2a3a', 0.4, GROUND);
+      ridge(f, 57, 5, 3, 7, '#2e1c26', 1.7, GROUND);
+      ridge(m, 64, 3, 4, 9, '#1e1a14', 2.2, GROUND);
       for (let k = 0; k < 3; k++) {
         const x = (r() * TW) | 0;
-        px(m, x, H - 26, '#140e0c', 2, 18); px(m, x - 4, H - 24, '#140e0c', 4, 1); px(m, x + 2, H - 21, '#140e0c', 5, 1); px(m, x - 5, H - 25, '#140e0c'); px(m, x + 6, H - 22, '#140e0c');
+        px(m, x, GROUND - 18, '#140e0c', 2, 18); px(m, x - 4, GROUND - 16, '#140e0c', 4, 1); px(m, x + 2, GROUND - 13, '#140e0c', 5, 1); px(m, x - 5, GROUND - 17, '#140e0c'); px(m, x + 6, GROUND - 14, '#140e0c');
       }
-      for (let k = 0; k < 4; k++) { const x = (r() * TW) | 0; px(m, x, H - 14, '#3a2a1c', 2, 6); px(m, x + 9, H - 14, '#3a2a1c', 2, 6); px(m, x - 1, H - 12, '#4a3624', 13, 1); }
-      silTower(f, 40, H, '#1a1014'); silHouse(f, 110, H, '#1a1014', 18, 16); silPole(f, 160, H, '#140e10');
-      silHouse(m, 24, H - 8, '#1e1a14', 20, 18); silPole(m, 80, H - 8, '#1a140e'); silTower(m, 140, H - 8, '#1a140e');
+      for (let k = 0; k < 4; k++) { const x = (r() * TW) | 0; px(m, x, GROUND - 6, '#3a2a1c', 2, 6); px(m, x + 9, GROUND - 6, '#3a2a1c', 2, 6); px(m, x - 1, GROUND - 4, '#4a3624', 13, 1); }
+      silTower(f, 40, GROUND, '#1a1014'); silHouse(f, 110, GROUND, '#1a1014', 18, 16); silPole(f, 160, GROUND, '#140e10');
+      silHouse(m, 24, GROUND, '#1e1a14', 20, 18); silPole(m, 80, GROUND, '#1a140e'); silTower(m, 140, GROUND, '#1a140e');
       px(g2, 0, 0, '#3a2a1a', TW, 9); px(g2, 0, 0, '#5a6a2a', TW, 2); px(g2, 0, 2, '#3a4a1e', TW, 1);
       for (let k = 0; k < 120; k++) { const x = r() * TW; px(g2, x, 0, '#7a8a3a'); if (k % 3 === 0) px(g2, x + 1, 0, '#90a048'); }
       for (let k = 0; k < 90; k++) px(g2, r() * TW, 3 + r() * 6, ['#4a3622', '#2a1e12', '#5a4630'][(r() * 3) | 0], 1 + ((r() * 2) | 0));
-      for (let k = 0; k < 40; k++) { const x = (r() * TW) | 0; px(m, x, H - 10, '#5a6a2a'); px(m, x + 1, H - 11, '#7a8a3a'); px(m, x + 2, H - 10, '#4a5a22'); }
+      for (let k = 0; k < 40; k++) { const x = (r() * TW) | 0; px(m, x, GROUND - 2, '#5a6a2a'); px(m, x + 1, GROUND - 3, '#7a8a3a'); px(m, x + 2, GROUND - 2, '#4a5a22'); }
     } else if (name === 'forest') {
       skyGrad(f0, TH, [[0, '#030408'], [Y0 - 200, '#04060c'], [Y0 - 90, '#070c12'], [Y0, '#0c1416'], [Y0 + H * 0.7, '#18241e'], [TH, '#22301e']]);
       tw = stars(f0, r, 4, Y0 - 40, Math.round(TH * 0.24), 0.9);
       // far silhouettes: mixed pines, oaks, dead and burned trees at varying depth
-      for (let k = 0; k < 14; k++) pine(f, (r() * TW) | 0, -80 + ((r() * 60) | 0), H, 8 + ((r() * 7) | 0), '#080e12');
-      for (let k = 0; k < 8; k++) oak(f, (r() * TW) | 0, -50 + ((r() * 40) | 0), H, 8 + ((r() * 6) | 0), '#0a1410', '#120e0a');
-      for (let k = 0; k < 10; k++) pine(f, (r() * TW) | 0, -18 + ((r() * 36) | 0), H, 6 + ((r() * 6) | 0), k % 2 ? '#0c1610' : '#101c14');
-      for (let k = 0; k < 6; k++) oak(f, (r() * TW) | 0, -16 + ((r() * 24) | 0), H, 7 + ((r() * 5) | 0), k % 2 ? '#122016' : '#0e1a12', '#1a140e');
-      for (let k = 0; k < 5; k++) bareTree(f, (r() * TW) | 0, -30 + ((r() * 20) | 0), H, '#16100c');
-      for (let k = 0; k < 3; k++) burnedTree(f, (r() * TW) | 0, -24 + ((r() * 16) | 0), H);
+      for (let k = 0; k < 14; k++) pine(f, (r() * TW) | 0, -80 + ((r() * 60) | 0), GROUND, 8 + ((r() * 7) | 0), '#080e12');
+      for (let k = 0; k < 8; k++) oak(f, (r() * TW) | 0, -50 + ((r() * 40) | 0), GROUND, 8 + ((r() * 6) | 0), '#0a1410', '#120e0a');
+      for (let k = 0; k < 10; k++) pine(f, (r() * TW) | 0, -18 + ((r() * 36) | 0), GROUND, 6 + ((r() * 6) | 0), k % 2 ? '#0c1610' : '#101c14');
+      for (let k = 0; k < 6; k++) oak(f, (r() * TW) | 0, -16 + ((r() * 24) | 0), GROUND, 7 + ((r() * 5) | 0), k % 2 ? '#122016' : '#0e1a12', '#1a140e');
+      for (let k = 0; k < 5; k++) bareTree(f, (r() * TW) | 0, -30 + ((r() * 20) | 0), GROUND, '#16100c');
+      for (let k = 0; k < 3; k++) burnedTree(f, (r() * TW) | 0, -24 + ((r() * 16) | 0), GROUND);
       // mid: nearer mixed stand, undergrowth, stumps and fallen logs
       for (let k = 0; k < 3; k++) {
         const x = 6 + k * 62 + ((r() * 16) | 0), w = 5 + ((r() * 4) | 0), crown = -78 - ((r() * 36) | 0);
         pine(m, x + (w >> 1), crown, crown + 80, 15 + ((r() * 5) | 0), '#0c1610'); pine(m, x + (w >> 1) + 1, crown + 4, crown + 80, 13, '#09110c');
-        px(m, x, crown + 44, '#1e140e', w, H - 8 - crown - 44); px(m, x, crown + 44, '#2e2216', 2, H - 8 - crown - 44); px(m, x + w - 1, crown + 44, '#0e0a08', 1, H - 8 - crown - 44);
-        px(m, x - 2, H - 10, '#1e140e', w + 4, 2);
+        px(m, x, crown + 44, '#1e140e', w, GROUND - crown - 44); px(m, x, crown + 44, '#2e2216', 2, GROUND - crown - 44); px(m, x + w - 1, crown + 44, '#0e0a08', 1, GROUND - crown - 44);
+        px(m, x - 2, GROUND - 2, '#1e140e', w + 4, 2);
       }
       for (let k = 0; k < 2; k++) {
         const x = 36 + k * 70 + ((r() * 14) | 0);
-        oak(m, x, -64 - ((r() * 28) | 0), H - 8, 12 + ((r() * 5) | 0), k ? '#16301c' : '#122818', '#2a1c12');
+        oak(m, x, -64 - ((r() * 28) | 0), GROUND, 12 + ((r() * 5) | 0), k ? '#16301c' : '#122818', '#2a1c12');
       }
-      for (let k = 0; k < 2; k++) bareTree(m, 20 + k * 90 + ((r() * 20) | 0), -40, H - 8, '#2a1c14');
-      burnedTree(m, 100 + ((r() * 30) | 0), -36, H - 8);
-      for (let k = 0; k < 3; k++) stump(m, (r() * TW) | 0, H - 8, 5 + ((r() * 3) | 0));
-      for (let k = 0; k < 3; k++) fallenLog(m, (r() * (TW - 20)) | 0, H - 8, 12 + ((r() * 10) | 0));
-      for (let k = 0; k < 14; k++) bush(m, (r() * TW) | 0, H - 8, 5 + ((r() * 6) | 0), ['#1a2a14', '#24341a', '#152216'][(r() * 3) | 0]);
-      silHouse(m, 48, H - 8, '#1a140e', 18, 14); silPole(m, 130, H - 8, '#16100c');
-      { const x = 22; px(m, x, H - 16, '#3a2a1a', 2, 8); px(m, x - 3, H - 18, '#4a3a28', 8, 6); px(m, x + 5, H - 17, '#7a2020', 2, 3); }
-      { const x = 160; px(m, x, H - 8, '#5a4030', 6, 3); px(m, x + 8, H - 7, '#3a2a1a', 8, 2); }
+      for (let k = 0; k < 2; k++) bareTree(m, 20 + k * 90 + ((r() * 20) | 0), -40, GROUND, '#2a1c14');
+      burnedTree(m, 100 + ((r() * 30) | 0), -36, GROUND);
+      for (let k = 0; k < 3; k++) stump(m, (r() * TW) | 0, GROUND, 5 + ((r() * 3) | 0));
+      for (let k = 0; k < 3; k++) fallenLog(m, (r() * (TW - 20)) | 0, GROUND, 12 + ((r() * 10) | 0));
+      for (let k = 0; k < 14; k++) bush(m, (r() * TW) | 0, GROUND, 5 + ((r() * 6) | 0), ['#1a2a14', '#24341a', '#152216'][(r() * 3) | 0]);
+      silHouse(m, 48, GROUND, '#1a140e', 18, 14); silPole(m, 130, GROUND, '#16100c');
+      { const x = 22; px(m, x, GROUND - 8, '#3a2a1a', 2, 8); px(m, x - 3, GROUND - 10, '#4a3a28', 8, 6); px(m, x + 5, GROUND - 9, '#7a2020', 2, 3); }
+      { const x = 160; px(m, x, GROUND, '#5a4030', 6, 3); px(m, x + 8, GROUND + 1, '#3a2a1a', 8, 2); }
       px(g2, 0, 0, '#1e2414', TW, 9); px(g2, 0, 0, '#2e4a1e', TW, 1);
       for (let k = 0; k < 150; k++) px(g2, r() * TW, 1 + r() * 8, ['#26341a', '#14180e', '#3a2a1a', '#1a2212'][(r() * 4) | 0], 1 + ((r() * 2) | 0));
       for (let k = 0; k < 8; k++) { const x = (r() * TW) | 0; px(g2, x, 2, '#3a2416', 6, 1); px(g2, x + 5, 3, '#3a2416', 3, 1); }
@@ -792,22 +850,22 @@
       f0.globalAlpha = 1;
       // a tall cathedral and spires rising above the strip
       const spire = (x, w, top, col, lit) => {
-        px(f, x, top, col, w, H - top);
+        px(f, x, top, col, w, GROUND - top);
         const tip = Math.round(w * 1.6);
         for (let y = 0; y < tip; y++) { const ww = Math.max(1, Math.round(w * (1 - y / tip))); px(f, x + ((w - ww) >> 1), top - y, col, ww, 1); }
         px(f, x + (w >> 1), top - tip - 3, col, 1, 3);
-        for (let yy = top + 6; yy < H - 10; yy += 11) for (let j = 0; j < 3; j++) { const wx = x + 3 + j * 4; if (wx < x + w - 2 && r() < lit) { px(f, wx, yy, '#ff9a40', 2, 3); px(f, wx, yy - 1, '#ffb860', 1, 1); } }
+        for (let yy = top + 6; yy < GROUND - 2; yy += 11) for (let j = 0; j < 3; j++) { const wx = x + 3 + j * 4; if (wx < x + w - 2 && r() < lit) { px(f, wx, yy, '#ff9a40', 2, 3); px(f, wx, yy - 1, '#ffb860', 1, 1); } }
       };
       spire(60, 22, -46, '#140a08', 0.35); spire(52, 8, -18, '#140a08', 0.3); spire(84, 8, -12, '#140a08', 0.3);
       for (let k = 0; k < 4; k++) { const x = (k * 48 + 120 + ((r() * 16) | 0)) % TW, w = 14 + ((r() * 10) | 0); spire(x, w, 8 + ((r() * 18) | 0), '#1a0e0c', 0.5); }
-      ridge(f, 62, 3, 3, 8, '#140a08', 0.9, H);
+      ridge(f, 62, 3, 3, 8, '#140a08', 0.9, GROUND);
       for (let k = 0; k < 4; k++) {
         const x = (r() * TW) | 0, h = 14 + ((r() * 20) | 0);
-        px(m, x, H - 8 - h, '#3a3230', 6, h); px(m, x, H - 8 - h, '#4e4440', 2, h); px(m, x + 5, H - 8 - h, '#1e1816', 1, h);
-        px(m, x - 1, H - 9 - h, '#4e4440', 3, 2); px(m, x + 3, H - 8 - h, '#3a3230', 3, 1);
-        if (k % 2) { px(m, x + 8, H - 12, '#d6caae', 3, 2); px(m, x + 8, H - 12, '#0a0605'); px(m, x + 10, H - 12, '#0a0605'); }
+        px(m, x, GROUND - h, '#3a3230', 6, h); px(m, x, GROUND - h, '#4e4440', 2, h); px(m, x + 5, GROUND - h, '#1e1816', 1, h);
+        px(m, x - 1, GROUND - 1 - h, '#4e4440', 3, 2); px(m, x + 3, GROUND - h, '#3a3230', 3, 1);
+        if (k % 2) { px(m, x + 8, GROUND - 4, '#d6caae', 3, 2); px(m, x + 8, GROUND - 4, '#0a0605'); px(m, x + 10, GROUND - 4, '#0a0605'); }
       }
-      silHospital(f, 20, H, '#140a08'); silTower(f, 150, H, '#140a08'); silPole(m, 16, H - 8, '#2a1a14'); silPole(m, 170, H - 8, '#2a1a14'); silHouse(m, 90, H - 8, '#2a1c18', 22, 16);
+      silHospital(f, 20, GROUND, '#140a08'); silTower(f, 150, GROUND, '#140a08'); silPole(m, 16, GROUND, '#2a1a14'); silPole(m, 170, GROUND, '#2a1a14'); silHouse(m, 90, GROUND, '#2a1c18', 22, 16);
       px(g2, 0, 0, '#2a2420', TW, 9); px(g2, 0, 0, '#4a403a', TW, 1);
       for (let x = 0; x < TW; x += 12) { px(g2, x, 1, '#16120e', 1, 8); px(g2, x + 6, 5, '#16120e', 6, 1); px(g2, x + 1, 1, '#3a322c', 5, 1); }
       for (let k = 0; k < 60; k++) px(g2, r() * TW, 2 + r() * 7, ['#3a2a20', '#1a1410', '#5a2a18'][(r() * 3) | 0]);
@@ -816,10 +874,11 @@
   }
 
   // ---------- state ----------
-  let cv, g, wrap, killEl, on = false, timer = 0, raf = 0, acc = 0, lastTs = 0, W = 300, scale = 1;
+  let cv, g, wrap, killEl, lyricEl, on = false, timer = 0, raf = 0, acc = 0, lastTs = 0, W = 300, scale = 1;
+  let lyricData = null, lyricP = null, lyricLast = '', lyricTimer = 0;
   let st = null;
   function freshState() {
-    return { mode: 'run', t: 0, scroll: 0, hp: 1, max: 1, heroX: 22, mon: null, mons: [], spawn: 40, fx: [], nums: [], coins: [], fire: null, atkT: 0, monT: 0, pose: '', lunge: 0, flashH: 0, potion: 0, eqKey: '', biome: 0, bt: 0, seq: null, seqI: 0, move: '', forceMove: null, forceCls: null, forceLoco: null, forcePack: null, alpha: 0, loco: 'run', facing: 'side', turn: 0, turnTo: 'side', gaitF: 0, coolWalk: 0, props: [], nextProp: 30, digCd: 24, digT: 0, hopT: 0, hopY: 0, leap: null, toast: null, npc: null, npcCd: 200, greetT: 0, deathCd: 0, healCd: 0, fightXp: 0, awardXp: undefined, noDeath: false };
+    return { mode: 'run', t: 0, scroll: 0, hp: 1, max: 1, heroX: 22, mon: null, mons: [], spawn: 40, fx: [], nums: [], coins: [], fire: null, atkT: 0, monT: 0, pose: '', lunge: 0, flashH: 0, potion: 0, eqKey: '', biome: 0, bt: 0, seq: null, seqI: 0, move: '', forceMove: null, forceCls: null, forceLoco: null, forcePack: null, alpha: 0, loco: 'run', facing: 'side', turn: 0, turnTo: 'side', gaitF: 0, coolWalk: 0, props: [], nextProp: 30, digCd: 24, digT: 0, hopT: 0, hopY: 0, pullT: 0, pullCd: 0, leap: null, toast: null, npc: null, npcCd: 200, greetT: 0, deathCd: 0, healCd: 0, fightXp: 0, awardXp: undefined, noDeath: false };
   }
   function eqNow() { return (typeof xpState !== 'undefined' && xpState.equipped) || {}; }
   function lvl() { return (typeof xpState !== 'undefined' && xpState.level) || 1; }
@@ -890,7 +949,7 @@
   }
   function packCenter(s) {
     const ms = living(s);
-    if (!ms.length) return { x: (s.heroX || 22) + 50, y: H - 16 };
+    if (!ms.length) return { x: (s.heroX || 22) + 50, y: GROUND - 8 };
     let x = 0, y = 0;
     for (const m of ms) { const mid = monMid(m); x += mid.x; y += mid.y; }
     return { x: x / ms.length, y: y / ms.length };
@@ -1039,7 +1098,7 @@
     const mx0 = s.heroX + (cls === 'warrior' ? (ITEM_BY_ID[eq.armor] ? 34 : 32) + 14 : 47);
     return { x: cls === 'mage' ? s.heroX + 35 : mx0, y: cls === 'mage' ? HERO_Y + 9 : by };
   }
-  function monMid(m) { return { x: m.x + (m.w || 16) / 2, y: H - 8 - (m.h || 16) / 2 }; }
+  function monMid(m) { return { x: m.x + (m.w || 16) / 2, y: GROUND - (m.h || 16) / 2 }; }
   function rollDmg(S, scale) {
     let d = Math.round(S.atk * (0.75 + Math.random() * 0.5) * (scale || 1));
     const crit = Math.random() * 100 < (S.crit || 12);
@@ -1066,13 +1125,13 @@
   function hurtMon(s, m, d, crit) {
     if (!m || m.dead) return;
     m.hp -= d; m.flash = 3; m.hurt = 5; m.x += 3; m.px = (m.px != null ? m.px : m.x) ;
-    addNum(m.x + (m.w || 16) / 2 - 4, Math.max(4, H - 10 - (m.h || 16) - 4), d, crit ? '#ffd040' : '#fff6e0');
+    addNum(m.x + (m.w || 16) / 2 - 4, Math.max(4, GROUND - 2 - (m.h || 16) - 4), d, crit ? '#ffd040' : '#fff6e0');
     if (m.hp <= 0) {
       m.dead = 1;
       s.seq = null; s.pose = '';
-      s.fx.push({ k: 'poof', x: m.x + (m.w || 16) / 2, y: H - 8 - (m.h || 16) / 2, t: 0, life: 8, r: Math.max(6, (m.h || 16) / 2) });
+      s.fx.push({ k: 'poof', x: m.x + (m.w || 16) / 2, y: GROUND - (m.h || 16) / 2, t: 0, life: 8, r: Math.max(6, (m.h || 16) / 2) });
       const n = m.boss ? 9 : m.elite ? 6 : 2 + ((Math.random() * 3) | 0);
-      for (let i = 0; i < n; i++) s.coins.push({ x: m.x + (m.w || 16) / 2, y: H - 10 - (m.h || 16) / 2, vx: -1.5 - Math.random() * 2, vy: -3 - Math.random() * 2, t: 0 });
+      for (let i = 0; i < n; i++) s.coins.push({ x: m.x + (m.w || 16) / 2, y: GROUND - 2 - (m.h || 16) / 2, vx: -1.5 - Math.random() * 2, vy: -3 - Math.random() * 2, t: 0 });
     }
   }
   function impact(s, m, S, scale, blood) {
@@ -1120,7 +1179,7 @@
       }
     }
     else if (hit === 'shot') { s.fx.push({ k: 'shot', x: muz.x, y: muz.y, tx: mid.x, t: 0, life: Math.max(3, Math.round(dist / 40)) }); s.fx.push({ k: 'flash', x: muz.x, y: muz.y, t: 0, life: 2 }); impact(s, m, S, dist > 90 ? 0.5 : 0.65, true); }
-    else if (hit === 'grenade') s.fx.push({ k: 'grenade', x: muz.x, y: muz.y, tx: pack.x, ty: H - 10, t: 0, life: 10, dmg: rollDmg(S, targets.length > 1 ? 1.15 : 1.5), mon: m });
+    else if (hit === 'grenade') s.fx.push({ k: 'grenade', x: muz.x, y: muz.y, tx: pack.x, ty: GROUND - 2, t: 0, life: 10, dmg: rollDmg(S, targets.length > 1 ? 1.15 : 1.5), mon: m });
   }
   function heroHitDmg(s, mon) {
     const S = stats(eqNow(), lvl());
@@ -1278,41 +1337,46 @@
     return s.loco || 'run';
   }
   function goRun(s, walkFirst) {
-    s.mode = 'run'; s.potion = 0; s.pose = ''; s.leap = null; s.hopT = 0; s.hopY = 0; s.digT = 0;
+    s.mode = 'run'; s.potion = 0; s.pose = ''; s.leap = null; s.hopT = 0; s.hopY = 0; s.digT = 0; s.pullT = 0; s.pullOf = null; s.pullPart = null;
     if (walkFirst) { s.coolWalk = 12; s.loco = 'walk'; } else s.loco = s.coolWalk ? 'walk' : 'run';
     beginTurn(s, 'side');
   }
 
   // ---------- wasteland / woods / cave props ----------
   const PROP = {
-    car: { w: 52, h: 24 }, carbrush: { w: 54, h: 26 }, bike: { w: 32, h: 18 }, bus: { w: 78, h: 30 },
-    gas: { w: 92, h: 54, rare: 1, set: 1, cool: 10 },
-    house: { w: 70, h: 46, set: 1, cool: 8, mid: 1 },
-    hospital: { w: 96, h: 52, rare: 1, set: 1, cool: 12, mid: 1 },
-    diner: { w: 84, h: 38, set: 1, cool: 9, mid: 1 },
-    church: { w: 62, h: 56, set: 1, cool: 10, mid: 1 },
-    watertower: { w: 36, h: 58, set: 1, cool: 10, mid: 1 },
-    billboard: { w: 72, h: 42, set: 1, cool: 8, mid: 1 },
-    cabin: { w: 64, h: 36, set: 1, cool: 8 },
-    boulder: { w: 26, h: 16, hop: 1, cool: 3 },
-    skeleton: { w: 28, h: 10, cool: 4 },
-    rubble: { w: 28, h: 14, dig: 1, cool: 3 },
-    debris: { w: 16, h: 9, cool: 3 },
-    deadtree: { w: 22, h: 36, cool: 3 },
-    sign: { w: 18, h: 24, cool: 5 },
-    barrel: { w: 12, h: 15, cool: 4 },
-    mailbox: { w: 14, h: 18, cool: 7 },
-    stump: { w: 14, h: 10, cool: 3 },
-    log: { w: 28, h: 10, cool: 3 },
-    bush: { w: 16, h: 11, fg: 1, cool: 2 },
-    fence: { w: 40, h: 16, cool: 4 },
-    pole: { w: 40, h: 50, mid: 1, cool: 5 },
-    minecart: { w: 28, h: 18, cool: 4 },
-    lantern: { w: 12, h: 22, glow: 1, cool: 4 },
-    crystal: { w: 16, h: 20, glow: 1, cool: 4 },
-    cavein: { w: 44, h: 28, hop: 1, cool: 5 },
-    stalactite: { w: 14, h: 26, hang: 1, mid: 1, cool: 3 },
-    bones: { w: 24, h: 12, dig: 1, cool: 4 }
+    // sx/sy are draw scales vs the authored sprite. Hero is ~61px tall; cars should read as
+    // ~0.8-1x as tall and ~2.5-3x as long, buildings several hero-heights (and may overflow the strip).
+    car: { w: 72, h: 34, sx: 2.25, sy: 1.7 },
+    carbrush: { w: 72, h: 34, sx: 2.2, sy: 1.7 },
+    bike: { w: 32, h: 18, sx: 2.85, sy: 2.2 },
+    bus: { w: 78, h: 30, sx: 2.85, sy: 2.35 },
+    gas: { w: 92, h: 54, sx: 2.35, sy: 2.55, rare: 1, set: 1, cool: 10, mid: 1 },
+    house: { w: 70, h: 46, sx: 2.55, sy: 3.15, set: 1, cool: 8, mid: 1 },
+    hospital: { w: 96, h: 52, sx: 2.7, sy: 3.35, rare: 1, set: 1, cool: 12, mid: 1 },
+    diner: { w: 84, h: 38, sx: 2.45, sy: 2.85, set: 1, cool: 9, mid: 1 },
+    church: { w: 62, h: 56, sx: 2.55, sy: 3.55, set: 1, cool: 10, mid: 1 },
+    watertower: { w: 36, h: 58, sx: 2.35, sy: 3.35, set: 1, cool: 10, mid: 1 },
+    billboard: { w: 72, h: 42, sx: 2.2, sy: 2.55, set: 1, cool: 8, mid: 1 },
+    cabin: { w: 64, h: 36, sx: 2.2, sy: 2.55, set: 1, cool: 8, mid: 1 },
+    boulder: { w: 26, h: 16, sx: 1.25, sy: 1.25, hop: 1, cool: 3 },
+    skeleton: { w: 28, h: 10, sx: 1.2, sy: 1.2, cool: 4 },
+    rubble: { w: 28, h: 14, sx: 1.25, sy: 1.25, dig: 1, cool: 3 },
+    debris: { w: 16, h: 9, sx: 1.15, sy: 1.15, cool: 3 },
+    deadtree: { w: 22, h: 36, sx: 2.1, sy: 2.55, cool: 3 },
+    sign: { w: 18, h: 24, sx: 1.45, sy: 1.55, cool: 5 },
+    barrel: { w: 12, h: 15, sx: 1.35, sy: 1.35, cool: 4 },
+    mailbox: { w: 14, h: 18, sx: 1.3, sy: 1.3, cool: 7 },
+    stump: { w: 14, h: 10, sx: 1.35, sy: 1.35, cool: 3 },
+    log: { w: 28, h: 10, sx: 1.45, sy: 1.35, cool: 3 },
+    bush: { w: 16, h: 11, sx: 1.4, sy: 1.4, fg: 1, cool: 2 },
+    fence: { w: 40, h: 16, sx: 1.5, sy: 1.45, cool: 4 },
+    pole: { w: 40, h: 50, sx: 1.35, sy: 2.55, mid: 1, cool: 5 },
+    minecart: { w: 28, h: 18, sx: 1.7, sy: 1.7, cool: 4 },
+    lantern: { w: 12, h: 22, sx: 1.25, sy: 1.25, glow: 1, cool: 4 },
+    crystal: { w: 16, h: 20, sx: 1.35, sy: 1.35, glow: 1, cool: 4 },
+    cavein: { w: 44, h: 28, sx: 1.55, sy: 1.45, hop: 1, cool: 5 },
+    stalactite: { w: 14, h: 26, sx: 1.6, sy: 1.8, hang: 1, mid: 1, cool: 3 },
+    bones: { w: 24, h: 12, sx: 1.25, sy: 1.25, dig: 1, cool: 4 }
   };
   function propWeights(biome) {
     const name = BIOMES[biome] || 'plains';
@@ -1406,8 +1470,45 @@
     x.putImageData(out, 0, 0);
     return c;
   }
-  function paintProp(type, v) {
-    const key = type + '|' + (v | 0);
+  const CAR_STYLES = ['sedan', 'hatch', 'pickup', 'suv', 'van', 'coupe', 'muscle'];
+  const CAR_SCALE = {
+    sedan: { sx: 2.25, sy: 1.7 }, hatch: { sx: 2.05, sy: 1.8 }, pickup: { sx: 2.5, sy: 1.7 },
+    suv: { sx: 2.2, sy: 2.05 }, van: { sx: 2.35, sy: 2.15 }, coupe: { sx: 2.2, sy: 1.5 }, muscle: { sx: 2.55, sy: 1.55 }
+  };
+  const CAR_PALS = [
+    { body: '#6a2e1a', hi: '#8a4a28', lo: '#3a1a10' }, { body: '#3a3230', hi: '#5a524e', lo: '#1e1a18' },
+    { body: '#2a3a4a', hi: '#4a5a6a', lo: '#1a242e' }, { body: '#3a3a22', hi: '#5a5a34', lo: '#242414' },
+    { body: '#4a3a20', hi: '#6a5a30', lo: '#2a2210' }, { body: '#4a2024', hi: '#6a3034', lo: '#2a1012' },
+    { body: '#2a2a2a', hi: '#4a4a4a', lo: '#141414' }, { body: '#5a5a52', hi: '#7a7a70', lo: '#3a3a34' },
+    { body: '#3a4a38', hi: '#5a6a54', lo: '#1e2a1c' }, { body: '#4a3020', hi: '#6a4830', lo: '#2a1a10' }
+  ];
+  const PULL_PARTS = [
+    { id: 'sensor', name: 'SENSOR' }, { id: 'ecu', name: 'ECU' },
+    { id: 'radio', name: 'RADIO' }, { id: 'actuator', name: 'ACTUATOR' }
+  ];
+  function rollCar(type) {
+    const styles = type === 'carbrush' ? ['sedan', 'hatch', 'coupe', 'suv'] : CAR_STYLES;
+    const miss = [];
+    ['fl', 'fr', 'rl', 'rr'].forEach(k => { if (Math.random() < 0.22) miss.push(k); });
+    if (miss.length > 2) miss.length = 2;
+    return {
+      style: styles[(Math.random() * styles.length) | 0],
+      pal: CAR_PALS[(Math.random() * CAR_PALS.length) | 0],
+      hood: Math.random() < 0.58 ? 'up' : 'down',
+      doorL: Math.random() > 0.38 ? 1 : 0,
+      doorR: Math.random() > 0.3 ? 1 : 0,
+      miss, rust: (Math.random() * 3) | 0, smash: (Math.random() * 3) | 0,
+      crush: Math.random() < 0.18, brush: type === 'carbrush'
+    };
+  }
+  function carKey(c) {
+    if (!c) return '';
+    return [c.style, c.hood, c.doorL, c.doorR, (c.miss || []).join(''), c.rust, c.smash, c.crush | 0, c.pal && c.pal.body, c.brush | 0].join(',');
+  }
+  function isCarProp(p) { return p && (p.k === 'car' || p.k === 'carbrush'); }
+
+  function paintProp(type, v, car) {
+    const key = type + '|' + (v | 0) + (car ? '|' + carKey(car) : '');
     if (propCache[key]) return propCache[key];
     const meta = PROP[type] || PROP.debris;
     const pad = 1, c = mkc(meta.w + pad * 2, meta.h + pad * 2), x = c.getContext('2d');
@@ -1443,23 +1544,85 @@
     const body = pal ? C.ash : C.rust, bodyH = pal ? C.ashH : C.rustH, bodyL = pal ? C.ashL : C.rustL;
 
     if (type === 'car' || type === 'carbrush') {
-      P(6, gnd - 1, C.char, 40, 1);
-      box3(4, gnd - 10, 44, 8, body, bodyH, bodyL);
-      box3(14, gnd - 20, 22, 10, body, bodyH, bodyL);
-      P(14, gnd - 21, bodyL, 22, 1);
-      P(12, gnd - 10, body, 4, 3); P(36, gnd - 10, body, 3, 3);
-      windw(16, gnd - 19, 8, 6, 1, 0); windw(26, gnd - 19, 8, 6, dmg !== 0, 0);
-      P(15, gnd - 13, C.char, 20, 1);
-      wheel(12, gnd - 4, 4, 0);
-      if (dmg === 2) { P(40, gnd - 5, C.rust, 5, 2); P(42, gnd - 3, C.metalL, 4, 1); }
-      else wheel(40, gnd - 4, 4, dmg === 1);
-      P(3, gnd - 8, bodyL, 3, 3); P(46, gnd - 8, bodyL, 3, 2);
-      P(5, gnd - 9, dmg ? C.char : '#c8a050', 3, 2); P(45, gnd - 9, '#5a2010', 3, 2);
-      rustStreak(10, gnd - 16, 6); rustStreak(34, gnd - 18, 8);
-      P(22, gnd - 11, C.rustH, 2, 1); P(8, gnd - 7, C.char, 1, 1); P(30, gnd - 8, C.char, 1, 1);
-      if (type === 'carbrush') {
-        for (let i = 0; i < 14; i++) P(6 + i * 3, gnd - (8 + (i + dmg) % 5), (i % 2) ? C.moss : C.mossH, 2, 3 + (i % 3));
-        P(20, gnd - 22, C.mossH, 3, 4); P(32, gnd - 18, C.moss, 4, 5);
+      const car0 = car || rollCar(type);
+      const pal0 = car0.pal || { body: body, hi: bodyH, lo: bodyL };
+      const st = car0.style || 'sedan';
+      const miss = car0.miss || [];
+      const has = (k) => miss.indexOf(k) < 0;
+      const sagL = (!has('fl') || !has('rl')) ? 2 : 0;
+      const sagR = (!has('fr') || !has('rr')) ? 2 : 0;
+      const tall = (st === 'suv' || st === 'van') ? 1 : 0;
+      const low = (st === 'coupe' || st === 'muscle') ? 1 : 0;
+      const bodyH0 = tall ? 16 : (st === 'van' ? 18 : (low ? 9 : 11));
+      const cabinH = tall ? 12 : (st === 'van' ? 10 : (low ? 8 : 11));
+      const by = gnd - 6 - sagL;
+      // front / engine is on the left so the hero meets the bay first
+      let x0 = 2, x1 = 70;
+      if (st === 'hatch') { x0 = 4; x1 = 66; }
+      if (st === 'coupe') { x0 = 2; x1 = 64; }
+      const wBody = x1 - x0;
+      const hoodW = st === 'van' ? 10 : (st === 'hatch' ? 16 : (st === 'pickup' ? 14 : (st === 'muscle' || st === 'coupe' ? 26 : 18)));
+      const cabX = x0 + hoodW;
+      const cabW = st === 'pickup' ? 18 : (st === 'van' ? wBody - hoodW - 2 : (st === 'muscle' || st === 'coupe' ? 18 : (st === 'hatch' ? 28 : 24)));
+      const bedX = cabX + cabW;
+      P(x0 + 2, gnd - 1, C.char, wBody - 4, 1);
+      box3(x0, by - bodyH0 + sagL, wBody, bodyH0, pal0.body, pal0.hi, pal0.lo);
+      if (sagR) box3(x0 + (wBody >> 1), by - bodyH0 + sagR, wBody - (wBody >> 1), bodyH0, pal0.body, pal0.hi, pal0.lo);
+      // cabin
+      const cy = by - bodyH0 - cabinH + 2;
+      box3(cabX, cy, cabW, cabinH + 2, pal0.body, pal0.hi, pal0.lo);
+      if (st === 'pickup') {
+        box3(bedX, by - 7, x1 - bedX - 1, 7, pal0.lo, pal0.body, C.char);
+        P(bedX + 1, by - 8, C.char, x1 - bedX - 3, 1);
+        if (car0.smash) P(bedX + 4, by - 6, C.rust, 8, 3);
+      }
+      if (st === 'hatch') P(cabX + cabW - 6, cy + 2, pal0.body, 8, cabinH);
+      // windows / doors
+      if (car0.doorL) {
+        windw(cabX + 3, cy + 2, st === 'van' ? 8 : 7, cabinH - 4, car0.smash !== 0, 0);
+        if (cabW > 18) windw(cabX + 12, cy + 2, 7, cabinH - 4, car0.smash === 2, 0);
+      } else {
+        P(cabX + 2, cy + 2, C.char, 10, cabinH - 3);
+        P(cabX + 3, cy + 3, '#1a100c', 8, cabinH - 5);
+        P(cabX + 4, cy + 6, C.rustL, 3, 4);
+      }
+      if (st === 'van') {
+        for (let i = 0; i < 3; i++) windw(cabX + 14 + i * 10, cy + 2, 7, cabinH - 4, ((car0.smash + i) % 3) !== 0, 0);
+      }
+      // hood / engine bay (left)
+      const hx = x0 + 2, hw = hoodW - 3, hy = by - bodyH0 + 1;
+      if (car0.hood === 'up') {
+        P(hx, hy, C.char, hw, bodyH0 - 3);
+        P(hx + 1, hy + 1, '#2a1a10', hw - 2, bodyH0 - 5);
+        P(hx + 3, hy + 3, C.metalL, 6, 4); P(hx + 4, hy + 4, C.metal, 4, 2);
+        P(hx + 2, hy + 8, C.rust, 3, 2);
+        // raised hood panel, hinged at the cowl
+        const hx2 = hx + hw - 2, hh = 10;
+        P(hx2, hy - hh, pal0.body, 2, hh);
+        for (let i = 0; i < hh; i++) P(hx2 - 1 - (i >> 1), hy - hh + i, pal0.hi, 6 + (i >> 2), 1);
+        P(hx2 - 2, hy - hh, pal0.lo, 8, 1);
+      } else {
+        box3(hx, hy, hw, Math.max(3, bodyH0 - 5), pal0.body, pal0.hi, pal0.lo);
+        P(hx + 2, hy + 1, car0.smash ? C.char : pal0.lo, hw - 4, 1);
+      }
+      // lights
+      P(x0 + 1, by - 5, car0.smash ? C.char : '#c8a050', 3, 2);
+      P(x1 - 5, by - 5, '#5a2010', 3, 2);
+      const wr = 5, wy = gnd - wr;
+      const wfl = x0 + 10, wrl = x1 - 14;
+      if (has('fl')) wheel(wfl, wy, wr, car0.smash === 2); else { P(wfl - 2, gnd - 3, C.metalL, 4, 2); P(wfl, gnd - 1, C.char, 2, 1); }
+      if (has('rl')) wheel(wrl, wy, wr, 0); else { P(wrl - 2, gnd - 3, C.metalL, 4, 2); }
+      if (st === 'van' || st === 'suv' || st === 'pickup') {
+        if (has('fr')) wheel(wfl + 10, wy, wr - 1, 0);
+        if (has('rr')) wheel(wrl - 10, wy, wr - 1, 0);
+      } else {
+        if (!has('fr')) P(wfl + 8, gnd - 2, C.ash, 3, 1);
+      }
+      if (car0.crush) { P(x0 + 8, cy - 2, pal0.lo, 14, 3); P(x0 + 10, cy - 3, C.char, 8, 2); }
+      for (let i = 0; i < car0.rust + 1; i++) rustStreak(x0 + 8 + i * 14, cy + 2, 6 + i * 2);
+      if (car0.brush) {
+        for (let i = 0; i < 16; i++) P(x0 + i * 4, gnd - (6 + (i + car0.rust) % 5), (i % 2) ? C.moss : C.mossH, 2, 3 + (i % 3));
+        P(cabX + 4, cy - 3, C.mossH, 4, 4); P(bedX - 4, cy, C.moss, 5, 5);
       }
     } else if (type === 'bike') {
       P(3, gnd - 1, C.char, 26, 1);
@@ -1674,22 +1837,24 @@
       if (meta.hang || meta.mid || (meta.set && Math.random() < 0.7)) par = 0.5 + Math.random() * 0.12;
       else if (meta.fg || Math.random() < 0.12) par = 1.12;
       else if ((type === 'deadtree' || type === 'pole' || type === 'sign') && Math.random() < 0.35) par = 0.55;
-      const gap = (meta.rare || meta.set ? 140 : 28) + ((Math.random() * (meta.rare || meta.set ? 220 : 90)) | 0);
-      const sc = meta.set || meta.hang ? (0.9 + Math.random() * 0.14) : (0.85 + Math.random() * 0.28);
+      const gap = (meta.rare || meta.set ? 160 : 40) + ((Math.random() * (meta.rare || meta.set ? 240 : 100)) | 0);
+      const sc = 0.92 + Math.random() * 0.16;
       const p0 = { k: type, wx: s.nextProp, v: (Math.random() * 6) | 0, par, w: meta.w, h: meta.h, hop: !!meta.hop, dig: !!meta.dig, hang: !!meta.hang, glow: !!meta.glow, flip: Math.random() < 0.5, sc, yOff: meta.hang ? 0 : (par < 0.9 ? -2 : 0) };
+      if (type === 'car' || type === 'carbrush') p0.car = rollCar(type);
       s.props.push(p0);
       for (const ck in s.propCool) if (s.propCool[ck] > 0) s.propCool[ck]--;
       s.propCool[type] = meta.cool || (meta.rare || meta.set ? 8 : 3);
       s.recentProps.push(type); if (s.recentProps.length > 8) s.recentProps.shift();
-      s.nextProp += Math.round((meta.w * sc) + gap);
+      s.nextProp += Math.round(propDrawSize(p0).dw + gap);
     }
-    s.props = s.props.filter(p => p.wx - s.scroll * (p.par || 1) > -120);
+    s.props = s.props.filter(p => p.wx - s.scroll * (p.par || 1) > -280);
     if (s.props.length > 22) s.props = s.props.slice(-22);
   }
   function addProp(s, type, opts) {
     opts = opts || {};
     const meta = PROP[type] || PROP.debris;
     const p0 = { k: type, wx: opts.wx != null ? opts.wx : s.scroll + (opts.x != null ? opts.x : W - 10), v: opts.v || 0, par: opts.par || (meta.hang || meta.mid ? 0.55 : 1), w: meta.w, h: meta.h, hop: !!meta.hop, dig: !!meta.dig, hang: !!meta.hang, glow: !!meta.glow, flip: !!opts.flip, sc: opts.sc || 1, yOff: meta.hang ? 0 : 0 };
+    if (type === 'car' || type === 'carbrush') p0.car = opts.car || rollCar(type);
     if (!s.props) s.props = [];
     s.props.push(p0);
     return p0;
@@ -1698,19 +1863,22 @@
     return p.wx - (scroll + (a || 0) * (step || 0)) * (p.par || 1);
   }
   function propDrawSize(p) {
+    const meta = PROP[p.k] || {};
     const sc = p.sc || 1;
-    return { dw: Math.round(p.w * sc), dh: Math.round(p.h * sc) };
+    const st = p.car && CAR_SCALE[p.car.style];
+    const sx = (st ? st.sx : (meta.sx || 1)) * sc, sy = (st ? st.sy : (meta.sy || 1)) * sc;
+    return { dw: Math.round(p.w * sx), dh: Math.round(p.h * sy) };
   }
   function drawProps(ctx, scroll, a, step, layer) {
     if (!st || !st.props) return;
-    const ground = (ctx === bg && BH) ? BH - 8 : H - 8;
+    const ground = (ctx === bg && BH) ? BH - BAND : GROUND;
     for (const p of st.props) {
       const fg = (p.par || 1) > 1.05;
       const mid = (p.par || 1) < 0.9;
       if (layer === 'fg' && !fg) continue;
       if (layer === 'mid' && !mid) continue;
       if (layer === 'ground' && (fg || mid)) continue;
-      const c = paintProp(p.k, p.v);
+      const c = paintProp(p.k, p.v, p.car);
       const x = Math.round(propScreenX(p, scroll, a, step));
       const { dw, dh } = propDrawSize(p);
       const pad = c._pad || 0;
@@ -1723,6 +1891,50 @@
       ctx.restore();
     }
   }
+  function paintWrench(ang) {
+    const c = mkc(12, 12), x = c.getContext('2d');
+    x.translate(6, 6); x.rotate(ang || 0); x.translate(-6, -6);
+    x.fillStyle = '#3a342c'; x.fillRect(2, 5, 8, 3);
+    x.fillStyle = '#8a8478'; x.fillRect(2, 5, 8, 2);
+    x.fillStyle = '#c8c0b0'; x.fillRect(1, 3, 3, 7); x.fillRect(8, 3, 3, 7);
+    x.fillStyle = '#5a5048'; x.fillRect(2, 4, 1, 5); x.fillRect(9, 4, 1, 5);
+    return c;
+  }
+  function paintPartIcon(id) {
+    const c = mkc(10, 10), x = c.getContext('2d');
+    if (id === 'ecu') {
+      x.fillStyle = '#1a2a18'; x.fillRect(1, 2, 8, 6);
+      x.fillStyle = '#3a8a40'; x.fillRect(2, 3, 6, 4);
+      x.fillStyle = '#c8e8a0'; x.fillRect(3, 4, 1, 1); x.fillRect(5, 5, 1, 1); x.fillRect(7, 4, 1, 2);
+    } else if (id === 'radio') {
+      x.fillStyle = '#2a2a28'; x.fillRect(1, 3, 8, 5);
+      x.fillStyle = '#4a4a46'; x.fillRect(2, 4, 6, 3);
+      x.fillStyle = '#8a2010'; x.fillRect(3, 5, 2, 1);
+      x.fillStyle = '#c8c0b0'; x.fillRect(6, 1, 1, 3);
+    } else if (id === 'actuator') {
+      x.fillStyle = '#5a5048'; x.fillRect(2, 3, 6, 4);
+      x.fillStyle = '#8a8478'; x.fillRect(3, 1, 2, 8);
+      x.fillStyle = '#c8c0b0'; x.fillRect(7, 4, 2, 2);
+    } else {
+      x.fillStyle = '#4a3a20'; x.fillRect(3, 2, 4, 6);
+      x.fillStyle = '#c8a050'; x.fillRect(4, 3, 2, 2);
+      x.fillStyle = '#8a8478'; x.fillRect(4, 6, 2, 3);
+    }
+    return c;
+  }
+  function drawPullGear(ctx, s, plant, hy, a) {
+    const t = s.pullT + (a || 0);
+    if (t <= 16 && t > 3) {
+      const ang = Math.sin(t * 1.4) * 0.7;
+      const w = paintWrench(ang);
+      ctx.drawImage(w, Math.round(plant + 10), Math.round(hy + 28), 12, 12);
+    }
+    if (t >= 17 && t < 26 && s.pullPart) {
+      const ic = paintPartIcon(s.pullPart.id);
+      const bob = Math.round(Math.sin(t * 0.8) * 2);
+      ctx.drawImage(ic, Math.round(plant + 6), Math.round(hy + 4 + bob), 12, 12);
+    }
+  }
   function startHop(s, prop) {
     s.mode = 'hop'; s.hopT = 0; s.hopOf = prop; s.hopY = 0; s.loco = 'climb'; s.pose = '';
     if (prop) prop.used = 1;
@@ -1730,6 +1942,14 @@
   }
   function startDig(s, prop) {
     s.mode = 'dig'; s.digT = 0; s.digOf = prop; s.loco = 'dig'; s.pose = ''; s.toast = null;
+    if (prop) prop.looted = 1;
+    beginTurn(s, 'side');
+  }
+  function startPull(s, prop) {
+    s.mode = 'pull'; s.pullT = 0; s.pullOf = prop; s.pullY = 0; s.pose = ''; s.toast = null;
+    s.pullPart = PULL_PARTS[(Math.random() * PULL_PARTS.length) | 0];
+    s.pullKind = (prop && prop.car && prop.car.hood === 'up') ? 'engine' : 'dash';
+    s.loco = 'climb';
     if (prop) prop.looted = 1;
     beginTurn(s, 'side');
   }
@@ -1749,6 +1969,11 @@
         startDig(s, p);
         return;
       }
+      if (isCarProp(p) && (s.pullCd || 0) <= 0 && sx < plant + 22 && sx + dw > plant && (s.forcePull || Math.random() < 0.45)) {
+        s.forcePull = false;
+        startPull(s, p);
+        return;
+      }
     }
   }
 
@@ -1759,19 +1984,80 @@
     'Stay safe out there.',
     'Watch the roads.',
     'Seen any gas?',
-    "Don't drink the rust water.",
+    'Don\'t drink the rust water.',
     'War never ended, huh.',
     'Keep that scrap close.',
-    "Bats're worse after dark.",
+    'Bats\'re worse after dark.',
     'You lookin for parts too?',
-    "Sky's a little too red today.",
+    'Sky\'s a little too red today.',
     'If you find ammo, share.',
-    "Town's gone. Keep walkin.",
+    'Town\'s gone. Keep walkin.',
     'Nice hat, stranger.',
     'May your tires hold.',
     'Heard a lich up north.',
-    'Rad-free greetings, friend.'
+    'Rad-free greetings, friend.',
+    'Best Offer? In this economy?',
+    'The Emperor protects. Free shipping does not.',
+    'Heresy! Listed as \'untested\'!',
+    'Seen a 2004 Accord ECM? Asking for a friend.',
+    'Blessed be the bubble wrap.',
+    'Only in death does the return window close.',
+    'Item not as described. Burn the seller.',
+    'Is this still available?',
+    'Lowballer spotted. Stay vigilant.',
+    'Praise the Omnissiah, the bolt came loose.',
+    'Ten-mil socket? Lost to the warp.',
+    'Fear the buyer who opens a case on day 29.',
+    'Thought for the day: check the part number twice.',
+    'Pulled a radio. Sold before the gate closed.',
+    'Five stars or death.',
+    'The Machine Spirit demands a core charge.',
+    'Blood for the Blood God, comps for the comp god.',
+    'OBO is the Chaos of commerce.',
+    'Spare a zip tie, brother?',
+    'My cart has a mind of its own. Also a wobbly wheel.',
+    'The row 318 cars are picked clean. Head north.',
+    'Rust is just metal being honest.',
+    'Who left a Kia on the roof again?',
+    'In the grim dark future there are only promoted listings.',
+    'Shipped same day, as the prophecy foretold.',
+    'Buyer says it doesn\'t fit. Buyer has a different car.',
+    'An open mind is like a fortress with its gates unbarred. Same with an open hood.',
+    'Watchers: 14. Offers: 0. Such is life.',
+    'May your torque specs be true.',
+    'I traded my soul for a Hemi intake. Worth it.',
+    'Do not trust the lowball. The lowball is the enemy.',
+    'Pack it like you\'ll get a damage claim.',
+    'Did you check under the seats? Someone left a gold ring once.',
+    'My wagon is full of throttle bodies. Don\'t ask.',
+    'Knowledge is power. Guard the VIN.',
+    'Another \'free local pickup.\' Truly the end times.',
+    'Sell-through rate is my religion.',
+    'The yard giveth and the yard taketh away.',
+    'This sensor? Pristine. Barely bloodied.',
+    'Nice day for a fallout!',
+    'Your mom goes to college.',
+    'I\'ll be back.',
+    'Game over, man! Game over!',
+    'I have a bad feeling about this.',
+    'Hasta la vista, baby.',
+    'Nobody puts Baby in a corner.',
+    'Yippee-ki-yay.',
+    'I\'m kind of a big deal.',
+    'Get to the choppa!',
+    'Inconceivable!',
+    'You\'re gonna need a bigger boat.',
+    'Here\'s Johnny!',
+    'Life moves pretty fast.',
+    'Where we\'re going, we don\'t need roads.',
+    'I see dead people.',
+    'Say hello to my little friend!',
+    'These aren\'t the droids you\'re looking for.',
+    'May the Force be with you.',
+    'Wax on, wax off.',
+    'Wolverines!'
   ];
+
   const CLS_GREET = {
     warrior: ['Happy hunting.', 'Steel holds, friend.', 'Save me a swing.', 'The road still needs a blade.', 'Keep your guard up.'],
     shooter: ['Happy hunting.', 'Keep your powder dry.', 'Heard shots west of here.', "Ammo's worth more than gold.", 'Watch the ridgeline.'],
@@ -1876,6 +2162,18 @@
   function otherClasses(heroCls) {
     return ['warrior', 'shooter', 'mage'].filter(c => c !== (heroCls || clsNow()));
   }
+  const recentGreets = [];
+  function pickGreet(pool) {
+    pool = pool || GREETINGS;
+    const avoid = recentGreets.length > 8 ? 8 : Math.max(2, recentGreets.length);
+    const recent = recentGreets.slice(-avoid);
+    const fresh = pool.filter(l => recent.indexOf(l) < 0);
+    const src = fresh.length ? fresh : pool;
+    const line = src[(Math.random() * src.length) | 0];
+    recentGreets.push(line);
+    if (recentGreets.length > 24) recentGreets.splice(0, recentGreets.length - 24);
+    return line;
+  }
   function spawnNpc(s, opts) {
     opts = opts || {};
     const heroCls = clsNow();
@@ -1888,6 +2186,7 @@
     }
     kind = kind || 'wanderer';
     const linePool = (kind === 'cls' && CLS_GREET[cls]) ? CLS_GREET[cls] : GREETINGS;
+    const line = opts.line || pickGreet(linePool);
     s.npc = {
       x: opts.x != null ? opts.x : W + 10,
       mode: 'approach',
@@ -1901,7 +2200,7 @@
       head: opts.head || NPC_HEADS[(Math.random() * NPC_HEADS.length) | 0],
       pack: opts.pack != null ? !!opts.pack : Math.random() < 0.58,
       haul: opts.haul != null ? opts.haul : (kind === 'cls' ? null : (Math.random() < 0.22 ? (Math.random() < 0.5 ? 'cart' : 'wagon') : null)),
-      line: opts.line || linePool[(Math.random() * linePool.length) | 0]
+      line
     };
     return s.npc;
   }
@@ -1963,7 +2262,7 @@
     }
     const c = paintNpc(n, n.mode === 'wave', frame);
     const plant = c._plant || 12;
-    const x = Math.round(n.x - plant + 8), y = H - 8 - c.height + 2;
+    const x = Math.round(n.x - plant + 8), y = GROUND - c.height + 2;
     ctx.drawImage(c, x, y);
     if (n.mode === 'wave' && n.line) drawBubble(ctx, x + plant, y + (c._headY || 8), n.line);
   }
@@ -2099,6 +2398,7 @@
     if (s.leap) { s.leap.t++; if (s.leap.t >= s.leap.life) s.leap = null; }
     if (s.toast) { s.toast.t++; if (s.toast.t > 16) s.toast = null; }
     if (s.digCd > 0) s.digCd--;
+    if (s.pullCd > 0) s.pullCd--;
     if (s.deathCd > 0) s.deathCd--;
     if (s.healCd > 0) s.healCd--;
     s.nums.forEach(n => { n.t++; n.y -= n.t < 6 ? 1 : 0.5; }); s.nums = s.nums.filter(n => n.t < 14);
@@ -2106,7 +2406,7 @@
     const heroFront = s.heroX + 40;
     s.coins.forEach(c => {
       c.t++;
-      if (c.t < 8) { c.x += c.vx; c.y += c.vy; c.vy += 0.6; if (c.y > H - 9) { c.y = H - 9; c.vy *= -0.4; } }
+      if (c.t < 8) { c.x += c.vx; c.y += c.vy; c.vy += 0.6; if (c.y > GROUND - 1) { c.y = GROUND - 1; c.vy *= -0.4; } }
       else { c.x += (s.heroX + 24 - c.x) * 0.35; c.y += (40 - c.y) * 0.35; }
     });
     const got = s.coins.filter(c => c.t >= 12).length;
@@ -2161,13 +2461,41 @@
       s.hopT++;
       const life = 12;
       const p = Math.min(1, s.hopT / life);
-      s.hopY = -Math.sin(p * Math.PI) * ((s.hopOf && (s.hopOf.h * (s.hopOf.sc || 1))) || 14) - 4;
+      s.hopY = -Math.sin(p * Math.PI) * Math.min(22, (s.hopOf && propDrawSize(s.hopOf).dh) || 14) - 4;
       s.loco = s.hopT < 3 ? 'climb' : 'hop';
       if (s.forceLoco) s.loco = s.forceLoco;
       s.gaitF = (s.gaitF || 0) + 1.2;
       moving(2);
       beginTurn(s, 'side');
       if (s.hopT >= life) goRun(s, true);
+    } else if (s.mode === 'pull') {
+      s.pullT++;
+      const t = s.pullT;
+      const bay = s.pullOf ? propScreenX(s.pullOf, s.scroll, 0, 0) + (s.pullKind === 'engine' ? 14 : 28) : s.heroX + 36;
+      if (t <= 4) { s.loco = 'climb'; s.pullY = 2 + t; }
+      else if (t <= 16) {
+        s.loco = 'dig'; s.pullY = 7;
+        if (t % 2 === 0) {
+          s.fx.push({ k: 'spark', x: bay + 4, y: GROUND - (s.pullKind === 'engine' ? 22 : 16), vx: 0.4 + Math.random(), vy: -1.2 - Math.random(), t: 0, life: 5 });
+        }
+        if (t % 3 === 0 && typeof playClink === 'function') playClink();
+      } else if (t <= 23) {
+        s.loco = 'idle'; s.pullY = Math.max(0, 7 - (t - 16));
+        if (t === 18) {
+          const part = s.pullPart || PULL_PARTS[0];
+          const gold = 1 + ((Math.random() * 2) | 0);
+          bstats.gold += gold; saveStats();
+          addNum(s.heroX + 16, 10, '+' + part.name, '#ffe070');
+          s.toast = { msg: '+PART', t: 0 };
+          if (Math.random() < 0.55) awardBattleXp(s, null, 1);
+          s.fx.push({ k: 'glint', x: bay, y: GROUND - 20, tx: s.heroX + 22, ty: HERO_Y + 8, t: 0, life: 8 });
+        }
+      } else {
+        s.pullCd = 70; goRun(s, true);
+      }
+      s.gaitF = (s.gaitF || 0) + 1;
+      beginTurn(s, 'side');
+      moving(0);
     } else if (s.mode === 'dig') {
       s.digT++;
       s.loco = 'dig';
@@ -2176,11 +2504,11 @@
       moving(0);
       if (s.digT < 12 && s.digT % 2 === 0) {
         const pile = s.digOf ? propScreenX(s.digOf, s.scroll, 0, 0) + 8 : s.heroX + 36;
-        s.fx.push({ k: 'dirt', x: pile, y: H - 12, vx: 0.6 + Math.random(), vy: -1.4 - Math.random(), t: 0, life: 6 });
+        s.fx.push({ k: 'dirt', x: pile, y: GROUND - 4, vx: 0.6 + Math.random(), vy: -1.4 - Math.random(), t: 0, life: 6 });
       }
       if (s.digT === 13) {
         const pile = s.digOf ? propScreenX(s.digOf, s.scroll, 0, 0) + 8 : s.heroX + 36;
-        s.fx.push({ k: 'glint', x: pile, y: H - 16, tx: s.heroX + 22, ty: HERO_Y + 38, t: 0, life: 8 });
+        s.fx.push({ k: 'glint', x: pile, y: GROUND - 8, tx: s.heroX + 22, ty: HERO_Y + 38, t: 0, life: 8 });
         bstats.gold += 1; saveStats();
         addNum(s.heroX + 16, 10, 'SCRAP', '#ffe070');
         s.toast = { msg: 'SCRAP', t: 0 };
@@ -2306,6 +2634,28 @@
   }
 
   // ---------- drawing ----------
+  function fillBand(ctx, y0, y1, scroll, kind) {
+    if (y1 <= y0) return;
+    const pals = {
+      forest: ['#1a1810', '#241c12', '#1e2414', '#2a1e12'],
+      cave: ['#14110e', '#1a1612', '#120e0c', '#22180c'],
+      ruins: ['#1a140e', '#22180c', '#1a120c', '#2a1a10'],
+      plains: ['#1c1610', '#261c12', '#1a140e', '#2a2014']
+    };
+    const pal = pals[kind] || pals.plains;
+    ctx.fillStyle = pal[0];
+    ctx.fillRect(0, y0, W, y1 - y0);
+    const off = ((Math.round(scroll) % 16) + 16) % 16;
+    for (let x = -off; x < W + 16; x += 16) {
+      ctx.fillStyle = pal[1];
+      ctx.fillRect(x + 2, y0 + 2, 2, 1);
+      ctx.fillStyle = pal[2];
+      ctx.fillRect(x + 9, y0 + ((x * 3) % 5) + 3, 3, 1);
+      if (((x + off) % 32) === 0) { ctx.fillStyle = pal[3]; ctx.fillRect(x + 5, y0 + 6, 1, 2); }
+    }
+    ctx.fillStyle = pal[3];
+    ctx.fillRect(0, y0, W, 1);
+  }
   function tiled(c, off, y, ctx) {
     ctx = ctx || g;
     const w = c.width; let x = -(((Math.round(off) % w) + w) % w);
@@ -2375,6 +2725,11 @@
     }
     // ground under everything, for when the strip is switched off
     if (!on) fadeDraw(L => tiled(L.fl, s.scroll, BH - 9, bg), BH, bg);
+    else {
+      const a = s.alpha || 0;
+      const scStep = (s.mode === 'run' || s.mode === 'hop') ? (heroLoco(s) === 'walk' || heroLoco(s) === 'climb' ? 1 : 2) : (s.mode === 'fight' && heroLoco(s) === 'walk' ? 1 : 0);
+      drawProps(bg, s.scroll, a, scStep, 'mid');
+    }
   }
   function advanceScene(n, dscroll) {
     const s = st;
@@ -2417,7 +2772,7 @@
   ];
   const FC = { y: '#ffcf5a', o: '#ff8a2a', O: '#ff6018', W: '#fff2b0', r: '#c02a10' };
   function drawFire(fx, t) {
-    const x = Math.round(fx), y = H - 9;
+    const x = Math.round(fx), y = GROUND - 1;
     const gr = g.createRadialGradient(x, y - 4, 1, x, y - 4, 26);
     gr.addColorStop(0, 'rgba(255,140,50,' + (0.3 + 0.06 * (t % 2)) + ')'); gr.addColorStop(1, 'rgba(255,140,50,0)');
     g.fillStyle = gr; g.fillRect(x - 26, y - 30, 52, 36);
@@ -2571,7 +2926,7 @@
     g.clearRect(0, 0, W, H);
     const scStep = (s.mode === 'run' || s.mode === 'hop') ? (heroLoco(s) === 'walk' || heroLoco(s) === 'climb' ? 1 : 2) : (s.mode === 'fight' && heroLoco(s) === 'walk' ? 1 : 0);
     if (!bgOn) { const bgOf = (L) => { tiled(L.sky, 0, H - L.TH); tiled(L.far, (s.scroll + a * scStep) * 0.2, H - L.TH); tiled(L.mid, (s.scroll + a * scStep) * 0.55, H - L.TH); }; fadeDraw(bgOf, H); }
-    fadeDraw(L => tiled(L.fl, s.scroll + a * scStep, H - 9), H);
+    fadeDraw(L => { tiled(L.fl, s.scroll + a * scStep, GROUND - 8); fillBand(g, GROUND + 1, H, s.scroll + a * scStep, L.kind); }, H);
     drawProps(g, s.scroll, a, scStep, 'mid');
     drawProps(g, s.scroll, a, scStep, 'ground');
     if (s.fire) drawFire(s.fire.x, s.t);
@@ -2580,7 +2935,7 @@
     const gaitFrame = Math.floor((s.gaitF || 0) + a * gaitSpd);
     const amt = faceAmt(s, a);
     const baseFront = heroSprite(s.pose);
-    let frontImg = baseFront, hy = HERO_Y + Math.round((s.hopY || 0) + (s.dodgeY || 0));
+    let frontImg = baseFront, hy = HERO_Y + Math.round((s.hopY || 0) + (s.dodgeY || 0) + (s.mode === 'pull' ? (s.pullY || 0) : 0));
     if (s.mode === 'rest') frontImg = sitOf(baseFront);
     const eq = heroEq(), rar = rarity(eqNow());
     const sideLoco = (loc === 'idle' && s.mode !== 'dig' && s.mode !== 'hop') ? 'idle' : loc;
@@ -2598,7 +2953,7 @@
     const dx = Math.round(plant - (ax / img.width) * dw);
     g.imageSmoothingEnabled = false;
     if (s.mode === 'death' && (s.deathAng || 0) > 0.02) {
-      const ground = H - 8;
+      const ground = GROUND;
       g.save();
       g.translate(Math.round(plant), ground - 2);
       g.rotate((s.deathAng || 0) * Math.PI * 0.5);
@@ -2609,6 +2964,7 @@
       g.drawImage(img, dx, hy, dw, img.height);
       if (s.flashH) { g.globalAlpha = 0.55 * Math.min(1, s.flashH / 2); g.drawImage(whiteOf(img), dx, hy, dw, img.height); g.globalAlpha = 1; }
     }
+    if (s.mode === 'pull') drawPullGear(g, s, plant, hy, a);
     if (s.mode === 'greet' && s.npc && s.npc.mode === 'wave') drawWaveArm(g, plant, hy, (s.greetT || 0) + a);
     if (s.mode === 'death' && (s.deathPhase === 'spirit' || s.deathPhase === 'speak' || s.deathPhase === 'raise') && (s.spiritA || 0) > 0) {
       const sp = paintSpirit();
@@ -2620,10 +2976,10 @@
     }
     if (s.mode === 'death' && s.deathPhase === 'raise') {
       const p = Math.min(1, (s.deathT || 0) / 12);
-      const gr = g.createRadialGradient(plant, H - 20, 2, plant, H - 20, 18 + p * 16);
+      const gr = g.createRadialGradient(plant, GROUND - 12, 2, plant, GROUND - 12, 18 + p * 16);
       gr.addColorStop(0, 'rgba(255,240,160,' + (0.55 * (1 - p * 0.3)) + ')');
       gr.addColorStop(1, 'rgba(255,240,160,0)');
-      g.fillStyle = gr; g.fillRect(plant - 30, H - 50, 60, 50);
+      g.fillStyle = gr; g.fillRect(plant - 30, GROUND - 42, 60, 50);
     }
     if (s.mode === 'potion') {
       const p = Math.min(1, s.potion / 5), fx = hx2 + 16, fy = Math.round(hy + 34 - p * 18);
@@ -2646,7 +3002,7 @@
       const spr = monCanvas(m.type, { tier: m.tier, elite: m.elite || m.leader });
       const mw = m.w || spr.w, mh = m.h || spr.h;
       const mx = Math.round(ix(m, a) - (m.lunge ? 3 : 0) + (m.hurt ? ((m.hurt % 2) ? 1 : -1) : 0));
-      const ground = H - 8;
+      const ground = GROUND;
       const amtM = faceAmt(m, a);
       const movingMon = !m.dead && ((s.mode === 'run') || (s.mode === 'fight' && m.x > (s.heroX + 40 + 8)));
       const posed = posedMon(spr, m, a, movingMon, amtM < 0.5 ? 'side' : 'front');
@@ -2809,6 +3165,13 @@
       } else if (f.k === 'arrowHit') {
         g.fillStyle = '#fff6e0'; g.fillRect(Math.round(f.x) - 1, Math.round(f.y) - 1, 3, 3);
         g.fillStyle = '#c04030'; g.fillRect(Math.round(f.x), Math.round(f.y), 2, 2);
+      } else if (f.k === 'spark') {
+        const x = Math.round(f.x + (f.vx || 0) * ft), y = Math.round(f.y + (f.vy || 0) * ft);
+        const fade = 1 - ft / f.life;
+        g.globalAlpha = fade;
+        g.fillStyle = '#ffe070'; g.fillRect(x, y, 2, 2);
+        g.fillStyle = '#ffb040'; g.fillRect(x + 1, y - 1, 1, 1); g.fillRect(x - 1, y + 1, 2, 1);
+        g.globalAlpha = 1;
       } else if (f.k === 'poof') {
         const r = f.r * (0.4 + ft / f.life);
         for (let i = 0; i < 14; i++) {
@@ -2823,6 +3186,7 @@
     drawProps(g, s.scroll, a, scStep, 'fg');
     drawNpc(g, s, a);
     if (s.toast) text(g, s.toast.msg, s.heroX + 8, 8, '#ffe070');
+    drawLyrics();
   }
 
   // ---------- lifecycle ----------
@@ -2839,6 +3203,8 @@
     cv.style.width = (W * scale) + 'px'; cv.style.height = (H * scale) + 'px';
     wrap.style.height = (H * scale) + 'px';
     document.documentElement.style.setProperty('--strip-h', (H * scale) + 'px');
+    document.documentElement.style.setProperty('--lyric-h', (BAND * scale) + 'px');
+    document.documentElement.style.setProperty('--battle-head', '72px');
     g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
     bgSize();
     if (st) { st.heroX = Math.max(6, Math.min(40, Math.round(W * 0.08))); if (st.mon && st.mon.x > W + 4) st.mon.x = W + 4; draw(); drawBg(); }
@@ -2863,7 +3229,7 @@
     if (document.hidden) return;
     if (!on) { if (!bgTimer && bcv) { drawBg(); if (!reduced()) bgTimer = setTimeout(bgLoop, 1000 / 6); } return; }
     if (raf || timer) return;
-    if (reduced()) { if (st) st.alpha = 0; draw(); drawBg(); return; }
+    if (reduced()) { if (st) st.alpha = 0; draw(); drawBg(); if (!lyricTimer) lyricTimer = setInterval(drawLyrics, 200); return; }
     lastTs = 0; acc = 0;
     raf = requestAnimationFrame(loop);
   }
@@ -2871,6 +3237,7 @@
     if (timer) clearTimeout(timer); timer = 0;
     if (raf) cancelAnimationFrame(raf); raf = 0;
     if (bgTimer) clearTimeout(bgTimer); bgTimer = 0;
+    if (lyricTimer) { clearInterval(lyricTimer); lyricTimer = 0; }
     lastTs = 0;
   }
   function mount() {
@@ -2880,7 +3247,9 @@
     wrap.setAttribute('role', 'button'); wrap.setAttribute('aria-label', 'Open Armory');
     cv = document.createElement('canvas'); cv.className = 'battlecv';
     killEl = document.createElement('span'); killEl.className = 'battlekills';
-    wrap.append(cv, killEl);
+    lyricEl = document.createElement('div'); lyricEl.className = 'battlelyrics'; lyricEl.setAttribute('aria-hidden', 'true'); lyricEl.hidden = true;
+    wrap.append(cv, killEl, lyricEl);
+    loadLyrics();
     document.body.append(wrap);
     wrap.onclick = () => { if (typeof openArmory === 'function') openArmory(); };
     window.addEventListener('resize', () => size());
@@ -2897,7 +3266,7 @@
       wrap.hidden = false;
       size(); killEl.textContent = '☠ ' + bstats.kills;
       draw(); start();
-    } else { wrap.hidden = true; size(); document.documentElement.style.setProperty('--strip-h', '0px'); start(); }
+    } else { wrap.hidden = true; size(); document.documentElement.style.setProperty('--strip-h', '0px'); document.documentElement.style.setProperty('--battle-head', '0px'); start(); }
     if (typeof renderDock === 'function') renderDock();
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); saveStats(); } else start(); });
@@ -2949,6 +3318,18 @@
     },
     _forceDig() { if (st) { const p = (st.props || []).find(q => q.dig && !q.looted) || addProp(st, 'rubble', { x: st.heroX + 32 }); st.forceDig = true; startDig(st, p); } },
     _forceHop() { if (st) { const p = (st.props || []).find(q => q.hop && !q.used) || addProp(st, 'boulder', { x: st.heroX + 30 }); startHop(st, p); } },
+    _forcePull() {
+      if (!st) st = freshState();
+      st.mon = null; st.mons = []; if (st.mode === 'fight') st.mode = 'run';
+      let p = (st.props || []).find(q => isCarProp(q) && !q.looted && (q.par || 1) >= 0.9 && (q.par || 1) <= 1.05);
+      if (!p) {
+        p = addProp(st, 'car', { x: st.heroX + 36 });
+        p.par = 1; p.flip = false;
+        if (!p.car) p.car = rollCar('car');
+        p.car.hood = 'up';
+      }
+      st.forcePull = true; st.pullCd = 0; startPull(st, p);
+    },
     _pickMoveAt(dist, packN) {
       if (!st) st = freshState();
       if (packN) {

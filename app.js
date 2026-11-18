@@ -143,63 +143,57 @@ function stopBgm() {
   bgmNodes = [];
   [bgmGain, bgmBus, bgmFilter, bgmComp].forEach(n => { try { if (n) n.disconnect(); } catch (e) {} });
   bgmGain = bgmBus = bgmFilter = bgmComp = null;
+  if (bgmEl) { try { bgmEl.pause(); } catch (e) {} }
 }
-// Brian's own loop (music.mp3) is the music; the procedural tavern loop below is only a fallback if it can't load.
-const BGM_FILE = 'music.mp3', BGM_FILE_GAIN = 0.12;
-let bgmBuf = null, bgmBufP = null, bgmFileFailed = false;
+// Brian's Junkyard Hero theme (music.mp3). Plain restart at the end — no crossfade, so vocals stay intact.
+// Lazy-loaded on first play. The procedural tavern loop below is only a fallback if it can't load.
+const BGM_FILE = 'music.mp3', BGM_FILE_GAIN = 0.4;
+let bgmEl = null, bgmElP = null, bgmFileFailed = false;
 function loadBgmFile() {
-  if (bgmBuf) return Promise.resolve(bgmBuf);
-  if (!bgmBufP) {
-    bgmBufP = fetch(BGM_FILE).then(r => { if (!r.ok) throw new Error('music ' + r.status); return r.arrayBuffer(); })
-      .then(ab => new Promise((res, rej) => actx.decodeAudioData(ab, res, rej)))
-      .then(b => {
-        // skip decoder padding / silence at both ends so the loop has no gap
-        const d = b.getChannelData(0), th = 0.002;
-        let a = 0, z = d.length - 1;
-        while (a < z && Math.abs(d[a]) < th) a++;
-        while (z > a && Math.abs(d[z]) < th) z--;
-        b._ls = a / b.sampleRate; b._le = (z + 1) / b.sampleRate;
-        bgmBuf = b;
-        return b;
-      })
-      .catch(e => { bgmBufP = null; bgmFileFailed = true; throw e; });
+  if (!window.PL_RPG) return Promise.reject(new Error('no rpg'));
+  if (bgmEl && bgmEl._ready) return Promise.resolve(bgmEl);
+  if (!bgmElP) {
+    const el = bgmEl || new Audio();
+    bgmEl = el;
+    el.loop = true;
+    el.preload = 'auto';
+    el.volume = BGM_FILE_GAIN;
+    bgmElP = new Promise((res, rej) => {
+      const ok = () => { el._ready = true; res(el); };
+      el.addEventListener('canplaythrough', ok, { once: true });
+      el.addEventListener('error', () => { bgmFileFailed = true; bgmElP = null; rej(new Error('music')); }, { once: true });
+      el.src = BGM_FILE;
+      el.load();
+    });
   }
-  return bgmBufP;
+  return bgmElP;
 }
+function bgmPlaying() {
+  return !!(window.PL_RPG && BGM && bgmEl && !bgmEl.paused && !bgmEl.ended);
+}
+function bgmTime() {
+  return bgmPlaying() ? (bgmEl.currentTime || 0) : -1;
+}
+window.PLBgm = { playing: bgmPlaying, time: bgmTime };
 function startBgm() {
+  if (!window.PL_RPG) return;
   if (!BGM || !SFX || document.hidden) return;
-  if (!actx) return;
+  if (bgmEl && !bgmEl.paused) return;
   if (bgmGain) return;
-  if (actx.state === 'suspended') actx.resume();
-  if (bgmFileFailed) return startProcBgm();
+  if (bgmFileFailed) {
+    if (!actx) return;
+    if (actx.state === 'suspended') actx.resume();
+    return startProcBgm();
+  }
   const gen = ++bgmGen;
-  bgmGain = actx.createGain();
-  bgmGain.gain.value = 0;
-  bgmGain.connect(actx.destination);
-  bgmNodes.push(bgmGain);
-  loadBgmFile().then(buf => {
-    if (gen !== bgmGen || !bgmGain) return;
-    bgmComp = actx.createDynamicsCompressor(); // gentle limiter so no peak can spike
-    bgmComp.threshold.value = -10;
-    bgmComp.knee.value = 6;
-    bgmComp.ratio.value = 12;
-    bgmComp.attack.value = 0.005;
-    bgmComp.release.value = 0.2;
-    const src = actx.createBufferSource();
-    src.buffer = buf;
-    src.loop = true;
-    src.loopStart = buf._ls;
-    src.loopEnd = buf._le;
-    src.connect(bgmComp).connect(bgmGain);
-    const t = actx.currentTime;
-    bgmGain.gain.setValueAtTime(0, t);
-    bgmGain.gain.linearRampToValueAtTime(BGM_FILE_GAIN, t + 1.5);
-    src.start(t, buf._ls);
-    bgmNodes.push(src, bgmComp);
+  loadBgmFile().then(el => {
+    if (gen !== bgmGen || !BGM || document.hidden) return;
+    const p = el.play();
+    if (p && p.catch) p.catch(() => {});
   }).catch(() => {
     if (gen !== bgmGen) return;
-    try { bgmGain.disconnect(); } catch (e) {}
-    bgmGain = null; bgmNodes = [];
+    if (!actx) return;
+    if (actx.state === 'suspended') actx.resume();
     startProcBgm();
   });
 }
