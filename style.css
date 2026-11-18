@@ -33,6 +33,7 @@ button{font:inherit;cursor:pointer}
 .tier{display:inline-block;font:900 14px system-ui;padding:2px 7px;border-radius:6px;margin-left:6px;vertical-align:3px;border:2px solid #000}
 .tier.Q{background:#ffd400}.tier.B{background:#000;color:#fff}
 .pname{font-weight:800;font-size:19px}
+.prisk{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;border:1px solid #a50;background:#fff3d6;color:#7a3e00;font:700 11px system-ui,-apple-system,sans-serif;letter-spacing:.2px;vertical-align:2px;white-space:nowrap}
 .pnote{font-size:15px;color:#333}
 .pnet{font-weight:900;font-size:20px;white-space:nowrap;display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
 .pnetlbl{display:block;font-size:11px;font-weight:700;color:#444;letter-spacing:.2px;margin-bottom:2px}
@@ -101,6 +102,7 @@ header h1{text-shadow:0 1px 2px #000,0 0 8px #000}
 .pnet{color:var(--gold2)}
 .pnetlbl{color:var(--dim);font-family:system-ui,-apple-system,sans-serif;letter-spacing:0}
 .pdph{display:block;font-size:12px;font-weight:700;color:var(--dim);margin-top:3px;font-family:system-ui,-apple-system,sans-serif;letter-spacing:0}
+.prisk{border-color:#b8860b;background:#3a2208;color:#f0c060}
 .carphoto{border-color:var(--gold);background:#050403}
 .pbtns .rmbtn{background:transparent;color:#e07070;border-color:var(--blood)}
 .pbtns input,.trip input,.login input{background:#050403;color:var(--txt);border:1px solid var(--line)}

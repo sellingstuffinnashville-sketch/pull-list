@@ -947,7 +947,7 @@ function partCard(p, st, carLine) {
     <button class="chk" data-act="got" data-c="${p.code}" aria-label="Got it">${got ? '✓' : ''}</button>
     ${thumb}
     <div class="pinfo"><span class="pcode">${esc(p.code)}</span><span class="tier ${p.tier}">${p.tier}</span>${elink}
-    <div class="pname">${esc(p.part)}</div>${p.note ? `<div class="pnote">${esc(p.note)}</div>` : ''}
+    <div class="pname">${esc(p.part)}${p.risk ? `<span class="prisk" title="High failure risk from a junkyard car">yard risk</span>` : ''}</div>${p.note ? `<div class="pnote">${esc(p.note)}</div>` : ''}
     ${p.pap != null ? `<div class="small">PAP price $${p.pap.toFixed(2)}</div>` : ''}</div>
     <div class="pnet"><span class="pnetlbl">Est. net</span>${money(p.net)}${p.dollars_per_hour != null ? `<span class="pdph">${money(p.dollars_per_hour)}/hr</span>` : ''}</div></div>
     ${pnBlock(p, st)}
