@@ -697,7 +697,7 @@ async function applyResetIfNeeded(epoch) {
 // pick up the cleared shared list. Do not touch hero/XP profiles or login. A second pass
 // (applyPartNoteResetIfNeeded) also drops per-part notes, VIN marks, and part photos.
 const CHECK_RESET_KEY = 'pl_checkoff_reset_epoch';
-const LOCAL_CHECKOFF_RESET_EPOCH = 1795030000000; // shipped in v45; do not lower (already applied on phones)
+const LOCAL_CHECKOFF_RESET_EPOCH = 1795031000000; // v47 Field Test Reset pass 3 (1:43 PM CT Nov 18): also wipes the 35 Nov 13 checks device B re-added at 1:21 PM. v45 used 1795030000000. Do not lower.
 const checkEpochNow = () => Number(localStorage.getItem(CHECK_RESET_KEY) || 0);
 function isCheckoffKey(k) { return /^(got|rm|why|day):/.test(String(k || '')); }
 async function applyCheckoffResetIfNeeded(epoch) {
