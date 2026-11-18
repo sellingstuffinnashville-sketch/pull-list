@@ -1143,22 +1143,32 @@
       const breath = Math.sin(tau) * 0.5;
       return { rx: 1.2, lx: -1.2, rLift: 0, lLift: 0, bob: breath, head: breath * 0.4, cape: -3, flutter: Math.sin(tau * 0.5) * 0.8, lean: 0, armR: 0.5, armL: -0.5, armRY: 0, armLY: 0, run: false };
     }
+    if (loco === 'dig') {
+      const scoop = Math.sin(tau * 2);
+      return { rx: 2.2, lx: -1.6, rLift: 0, lLift: 1, bob: 7, head: 4, cape: -2, flutter: scoop * 0.6, lean: 4, armR: 3 + scoop * 4, armL: 1 - scoop * 4, armRY: 10 + scoop * 3, armLY: 10 - scoop * 3, run: false, crouch: 7 };
+    }
+    if (loco === 'hop' || loco === 'climb') {
+      const up = loco === 'climb' ? 3 : 0;
+      return { rx: 3.2, lx: -2.2, rLift: 5 + up, lLift: 2 + up, bob: -2, head: -1, cape: -6, flutter: 2, lean: 3, armR: 3, armL: -4, armRY: -2, armLY: 2, run: false };
+    }
     const run = loco === 'run';
-    const stride = run ? 8 : 5, lift = run ? 5 : 3, flight = run ? 1.2 : 0;
+    // Compact two-leg stride. One foot plants; a brief mid-stride flight only when running.
+    const stride = run ? 5 : 4, lift = run ? 3.6 : 2.6;
+    const flight = run ? Math.max(0, Math.sin(tau * 2) - 0.35) * 1.2 : 0;
     return {
       rx: Math.cos(tau) * stride,
-      rLift: Math.max(flight, -Math.sin(tau)) * lift,
+      rLift: Math.max(0, -Math.sin(tau)) * lift + flight,
       lx: -Math.cos(tau) * stride,
-      lLift: Math.max(flight, Math.sin(tau)) * lift,
-      bob: -Math.abs(Math.cos(tau)) * (run ? 3 : 1.4) + (run ? 1 : 0),
-      head: -Math.abs(Math.cos(tau - 0.45)) * (run ? 2.2 : 1.1) + (run ? 0.4 : 0),
-      cape: -4 - Math.sin(tau - 0.8) * (run ? 4 : 2) - (run ? 3 : 0),
-      flutter: Math.sin(tau - 0.8) * (run ? 3.5 : 1.8),
-      lean: run ? 5 : 1.5,
-      armR: -Math.cos(tau) * (run ? 6 : 4),
-      armL: Math.cos(tau) * (run ? 6 : 4),
-      armRY: Math.sin(tau) * (run ? 2 : 1.2),
-      armLY: -Math.sin(tau) * (run ? 2 : 1.2),
+      lLift: Math.max(0, Math.sin(tau)) * lift + flight,
+      bob: -Math.abs(Math.cos(tau)) * (run ? 1.5 : 1.1) + (run ? 0.3 : 0),
+      head: -Math.abs(Math.cos(tau - 0.45)) * (run ? 1.1 : 0.8) + (run ? 0.2 : 0),
+      cape: -4 - Math.sin(tau - 0.8) * (run ? 3 : 2) - (run ? 2 : 0),
+      flutter: Math.sin(tau - 0.8) * (run ? 2.6 : 1.6),
+      lean: run ? 2.4 : 1.1,
+      armR: -Math.cos(tau) * (run ? 5 : 3.5),
+      armL: Math.cos(tau) * (run ? 5 : 3.5),
+      armRY: Math.sin(tau) * (run ? 1.6 : 1.1),
+      armLY: -Math.sin(tau) * (run ? 1.6 : 1.1),
       run
     };
   }
@@ -1355,21 +1365,26 @@
   function drawHeroSide(S, eq, cls, loco, frame) {
     const G = gaitPose(loco, frame), M = bodyMats(eq, cls);
     const bob = G.bob, lean = G.lean;
-    const hipX = SIDE_CX + lean * 0.3, hipY = 44 + bob;
-    const chestX = SIDE_CX + lean, chestY = 22 + bob;
-    const headX = chestX + 3, headY = 11 + G.head;
-    const shX = chestX + 1, shY = 20 + bob;
+    const hipX = SIDE_CX + lean * 0.12, hipY = 44 + bob;
+    const chestX = SIDE_CX + lean * 0.55, chestY = 22 + bob;
+    const headX = chestX + 2, headY = 11 + G.head;
+    const shX = chestX + 0.5, shY = 20 + bob;
     S.P({ flat: true }); S.ell(SIDE_CX + (G.rx + G.lx) * 0.15, SIDE_FEET + 0.5, 12, 2.2, 'shadow');
     if (cls !== 'mage') sideLeg(S, hipX - 1, hipY, G.lx, G.lLift, M.pants, M.boot, 2);
     drawCapeSide(S, eq.cape, shX - 3, shY, G);
     drawPackSide(S, eq.pack, cls, shX - 7, shY + 4);
     sideArm(S, shX - 2, shY + 2, shX - 2 + G.armL - 1, shY + 16 + G.armLY, M.body, M.skin, 1.6);
     if (cls === 'mage') {
+      // Both boots peek from a raised hem so the walk reads forward (same gait as the other classes).
+      const mageBoot = (footX, lift) => {
+        const fy = SIDE_FEET - lift, fx = hipX + footX;
+        S.P(); S.poly([[fx - 2, fy - 4], [fx + 4, fy - 4], [fx + 5, fy], [fx - 1, fy]], M.boot || 'leather');
+      };
+      mageBoot(G.lx, G.lLift);
       S.P({ round: true, shine: true });
-      S.poly([[chestX - 3, chestY], [chestX + 5, chestY], [chestX + 6, hipY], [chestX + 7 + G.flutter * 0.3, SIDE_FEET - 1], [chestX - 4 + G.cape * 0.2, SIDE_FEET - 1], [chestX - 4, hipY]], M.body);
-      if (M.trim && M.trim !== 'iron') { S.P({ flat: true, nocs: true }); S.line(chestX - 3, SIDE_FEET - 2, chestX + 6, SIDE_FEET - 2, M.trim, 2); }
-      const fwd = G.rx >= G.lx ? [G.rx, G.rLift] : [G.lx, G.lLift];
-      S.P(); S.poly([[hipX + fwd[0] - 2, SIDE_FEET - fwd[1] - 3], [hipX + fwd[0] + 5, SIDE_FEET - fwd[1] - 3], [hipX + fwd[0] + 6, SIDE_FEET - fwd[1]], [hipX + fwd[0] - 1, SIDE_FEET - fwd[1]]], M.boot);
+      S.poly([[chestX - 3, chestY], [chestX + 5, chestY], [chestX + 6, hipY], [chestX + 6 + G.flutter * 0.25, SIDE_FEET - 5], [chestX - 3 + G.cape * 0.15, SIDE_FEET - 5], [chestX - 4, hipY]], M.body);
+      if (M.trim && M.trim !== 'iron') { S.P({ flat: true, nocs: true }); S.line(chestX - 3, SIDE_FEET - 6, chestX + 6, SIDE_FEET - 6, M.trim, 2); }
+      mageBoot(G.rx, G.rLift);
       if (M.runes) { S.P({ flat: true, nocs: true }); S.px(chestX + 1, hipY, M.runes); S.glow(chestX + 1, hipY - 4, 5, M.runes, 0.25); }
       if (M.stars) { S.P({ flat: true, nocs: true }); S.px(chestX, hipY - 6, 'white'); S.px(chestX + 3, hipY + 4, 'white'); }
     } else {

@@ -159,6 +159,17 @@
       S.P(); S.line(8, 16, 2, 6, 'night'); S.P({ shine: true }); S.ell(2, 5, 2.4, 2.4, 'crystal');
       S.P({ flat: true, nocs: true }); S.px(2, 5, 'glowP'); S.glow(2, 5, 5, 'glowP', 0.5); S.glow(14, 7, 5, 'glowP', 0.4);
       S.P({ nocs: true, flat: true }); S.line(9, 26, 19, 26, 'gold', 3);
+    } },
+    bat: { k: 2.6, name: 'Cave Bat', hp: 8, dmg: 2, w: 16, h: 10, min: 1, wt: 10, speed: 1.5, gait: 'hover', pack: true, draw(S) {
+      S.P({ round: true }); S.ell(8, 5, 2.6, 2.4, 'fur');
+      S.P({ flat: true, nocs: true }); S.px(7, 5, 'glowR'); S.px(5, 6, 'skin', 3);
+      S.P({ round: true }); S.poly([[8, 5], [1, 2], [2, 6], [7, 6]], 'night'); S.poly([[8, 5], [15, 2], [14, 6], [9, 6]], 'night');
+      S.P({ flat: true }); S.line(8, 7, 8, 9, 'skin', 1);
+    } },
+    spider: { k: 2.8, name: 'Grave Spider', hp: 9, dmg: 2, w: 16, h: 10, min: 1, wt: 10, speed: 1.35, gait: 'scuttle', pack: true, draw(S) {
+      S.P({ flat: true }); for (let k = 0; k < 4; k++) { S.line(5 + k * 2, 5, 1 + k * 2, 9, 'void', 1); S.line(8 + k * 2, 5, 12 + k * 2, 9, 'void', 0); }
+      S.P({ round: true }); S.ell(8, 5, 4.2, 3, 'void'); S.ell(4, 5, 2.2, 2, 'void');
+      S.P({ flat: true, nocs: true }); S.px(3, 4, 'glowR'); S.px(5, 4, 'glowR');
     } }
   };
   // fine detail drawn at full resolution after scaling (q = scaled coordinate)
@@ -323,6 +334,16 @@
       S.P(); S.rect(13, 13, 5, 2, 'bone'); S.rect(14, 15, 3, 10, 'bone');
       S.P({ flat: true }); for (let y = 16; y < 24; y += 2) S.line(10, y, 20, y, 'bone', 2);
       S.P(); S.line(5, 16, 1, 8, 'night'); S.P({ shine: true }); S.ell(1, 7, 2.4, 2.4, 'crystal'); S.glow(1, 7, 4, 'glowP', 0.45);
+    },
+    bat(S) {
+      S.P({ round: true }); S.ell(8, 5, 2.8, 2.6, 'fur');
+      S.P({ flat: true, nocs: true }); S.px(6, 5, 'glowR'); S.px(9, 5, 'glowR');
+      S.P({ round: true }); S.poly([[7, 5], [1, 3], [3, 7], [7, 6]], 'night'); S.poly([[9, 5], [15, 3], [13, 7], [9, 6]], 'night');
+    },
+    spider(S) {
+      S.P({ flat: true }); for (let k = 0; k < 3; k++) { S.line(6 + k * 3, 6, 4 + k * 3, 9, 'void', 1); S.line(8 + k * 3, 6, 12 + k * 3, 9, 'void', 0); }
+      S.P({ round: true }); S.ell(8, 5, 4, 3, 'void');
+      S.P({ flat: true, nocs: true }); S.px(6, 4, 'glowR'); S.px(9, 4, 'glowR');
     }
   };
   Object.keys(FRONT).forEach(k => { if (MON[k]) MON[k].front = FRONT[k]; });
@@ -406,7 +427,7 @@
   const GLYPH = {
     0: '111101101101111', 1: '010110010010111', 2: '111001111100111', 3: '111001111001111', 4: '101101111001001',
     5: '111100111001111', 6: '111100111101111', 7: '111001010010010', 8: '111101111101111', 9: '111101111001111',
-    '+': '000010111010000', B: '110101110101110', L: '100100100100111', O: '111101101101111', C: '111100100100111', K: '101101110101101'
+    '+': '000010111010000', B: '110101110101110', L: '100100100100111', O: '111101101101111', C: '111100100100111', K: '101101110101101', S: '111100111001111', R: '110101110101101', A: '010101101111101', P: '111101111100100', E: '111100111100111'
   };
   function text(g, str, x, y, col) {
     x = Math.round(x); y = Math.round(y);
@@ -430,8 +451,8 @@
   const BIOMES = ['plains', 'forest', 'ruins', 'cave'];
   const BIOME_TICKS = FPS * 170, FADE = 30;
   const BIOME_MON = {
-    plains: { skel: 1.3, cult: 1.2, rat: 0.8, rustknight: 1.4 }, forest: { mut: 1.8, rat: 1.3, crawl: 1.3, wisp: 1.6, wraith: 1.2 },
-    ruins: { cult: 2, skel: 1.6, brute: 1.6, rustknight: 1.8, wraith: 1.1 }, cave: { rat: 2, crawl: 1.8, wyrm: 1.5, wisp: 1.2 }
+    plains: { skel: 1.3, cult: 1.2, rat: 0.8, rustknight: 1.4, spider: 0.6 }, forest: { mut: 1.8, rat: 1.3, crawl: 1.3, wisp: 1.6, wraith: 1.2, bat: 1.4, spider: 1.5 },
+    ruins: { cult: 2, skel: 1.6, brute: 1.6, rustknight: 1.8, wraith: 1.1, spider: 0.8 }, cave: { rat: 2, crawl: 1.8, wyrm: 1.5, wisp: 1.2, bat: 1.8, spider: 1.2 }
   };
   // Each biome is built as tall layers (TH rows) so the scene runs up the whole page.
   // Rows TH-H..TH line up exactly with the strip; above that it fades into night sky.
@@ -466,6 +487,45 @@
     for (let y = top; y < bottom; y++) {
       const d = y - top, w = Math.min(w0, Math.round(d * 0.5 - ((d % 6) < 2 ? 1 : 0)));
       px(f, x - Math.max(0, w), y, col, Math.max(1, w * 2 + 1), 1);
+    }
+  }
+  function oak(f, x, top, bottom, rad, col, trunk) {
+    const ty = bottom - 8;
+    px(f, x - 1, top + rad, trunk || '#24180e', 3, Math.max(1, ty - (top + rad)));
+    const r = Math.max(4, rad | 0);
+    for (let y = -r; y <= r; y++) for (let xx = -r; xx <= r; xx++) {
+      const d = xx * xx * 0.7 + y * y;
+      if (d <= r * r) px(f, x + xx, top + r + y, col);
+    }
+    px(f, x - 2, bottom - 2, trunk || '#24180e', 5, 2);
+  }
+  function bareTree(f, x, top, bottom, col) {
+    px(f, x, top + 8, col, 2, bottom - 2 - (top + 8));
+    px(f, x - 1, bottom - 3, col, 4, 2);
+    px(f, x, top + 10, col, 1, 1); px(f, x - 4, top + 12, col, 5, 1); px(f, x + 2, top + 16, col, 6, 1);
+    px(f, x - 5, top + 11, col, 1, 4); px(f, x + 7, top + 15, col, 1, 4); px(f, x - 2, top + 20, col, 1, 5);
+  }
+  function burnedTree(f, x, top, bottom) {
+    bareTree(f, x, top, bottom, '#1a120c');
+    px(f, x, top + 8, '#2a1a12', 2, 6);
+    px(f, x, top + 6, '#3a2a22');
+    if (((x + bottom) & 1) === 0) { px(f, x + 1, top + 10, '#7a2c14'); px(f, x, top + 9, '#5a2010'); }
+  }
+  function stump(f, x, y, w) {
+    w = w || 6;
+    px(f, x, y - 5, '#3a2a1a', w, 5); px(f, x, y - 5, '#5a4630', w, 1); px(f, x + 1, y - 4, '#6a5440', w - 2, 1);
+    px(f, x, y - 5, '#24180e', 1, 5); px(f, x + w - 1, y - 5, '#1a120c', 1, 5);
+  }
+  function fallenLog(f, x, y, len) {
+    len = len || 16;
+    px(f, x, y - 3, '#3a2a1a', len, 3); px(f, x, y - 3, '#5a4630', len, 1); px(f, x + len - 1, y - 3, '#24180e', 1, 3);
+    px(f, x, y - 2, '#2a1e12', 1, 2);
+  }
+  function bush(f, x, y, w, col) {
+    w = w || 7;
+    for (let i = 0; i < w; i++) {
+      const h = 2 + ((i * 3 + x) % 4);
+      px(f, x + i, y - h, col || '#1a2a14', 1, h);
     }
   }
   // features are drawn on a canvas PAD wider than the tile, then the overflow wraps to the left edge
@@ -563,21 +623,34 @@
     } else if (name === 'forest') {
       skyGrad(f0, TH, [[0, '#030408'], [Y0 - 200, '#04060c'], [Y0 - 90, '#070c12'], [Y0, '#0c1416'], [Y0 + H * 0.7, '#18241e'], [TH, '#22301e']]);
       tw = stars(f0, r, 4, Y0 - 40, Math.round(TH * 0.24), 0.9);
-      // distant pines climb above the strip and fade into the sky
-      for (let k = 0; k < 18; k++) pine(f, (r() * TW) | 0, -60 + ((r() * 50) | 0), H, 9 + ((r() * 6) | 0), '#0a1216');
-      for (let k = 0; k < 16; k++) pine(f, (r() * TW) | 0, -10 + ((r() * 34) | 0), H, 7 + ((r() * 6) | 0), k % 2 ? '#0e1812' : '#122018');
-      // near trees: trunks rise from the ground into dark pine crowns
-      for (let k = 0; k < 4; k++) {
-        const x = 8 + k * 48 + ((r() * 18) | 0), w = 6 + ((r() * 4) | 0), crown = -70 - ((r() * 40) | 0);
-        pine(m, x + (w >> 1), crown, crown + 74, 16, '#0c1610'); pine(m, x + (w >> 1) + 1, crown + 3, crown + 74, 14, '#09110c');
-        px(m, x, crown + 40, '#1e140e', w, H - 8 - crown - 40); px(m, x, crown + 40, '#2e2216', 2, H - 8 - crown - 40); px(m, x + w - 1, crown + 40, '#0e0a08', 1, H - 8 - crown - 40);
-        px(m, x - 2, H - 10, '#1e140e', w + 4, 2); px(m, x + 2, 20 + ((r() * 20) | 0), '#2a3a1a', 2, 3);
-        px(m, x - 3, 14 + ((r() * 8) | 0), '#1e140e', 4, 1); px(m, x + w, -6 + ((r() * 8) | 0), '#1e140e', 4, 1);
+      // far silhouettes: mixed pines, oaks, dead and burned trees at varying depth
+      for (let k = 0; k < 14; k++) pine(f, (r() * TW) | 0, -80 + ((r() * 60) | 0), H, 8 + ((r() * 7) | 0), '#080e12');
+      for (let k = 0; k < 8; k++) oak(f, (r() * TW) | 0, -50 + ((r() * 40) | 0), H, 8 + ((r() * 6) | 0), '#0a1410', '#120e0a');
+      for (let k = 0; k < 10; k++) pine(f, (r() * TW) | 0, -18 + ((r() * 36) | 0), H, 6 + ((r() * 6) | 0), k % 2 ? '#0c1610' : '#101c14');
+      for (let k = 0; k < 6; k++) oak(f, (r() * TW) | 0, -16 + ((r() * 24) | 0), H, 7 + ((r() * 5) | 0), k % 2 ? '#122016' : '#0e1a12', '#1a140e');
+      for (let k = 0; k < 5; k++) bareTree(f, (r() * TW) | 0, -30 + ((r() * 20) | 0), H, '#16100c');
+      for (let k = 0; k < 3; k++) burnedTree(f, (r() * TW) | 0, -24 + ((r() * 16) | 0), H);
+      // mid: nearer mixed stand, undergrowth, stumps and fallen logs
+      for (let k = 0; k < 3; k++) {
+        const x = 6 + k * 62 + ((r() * 16) | 0), w = 5 + ((r() * 4) | 0), crown = -78 - ((r() * 36) | 0);
+        pine(m, x + (w >> 1), crown, crown + 80, 15 + ((r() * 5) | 0), '#0c1610'); pine(m, x + (w >> 1) + 1, crown + 4, crown + 80, 13, '#09110c');
+        px(m, x, crown + 44, '#1e140e', w, H - 8 - crown - 44); px(m, x, crown + 44, '#2e2216', 2, H - 8 - crown - 44); px(m, x + w - 1, crown + 44, '#0e0a08', 1, H - 8 - crown - 44);
+        px(m, x - 2, H - 10, '#1e140e', w + 4, 2);
       }
+      for (let k = 0; k < 2; k++) {
+        const x = 36 + k * 70 + ((r() * 14) | 0);
+        oak(m, x, -64 - ((r() * 28) | 0), H - 8, 12 + ((r() * 5) | 0), k ? '#16301c' : '#122818', '#2a1c12');
+      }
+      for (let k = 0; k < 2; k++) bareTree(m, 20 + k * 90 + ((r() * 20) | 0), -40, H - 8, '#2a1c14');
+      burnedTree(m, 100 + ((r() * 30) | 0), -36, H - 8);
+      for (let k = 0; k < 3; k++) stump(m, (r() * TW) | 0, H - 8, 5 + ((r() * 3) | 0));
+      for (let k = 0; k < 3; k++) fallenLog(m, (r() * (TW - 20)) | 0, H - 8, 12 + ((r() * 10) | 0));
+      for (let k = 0; k < 14; k++) bush(m, (r() * TW) | 0, H - 8, 5 + ((r() * 6) | 0), ['#1a2a14', '#24341a', '#152216'][(r() * 3) | 0]);
       for (let k = 0; k < 4; k++) { const x = (r() * TW) | 0; px(m, x, H - 11, '#c04040', 3, 1); px(m, x + 1, H - 10, '#d8c8a0', 1, 2); }
       px(g2, 0, 0, '#1e2414', TW, 9); px(g2, 0, 0, '#2e4a1e', TW, 1);
       for (let k = 0; k < 150; k++) px(g2, r() * TW, 1 + r() * 8, ['#26341a', '#14180e', '#3a2a1a', '#1a2212'][(r() * 4) | 0], 1 + ((r() * 2) | 0));
-      for (let k = 0; k < 6; k++) { const x = (r() * TW) | 0; px(g2, x, 2, '#3a2416', 6, 1); px(g2, x + 5, 3, '#3a2416', 3, 1); }
+      for (let k = 0; k < 8; k++) { const x = (r() * TW) | 0; px(g2, x, 2, '#3a2416', 6, 1); px(g2, x + 5, 3, '#3a2416', 3, 1); }
+      for (let k = 0; k < 10; k++) { const x = (r() * TW) | 0; px(g2, x, 0, '#1a2a14', 1, 2 + ((r() * 2) | 0)); }
     } else {
       skyGrad(f0, TH, [[0, '#030202'], [Y0 - 220, '#060303'], [Y0 - 110, '#120605'], [Y0 - 30, '#260c08'], [Y0, '#2e100c'], [Y0 + H * 0.45, '#3e1610'], [Y0 + H * 0.72, '#7a2c14'], [TH, '#b04a1a']]);
       tw = stars(f0, r, 4, Y0 - 120, Math.round(TH * 0.14), 0.6);
@@ -612,7 +685,7 @@
   let cv, g, wrap, killEl, on = false, timer = 0, raf = 0, acc = 0, lastTs = 0, W = 300, scale = 1;
   let st = null;
   function freshState() {
-    return { mode: 'run', t: 0, scroll: 0, hp: 1, max: 1, heroX: 22, mon: null, spawn: 40, fx: [], nums: [], coins: [], fire: null, atkT: 0, monT: 0, pose: '', lunge: 0, flashH: 0, potion: 0, eqKey: '', biome: 0, bt: 0, seq: null, seqI: 0, move: '', forceMove: null, forceCls: null, forceLoco: null, alpha: 0, loco: 'run', facing: 'side', turn: 0, turnTo: 'side', gaitF: 0, coolWalk: 0 };
+    return { mode: 'run', t: 0, scroll: 0, hp: 1, max: 1, heroX: 22, mon: null, mons: [], spawn: 40, fx: [], nums: [], coins: [], fire: null, atkT: 0, monT: 0, pose: '', lunge: 0, flashH: 0, potion: 0, eqKey: '', biome: 0, bt: 0, seq: null, seqI: 0, move: '', forceMove: null, forceCls: null, forceLoco: null, forcePack: null, alpha: 0, loco: 'run', facing: 'side', turn: 0, turnTo: 'side', gaitF: 0, coolWalk: 0, props: [], nextProp: 30, digCd: 24, digT: 0, hopT: 0, hopY: 0, leap: null, toast: null };
   }
   function eqNow() { return (typeof xpState !== 'undefined' && xpState.equipped) || {}; }
   function lvl() { return (typeof xpState !== 'undefined' && xpState.level) || 1; }
@@ -633,16 +706,86 @@
     for (let i = 0; i < pool.length; i++) { n -= ws[i]; if (n <= 0) return pool[i]; }
     return pool[0] || 'rat';
   }
-  function spawn(forced) {
-    const type = forced || pickMonster(), L = forced ? (st && st.forceLevel) || lvl() : lvl();
+  const PACKS = {
+    rats: { type: 'rat', n: [3, 5], leader: 'mut' },
+    bats: { type: 'bat', n: [4, 6], leader: 'wisp' },
+    spiders: { type: 'spider', n: [3, 5], leader: 'crawl' }
+  };
+  function allMons(s) {
+    s = s || st;
+    if (s && s.mons && s.mons.length) return s.mons;
+    return (s && s.mon) ? [s.mon] : [];
+  }
+  function living(s) { return allMons(s).filter(m => m && !m.dead); }
+  function syncPrimary(s) {
+    s = s || st;
+    const live = living(s);
+    s.mon = live[0] || null;
+    if (!live.length && allMons(s).every(m => !m || m.dead > 7)) s.mons = [];
+  }
+  function packCenter(s) {
+    const ms = living(s);
+    if (!ms.length) return { x: (s.heroX || 22) + 50, y: H - 16 };
+    let x = 0, y = 0;
+    for (const m of ms) { const mid = monMid(m); x += mid.x; y += mid.y; }
+    return { x: x / ms.length, y: y / ms.length };
+  }
+  function makeMon(type, opts) {
+    opts = opts || {};
+    const L = opts.level != null ? opts.level : lvl();
+    const base = MON[type] || MON.rat;
+    const elite = !!opts.elite;
+    const leader = !!opts.leader;
+    const tier = opts.tier != null ? opts.tier : pickTier(L, !!base.boss);
+    const spr = monCanvas(type, { tier, elite: elite || leader });
+    const hp = Math.round(base.hp * (1 + 0.22 * (L - 1)) * (1 + 0.18 * tier) * (elite ? 2.4 : 1) * (leader ? 1.6 : 1));
+    const dmg = base.dmg * (1 + 0.12 * (L - 1)) * (1 + 0.1 * tier) * (elite ? 1.35 : 1) * (leader ? 1.2 : 1);
+    return { type, x: opts.x != null ? opts.x : W + 4, px: opts.x != null ? opts.x : W + 4, hp, max: hp, dmg, elite, leader, boss: !!base.boss, tier, w: spr.w, h: spr.h, flash: 0, lunge: 0, dead: 0, walk: opts.walk || 0, hurt: 0, facing: 'front', turn: 0, turnTo: 'front', spawnFace: opts.spawnFace != null ? opts.spawnFace : 6, yOff: opts.yOff || 0 };
+  }
+  function setMons(list) {
+    st.mons = list;
+    st.mon = list[0] || null;
+    return st.mon;
+  }
+  function spawnOne(forced) {
+    const type = forced || pickMonster(), L = (st && st.forceLevel) || lvl();
     const base = MON[type] || MON.rat;
     const elite = !base.boss && !forced && Math.random() < (0.06 + Math.min(0.08, L * 0.008));
-    const tier = pickTier(L, !!base.boss);
-    const spr = monCanvas(type, { tier, elite });
-    const hp = Math.round(base.hp * (1 + 0.22 * (L - 1)) * (1 + 0.18 * tier) * (elite ? 2.4 : 1));
-    const dmg = base.dmg * (1 + 0.12 * (L - 1)) * (1 + 0.1 * tier) * (elite ? 1.35 : 1);
-    st.mon = { type, x: W + 4, px: W + 4, hp, max: hp, dmg, elite, boss: !!base.boss, tier, w: spr.w, h: spr.h, flash: 0, lunge: 0, dead: 0, walk: 0, hurt: 0, facing: 'front', turn: 0, turnTo: 'front', spawnFace: 6 };
-    return st.mon;
+    const m = makeMon(type, { elite, level: L });
+    return setMons([m]);
+  }
+  function spawnPack(kind, withLeader) {
+    const spec = PACKS[kind] || PACKS.rats;
+    const L = (st && st.forceLevel) || lvl();
+    const n0 = spec.n[0], n1 = spec.n[1];
+    const n = n0 + ((Math.random() * (n1 - n0 + 1)) | 0);
+    const list = [];
+    const fly = spec.type === 'bat';
+    for (let i = 0; i < n; i++) {
+      list.push(makeMon(spec.type, { level: L, x: W + 8 + i * (fly ? 9 : 11) + ((Math.random() * 4) | 0), walk: (i * 3) % 8, spawnFace: 5 + (i % 3), yOff: fly ? -6 - ((i * 5) % 10) : 0 }));
+    }
+    if (withLeader && spec.leader) {
+      const lead = makeMon(spec.leader, { level: L, leader: true, x: W + 8 + n * 11 + 6, spawnFace: 6, yOff: 0 });
+      list.push(lead);
+    }
+    return setMons(list);
+  }
+  function spawn(forced) {
+    if (forced && PACKS[forced]) return spawnPack(forced, !!(st && st.forcePack === 'leader'));
+    if (forced) return spawnOne(forced);
+    if (st && st.forcePack) {
+      const kind = st.forcePack === 'leader' ? 'rats' : st.forcePack;
+      const lead = st.forcePack === 'leader';
+      st.forcePack = null;
+      return spawnPack(kind, lead);
+    }
+    const L = lvl();
+    if (Math.random() < (L >= 2 ? 0.34 : 0.26)) {
+      const keys = Object.keys(PACKS);
+      const kind = keys[(Math.random() * keys.length) | 0];
+      return spawnPack(kind, Math.random() < 0.3 && L >= 3);
+    }
+    return spawnOne();
   }
   function nextGap() { return Math.round(FPS * (18 - Math.min(8, lvl() * 0.5)) * (0.6 + Math.random() * 0.8)); }
   function atkKind(eq) {
@@ -653,15 +796,22 @@
   }
   function engageDist(eq) {
     const kind = atkKind(eq);
-    const want = kind === 'ranged' ? 92 : kind === 'bolt' ? 80 : 8;
-    return Math.min(want, Math.max(8, W - (st ? st.heroX : 22) - 70));
+    const pack = living(st).length >= 2;
+    const want = kind === 'ranged' ? 128 : kind === 'bolt' ? 116 : (pack ? 28 : 8);
+    return Math.min(want, Math.max(8, W - (st ? st.heroX : 22) - 48));
   }
+  function closeDist() { return 8; }
   function addNum(x, y, v, col) { st.nums.push({ x, y, v, col, t: 0 }); }
   function heroSprite(pose) {
     const eq = heroEq(), r = rarity(eqNow());
     return P().heroCanvas(eq, r.best, r.color, pose || '');
   }
   const MOVES = {
+    warrior: ['overhead', 'sweep', 'bash', 'cleave'],
+    mage: ['bolt', 'chain', 'orb', 'blast'],
+    shooter: ['single', 'burst', 'grenade']
+  };
+  const SOLO_MOVES = {
     warrior: ['overhead', 'sweep', 'bash'],
     mage: ['bolt', 'chain', 'orb'],
     shooter: ['single', 'burst', 'grenade']
@@ -669,14 +819,21 @@
   function pickMove(kind, dist) {
     if (st && st.forceMove) { const m = st.forceMove; st.forceMove = null; return m; }
     const c = clsNow();
-    if (kind === 'melee' || c === 'warrior') return MOVES.warrior[(Math.random() * 3) | 0];
-    if (kind === 'bolt' || c === 'mage') {
-      if (dist > 55 && Math.random() < 0.55) return 'bolt';
-      const r = Math.random();
-      return r < 0.4 ? 'bolt' : r < 0.75 ? 'chain' : 'orb';
+    const pack = living(st).length >= 2;
+    if (pack) {
+      if (c === 'warrior' || kind === 'melee') return 'cleave';
+      if (c === 'mage' || kind === 'bolt') return Math.random() < 0.55 ? 'chain' : 'blast';
+      return 'grenade';
     }
-    const r = Math.random();
-    return r < 0.55 ? 'single' : r < 0.85 ? 'burst' : 'grenade';
+    if (kind === 'melee' || c === 'warrior') return SOLO_MOVES.warrior[(Math.random() * 3) | 0];
+    if (kind === 'bolt' || c === 'mage') {
+      if (dist > 84) return Math.random() < 0.88 ? 'bolt' : 'chain';
+      if (dist > 46) return Math.random() < 0.7 ? 'chain' : (Math.random() < 0.55 ? 'bolt' : 'orb');
+      return Math.random() < 0.68 ? 'orb' : 'chain';
+    }
+    if (dist > 90) return 'single';
+    if (dist > 50) return Math.random() < 0.72 ? 'burst' : 'single';
+    return Math.random() < 0.58 ? 'grenade' : 'burst';
   }
   function recoverWait(S, n) { return Math.max(3, Math.round(n * (20 / (20 + (S.spd || 6) * 0.2)))); }
   function buildSeq(move, S) {
@@ -691,8 +848,15 @@
       case 'single': return [{ wait: 2, pose: 'aim' }, { wait: 2, pose: 'aim', hit: 'shot' }, { wait: 3, pose: 'aim' }, { wait: 2, pose: 'aim', hit: 'shot' }, { wait: R(5), pose: '' }];
       case 'burst': return [{ wait: 2, pose: 'aim' }, { wait: 1, pose: 'aim', hit: 'shot' }, { wait: 1, pose: 'aim', hit: 'shot' }, { wait: 1, pose: 'aim', hit: 'shot' }, { wait: 1, pose: 'aim', hit: 'shot' }, { wait: R(6), pose: '' }];
       case 'grenade': return [{ wait: 3, pose: 'raise' }, { wait: 1, pose: 'sweep', hit: 'grenade' }, { wait: R(9), pose: '' }];
+      case 'cleave': return [{ wait: 3, pose: 'raise', leap: 1 }, { wait: 3, pose: 'sweep', hit: 'cleave', lunge: 2 }, { wait: R(7), pose: '' }];
+      case 'blast': return [{ wait: 4, pose: 'cast' }, { wait: 2, pose: 'cast', hit: 'blast' }, { wait: R(8), pose: '' }];
       default: return [{ wait: 2, pose: 'raise' }, { wait: 2, pose: '', hit: 'slashSweep', lunge: 2 }, { wait: R(5), pose: '' }];
     }
+  }
+  function buildSeqAt(move, S, dist) {
+    const seq = buildSeq(move, S);
+    if (move === 'single' && dist > 90) return [{ wait: 2, pose: 'aim' }, { wait: 2, pose: 'aim', hit: 'shot' }, { wait: recoverWait(S, 5), pose: '' }];
+    return seq;
   }
   function mageCol(eq) {
     const purple = /storm|crown|warp|void|eye/.test((eq && eq.weapon) || '') || /eye|void/.test((eq && eq.armor) || '');
@@ -747,41 +911,77 @@
     else if (blood) splat(s, m, 5);
   }
   function fireHit(s, eq, S, m, hit) {
-    if (!m || m.dead) return;
-    const muz = muzzle(s, eq), mid = monMid(m), col = mageCol(eq);
+    const targets = living(s);
+    if (!targets.length && !(m && !m.dead)) return;
+    if (!m || m.dead) m = targets[0];
+    if (!m) return;
+    const muz = muzzle(s, eq), mid = monMid(m), col = mageCol(eq), pack = packCenter(s);
     const dist = Math.max(8, mid.x - muz.x);
     if (hit === 'slashDown') { s.fx.push({ k: 'slash', style: 'down', x: s.heroX + 34, y: HERO_Y + 16, t: 0, life: 5 }); impact(s, m, S, 1, true); }
     else if (hit === 'slashSweep') { s.fx.push({ k: 'slash', style: 'sweep', x: s.heroX + 36, y: HERO_Y + 24, t: 0, life: 5 }); impact(s, m, S, 1, true); }
     else if (hit === 'bash') { s.fx.push({ k: 'bash', x: mid.x - 6, y: mid.y, t: 0, life: 5 }); impact(s, m, S, 1.1, true); m.x += 4; }
-    else if (hit === 'bolt') s.fx.push({ k: 'boltshot', x: muz.x, y: muz.y, tx: mid.x, ty: mid.y, t: 0, life: Math.max(3, Math.round(dist / 22)), dmg: rollDmg(S, 0.75), col, mon: m });
+    else if (hit === 'cleave') {
+      s.fx.push({ k: 'slash', style: 'spin', x: pack.x, y: pack.y, t: 0, life: 7 });
+      for (const t of living(s)) { impact(s, t, S, 1.05, true); t.x += 3; }
+    }
+    else if (hit === 'bolt') s.fx.push({ k: 'boltshot', x: muz.x, y: muz.y, tx: mid.x, ty: mid.y, t: 0, life: Math.max(3, Math.round(dist / 22)), dmg: rollDmg(S, 0.75), col, mon: m, small: dist > 70 });
     else if (hit === 'chain') {
-      const pts = [[muz.x, muz.y]]; const n = 7;
-      for (let i = 1; i < n; i++) pts.push([muz.x + (mid.x - muz.x) * i / n, muz.y + (mid.y - muz.y) * i / n + (Math.random() * 12 - 6)]);
-      pts.push([mid.x, mid.y]);
-      s.fx.push({ k: 'bolt', pts, col, t: 0, life: 5 });
-      lightningArcs(s, mid.x, mid.y, col);
-      impact(s, m, S, 1.15, false);
+      let px0 = muz.x, py0 = muz.y;
+      const chain = targets.length ? targets : [m];
+      for (const t of chain) {
+        const tm = monMid(t);
+        const pts = [[px0, py0]]; const n = 6;
+        for (let i = 1; i < n; i++) pts.push([px0 + (tm.x - px0) * i / n, py0 + (tm.y - py0) * i / n + (Math.random() * 12 - 6)]);
+        pts.push([tm.x, tm.y]);
+        s.fx.push({ k: 'bolt', pts, col, t: 0, life: 5 });
+        lightningArcs(s, tm.x, tm.y, col);
+        impact(s, t, S, targets.length > 1 ? 0.95 : 1.15, false);
+        px0 = tm.x; py0 = tm.y;
+      }
     }
     else if (hit === 'orb') s.fx.push({ k: 'orb', x: muz.x, y: muz.y, tx: mid.x, ty: mid.y, t: 0, life: Math.max(6, Math.round(dist / 12)), dmg: rollDmg(S, 1.3), col, mon: m });
-    else if (hit === 'shot') { s.fx.push({ k: 'shot', x: muz.x, y: muz.y, tx: mid.x, t: 0, life: 3 }); s.fx.push({ k: 'flash', x: muz.x, y: muz.y, t: 0, life: 2 }); impact(s, m, S, 0.65, true); }
-    else if (hit === 'grenade') s.fx.push({ k: 'grenade', x: muz.x, y: muz.y, tx: mid.x, ty: H - 10, t: 0, life: 10, dmg: rollDmg(S, 1.5), mon: m });
+    else if (hit === 'blast') {
+      s.fx.push({ k: 'blast', x: pack.x, y: pack.y, t: 0, life: 8, col });
+      for (const t of (targets.length ? targets : [m])) {
+        const tm = monMid(t);
+        lightningArcs(s, tm.x, tm.y, col);
+        impact(s, t, S, 1.2, false);
+      }
+    }
+    else if (hit === 'shot') { s.fx.push({ k: 'shot', x: muz.x, y: muz.y, tx: mid.x, t: 0, life: Math.max(3, Math.round(dist / 40)) }); s.fx.push({ k: 'flash', x: muz.x, y: muz.y, t: 0, life: 2 }); impact(s, m, S, dist > 90 ? 0.5 : 0.65, true); }
+    else if (hit === 'grenade') s.fx.push({ k: 'grenade', x: muz.x, y: muz.y, tx: pack.x, ty: H - 10, t: 0, life: 10, dmg: rollDmg(S, targets.length > 1 ? 1.15 : 1.5), mon: m });
+  }
+  function startLeap(s) {
+    const mid = packCenter(s);
+    const to = Math.max(6, Math.min(90, mid.x - (s.heroX + 24) - 6));
+    s.leap = { t: 0, life: 10, to };
+  }
+  function leapOff(s, a) {
+    if (!s.leap) return 0;
+    const t = (s.leap.t + (a || 0)) / s.leap.life;
+    const p = t < 0.5 ? t / 0.5 : 1 - (t - 0.5) / 0.5;
+    return s.leap.to * Math.max(0, Math.min(1, p));
   }
   function startAttack(s, eq, S, m) {
     const kind = atkKind(eq);
+    const live = living(s);
+    if (!m || m.dead) m = live[0];
+    if (!m) return;
     const dist = m.x - (s.heroX + 40);
     const move = pickMove(kind, dist);
     s.move = move;
-    s.seq = buildSeq(move, S);
+    s.seq = buildSeqAt(move, S, dist);
     s.seqI = 0;
     s.atkT = s.seq[0].wait;
     s.pose = s.seq[0].pose || '';
     if (s.seq[0].lunge) s.lunge = s.seq[0].lunge;
+    if (s.seq[0].leap) startLeap(s);
     if (s.seq[0].hit) fireHit(s, eq, S, m, s.seq[0].hit);
   }
 
   // ---------- simulation (fixed 12 ticks per second, drawn on rAF) ----------
   function snap(s) {
-    if (s.mon) s.mon.px = s.mon.x;
+    for (const m of allMons(s)) m.px = m.x;
     s.fx.forEach(f => { f.px = f.x; f.py = f.y; });
     s.coins.forEach(c => { c.px = c.x; c.py = c.y; });
   }
@@ -800,9 +1000,13 @@
         }
       }
       if (f.k === 'grenade' && f.t >= f.life) {
-        const m = (f.mon && st.mon === f.mon && !f.mon.dead) ? f.mon : (st.mon && !st.mon.dead ? st.mon : null);
         s.fx.push({ k: 'boom', x: f.tx, y: f.ty, t: 0, life: 8 });
-        if (m && f.dmg) { hurtMon(s, m, f.dmg.d, f.dmg.crit); splat(s, m, 3); }
+        const hit = living(s);
+        for (const t of hit) {
+          const mid = monMid(t);
+          const dx = mid.x - f.tx, dy = mid.y - f.ty;
+          if (dx * dx + dy * dy < 40 * 40 && f.dmg) { hurtMon(s, t, f.dmg.d, f.dmg.crit); splat(s, t, 3); }
+        }
       }
       if (f.t < f.life) s.fx.push(f);
     }
@@ -836,9 +1040,162 @@
     return s.loco || 'run';
   }
   function goRun(s, walkFirst) {
-    s.mode = 'run'; s.potion = 0;
+    s.mode = 'run'; s.potion = 0; s.pose = ''; s.leap = null; s.hopT = 0; s.hopY = 0; s.digT = 0;
     if (walkFirst) { s.coolWalk = 12; s.loco = 'walk'; } else s.loco = s.coolWalk ? 'walk' : 'run';
     beginTurn(s, 'side');
+  }
+
+  // ---------- wasteland / woods props ----------
+  const PROP = {
+    car: { w: 40, h: 16 }, carbrush: { w: 42, h: 18 }, bike: { w: 24, h: 12 }, gas: { w: 70, h: 42, rare: 1 },
+    boulder: { w: 22, h: 14, hop: 1 }, skeleton: { w: 18, h: 7 }, rubble: { w: 18, h: 10, dig: 1 },
+    debris: { w: 12, h: 7 }, deadtree: { w: 16, h: 28 }, sign: { w: 12, h: 20 }, barrel: { w: 9, h: 12 },
+    cabin: { w: 54, h: 30 }, stump: { w: 10, h: 8 }, log: { w: 22, h: 7 }, bush: { w: 14, h: 9, fg: 1 }
+  };
+  function propWeights(biome) {
+    const name = BIOMES[biome] || 'plains';
+    if (name === 'forest') return [['cabin', 1.6], ['carbrush', 1.8], ['skeleton', 1], ['rubble', 1.3], ['deadtree', 1.6], ['stump', 1.2], ['log', 1.2], ['boulder', 0.9], ['debris', 1], ['bush', 1.2]];
+    if (name === 'cave') return [['boulder', 2.2], ['skeleton', 1.5], ['rubble', 1.7], ['debris', 1.4], ['deadtree', 0.4], ['barrel', 0.6]];
+    return [['car', 2], ['bike', 1.5], ['gas', 0.28], ['boulder', 1.3], ['skeleton', 1.3], ['rubble', 1.6], ['debris', 1.5], ['deadtree', 1], ['sign', 1.1], ['barrel', 0.8]];
+  }
+  function pickPropType(biome, avoidRare) {
+    const wts = propWeights(biome).filter(p => !(avoidRare && PROP[p[0]] && PROP[p[0]].rare));
+    let tot = 0; for (const w of wts) tot += w[1];
+    let n = Math.random() * tot;
+    for (const [k, w] of wts) { n -= w; if (n <= 0) return k; }
+    return wts[0][0];
+  }
+  const propCache = {};
+  function paintProp(type, v) {
+    const key = type + '|' + (v | 0);
+    if (propCache[key]) return propCache[key];
+    const meta = PROP[type] || PROP.debris;
+    const c = mkc(meta.w, meta.h), x = c.getContext('2d'), gnd = meta.h;
+    const P = (xx, yy, col, w, h) => px(x, xx, yy, col, w, h);
+    const rust = '#5a2a18', ash = '#3a3230', bone = '#d6caae', char = '#1a140e', dirt = '#3a2a1a', moss = '#1a2a14';
+    if (type === 'car' || type === 'carbrush') {
+      P(2, gnd - 8, rust, 34, 6); P(6, gnd - 13, '#2a1c16', 22, 6); P(6, gnd - 13, '#4a3024', 22, 1);
+      P(8, gnd - 12, '#1a0c08', 6, 3); P(20, gnd - 12, '#1a0c08', 5, 3);
+      P(4, gnd - 3, char, 6, 3); P(5, gnd - 3, rust, 1, 3);
+      if (v % 2) P(28, gnd - 3, char, 6, 3); else { P(29, gnd - 4, rust, 3, 2); P(32, gnd - 2, rust, 4, 1); }
+      P(14, gnd - 9, '#7a2c14', 3, 1);
+      if (type === 'carbrush') { for (let i = 0; i < 10; i++) P(3 + i * 3, gnd - (4 + (i % 3)), moss, 2, 3 + (i % 2)); }
+    } else if (type === 'bike') {
+      P(2, gnd - 6, char, 5, 5); P(16, gnd - 6, char, 5, 5);
+      P(3, gnd - 5, rust, 1, 3); P(17, gnd - 5, rust, 1, 3);
+      P(6, gnd - 8, '#2a2420', 12, 2); P(14, gnd - 12, rust, 2, 5); P(10, gnd - 10, rust, 6, 1);
+    } else if (type === 'gas') {
+      P(2, gnd - 3, '#2a2018', 66, 3);
+      P(6, gnd - 26, '#3a2018', 16, 23); P(22, gnd - 26, '#3a2018', 16, 23);
+      P(8, gnd - 22, '#1a0c08', 5, 6); P(24, gnd - 22, '#1a0c08', 5, 6);
+      P(10, gnd - 20, '#7a2c14'); P(26, gnd - 19, '#ff8a2a');
+      P(2, gnd - 32, rust, 50, 3); P(4, gnd - 42, '#2a1a12', 3, 10); P(47, gnd - 42, '#2a1a12', 3, 10);
+      P(4, gnd - 42, rust, 46, 3); P(20, gnd - 40, '#5a2010', 8, 2);
+      P(54, gnd - 18, rust, 3, 15); P(51, gnd - 20, '#4a4030', 8, 5); P(53, gnd - 19, rust, 3, 1);
+    } else if (type === 'boulder') {
+      P(3, gnd - 8, '#3a342c', 16, 8); P(6, gnd - 13, '#4a443c', 11, 6); P(8, gnd - 14, '#5a544a', 6, 3);
+      P(3, gnd - 8, char, 1, 7); P(17, gnd - 7, '#2a2420', 2, 6);
+    } else if (type === 'skeleton') {
+      P(2, gnd - 4, bone, 3, 3); P(3, gnd - 5, bone, 2, 1); P(3, gnd - 3, '#0a0605'); P(5, gnd - 3, '#0a0605');
+      P(6, gnd - 3, bone, 10, 2); P(8, gnd - 4, bone); P(10, gnd - 5, bone); P(12, gnd - 4, bone);
+      P(16, gnd - 3, bone, 2, 1);
+    } else if (type === 'rubble') {
+      P(2, gnd - 4, ash, 14, 4); P(4, gnd - 7, '#4a403a', 8, 4); P(6, gnd - 9, rust, 5, 3);
+      P(1, gnd - 3, char, 3, 2); P(12, gnd - 5, '#2a2420', 4, 3); P(8, gnd - 6, bone);
+    } else if (type === 'debris') {
+      P(1, gnd - 3, rust, 5, 2); P(6, gnd - 5, ash, 4, 4); P(8, gnd - 2, char, 3, 2);
+    } else if (type === 'deadtree') {
+      P(7, 4, char, 2, gnd - 6); P(6, gnd - 3, char, 4, 3);
+      P(3, 8, char, 5, 1); P(9, 12, char, 6, 1); P(4, 7, char, 1, 5); P(14, 11, char, 1, 5); P(6, 16, char, 1, 6);
+    } else if (type === 'sign') {
+      P(5, 4, rust, 2, gnd - 5); P(1, 2, '#4a4030', 10, 8); P(2, 3, rust, 8, 1); P(3, 5, '#2a1c12', 6, 3);
+    } else if (type === 'barrel') {
+      P(1, gnd - 11, rust, 7, 10); P(1, gnd - 11, '#6a3a22', 7, 1); P(1, gnd - 6, '#6a3a22', 7, 1); P(2, gnd - 10, char, 5, 2);
+    } else if (type === 'cabin') {
+      P(4, gnd - 18, '#3a2a1a', 40, 18); P(4, gnd - 18, '#4a3624', 40, 1); P(20, gnd - 28, '#2a1c14', 2, 10);
+      for (let i = 0; i < 22; i++) P(2 + i * 2, gnd - 18 - (i < 11 ? i : 21 - i), '#4a3020', 3, 2);
+      P(10, gnd - 12, char, 6, 7); P(28, gnd - 14, '#1a0c08', 7, 5); P(30, gnd - 13, rust);
+      P(6, gnd - 4, moss, 8, 3); P(36, gnd - 6, moss, 6, 5);
+    } else if (type === 'stump') {
+      P(2, gnd - 6, '#3a2a1a', 6, 6); P(2, gnd - 6, '#5a4630', 6, 1); P(3, gnd - 5, '#6a5440', 4, 1);
+    } else if (type === 'log') {
+      P(1, gnd - 4, '#3a2a1a', 20, 3); P(1, gnd - 4, '#5a4630', 20, 1); P(0, gnd - 3, '#24180e', 1, 2);
+    } else if (type === 'bush') {
+      for (let i = 0; i < 12; i++) P(1 + i, gnd - (3 + (i * 3 + v) % 5), (i + v) % 2 ? moss : '#24341a', 1, 3 + (i % 3));
+    } else {
+      P(1, gnd - 3, ash, 8, 3);
+    }
+    return (propCache[key] = c);
+  }
+  function seedProps(s) {
+    if (!s.props) s.props = [];
+    if (s.nextProp == null) s.nextProp = s.scroll + 40;
+    let guard = 0;
+    while (s.nextProp < s.scroll + W + 90 && guard++ < 8) {
+      const recentGas = s.props.some(p => p.k === 'gas' && p.wx > s.scroll - 40);
+      const type = pickPropType(s.biome, recentGas);
+      const meta = PROP[type] || PROP.debris;
+      const par = (type === 'deadtree' && Math.random() < 0.35) || (type === 'sign' && Math.random() < 0.25) ? 0.55 : (meta.fg ? 1.12 : 1);
+      const gap = (meta.rare ? 160 : 36) + ((Math.random() * (meta.rare ? 220 : 150)) | 0);
+      const p0 = { k: type, wx: s.nextProp, v: (Math.random() * 3) | 0, par, w: meta.w, h: meta.h, hop: !!meta.hop, dig: !!meta.dig };
+      s.props.push(p0);
+      s.nextProp += meta.w + gap;
+    }
+    s.props = s.props.filter(p => p.wx - s.scroll * (p.par || 1) > -80);
+    if (s.props.length > 18) s.props = s.props.slice(-18);
+  }
+  function addProp(s, type, opts) {
+    opts = opts || {};
+    const meta = PROP[type] || PROP.debris;
+    const p0 = { k: type, wx: opts.wx != null ? opts.wx : s.scroll + (opts.x != null ? opts.x : W - 10), v: opts.v || 0, par: opts.par || 1, w: meta.w, h: meta.h, hop: !!meta.hop, dig: !!meta.dig };
+    if (!s.props) s.props = [];
+    s.props.push(p0);
+    return p0;
+  }
+  function propScreenX(p, scroll, a, step) {
+    return p.wx - (scroll + (a || 0) * (step || 0)) * (p.par || 1);
+  }
+  function drawProps(ctx, scroll, a, step, layer) {
+    if (!st || !st.props) return;
+    const ground = (ctx === bg && BH) ? BH - 8 : H - 8;
+    for (const p of st.props) {
+      const fg = (p.par || 1) > 1.05;
+      const mid = (p.par || 1) < 0.9;
+      if (layer === 'fg' && !fg) continue;
+      if (layer === 'mid' && !mid) continue;
+      if (layer === 'ground' && (fg || mid)) continue;
+      const c = paintProp(p.k, p.v);
+      const x = Math.round(propScreenX(p, scroll, a, step));
+      if (x + p.w < -4 || x > W + 4) continue;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(c, x, ground - p.h + (p.hopY || 0));
+    }
+  }
+  function startHop(s, prop) {
+    s.mode = 'hop'; s.hopT = 0; s.hopOf = prop; s.hopY = 0; s.loco = 'climb'; s.pose = '';
+    if (prop) prop.used = 1;
+    beginTurn(s, 'side');
+  }
+  function startDig(s, prop) {
+    s.mode = 'dig'; s.digT = 0; s.digOf = prop; s.loco = 'dig'; s.pose = ''; s.toast = null;
+    if (prop) prop.looted = 1;
+    beginTurn(s, 'side');
+  }
+  function tryFieldEvents(s) {
+    if (s.mode !== 'run' || s.forceLoco) return;
+    if (living(s).some(m => m.x < s.heroX + 150)) return;
+    const plant = s.heroX + 28;
+    for (const p of (s.props || [])) {
+      if (p.used || p.looted) continue;
+      if ((p.par || 1) < 0.9 || (p.par || 1) > 1.05) continue;
+      const sx = propScreenX(p, s.scroll, 0, 0);
+      if (p.hop && !p.used && sx < plant + 14 && sx + p.w > plant + 2) { startHop(s, p); return; }
+      if (p.dig && !p.looted && (s.digCd || 0) <= 0 && sx < plant + 12 && sx + p.w > plant && (s.forceDig || Math.random() < 0.34)) {
+        s.forceDig = false;
+        startDig(s, p);
+        return;
+      }
+    }
   }
 
   function tick() {
@@ -850,6 +1207,9 @@
     if (s.flashH) s.flashH--;
     if (s.fade) s.fade--;
     if (s.lunge) s.lunge--;
+    if (s.leap) { s.leap.t++; if (s.leap.t >= s.leap.life) s.leap = null; }
+    if (s.toast) { s.toast.t++; if (s.toast.t > 16) s.toast = null; }
+    if (s.digCd > 0) s.digCd--;
     s.nums.forEach(n => { n.t++; n.y -= n.t < 6 ? 1 : 0.5; }); s.nums = s.nums.filter(n => n.t < 14);
     tickFx(s, S);
     const heroFront = s.heroX + 40;
@@ -861,64 +1221,137 @@
     const got = s.coins.filter(c => c.t >= 12).length;
     if (got) { bstats.gold += got; }
     s.coins = s.coins.filter(c => c.t < 12);
-    const m = s.mon;
-    if (m) { if (m.hurt) m.hurt--; if (m.flash) m.flash--; if (m.lunge) m.lunge--; }
-    tickTurn(s); if (m) tickTurn(m);
-    const stepFor = loco => loco === 'walk' ? 1 : 2;
-    const moving = (step) => { step = step || 2; s.scroll += step; if (++s.bt >= BIOME_TICKS) { s.bt = 0; s.prevBiome = s.biome; s.biome = (s.biome + 1) % BIOMES.length; s.fade = FADE; } if (s.fire) s.fire.x -= step; if (s.fire && s.fire.x < -20) s.fire = null; };
+    for (const m of allMons(s)) { if (m.hurt) m.hurt--; if (m.flash) m.flash--; if (m.lunge) m.lunge--; tickTurn(m); }
+    tickTurn(s);
+    const stepFor = loco => loco === 'walk' || loco === 'dig' || loco === 'climb' ? 1 : (loco === 'idle' ? 0 : 2);
+    const moving = (step) => {
+      step = step || 0;
+      if (step) {
+        s.scroll += step;
+        if (++s.bt >= BIOME_TICKS) { s.bt = 0; s.prevBiome = s.biome; s.biome = (s.biome + 1) % BIOMES.length; s.fade = FADE; }
+        if (s.fire) s.fire.x -= step;
+      }
+      if (s.fire && s.fire.x < -20) s.fire = null;
+      seedProps(s);
+    };
+    const approachMons = (step) => {
+      for (const m of living(s)) {
+        m.walk++;
+        if (m.spawnFace > 0) { m.spawnFace--; if (m.spawnFace <= 0) beginMonTurn(m, 'side'); }
+        else if (m.facing === 'front' && !m.turn) beginMonTurn(m, 'side');
+        m.x -= step + (MON[m.type] || MON.rat).speed;
+      }
+    };
+    const live = living(s);
+    const closest = live.length ? live.reduce((a, b) => a.x < b.x ? a : b) : null;
     if (s.mode === 'run') {
       if (s.coolWalk > 0) s.coolWalk--;
-      if (!m) s.loco = (s.coolWalk || s.forceLoco === 'walk') ? 'walk' : 'run';
-      else {
-        const dist = m.x - heroFront - engageDist(eq);
-        s.loco = dist <= 64 ? 'walk' : 'run';
-      }
+      if (!closest) s.loco = (s.coolWalk || s.forceLoco === 'walk') ? 'walk' : 'run';
+      else s.loco = (closest.x - heroFront - engageDist(eq) <= 64) ? 'walk' : 'run';
       if (s.forceLoco) s.loco = s.forceLoco;
       const step = stepFor(heroLoco(s));
       s.gaitF = (s.gaitF || 0) + (heroLoco(s) === 'run' ? 1.5 : 1);
       moving(step);
       beginTurn(s, 'side');
-      if (!m) { if (--s.spawn <= 0) spawn(); }
-      else {
-        m.walk++;
-        if (m.spawnFace > 0) { m.spawnFace--; if (m.spawnFace <= 0) beginMonTurn(m, 'side'); }
-        else if (m.facing === 'front' && !m.turn) beginMonTurn(m, 'side');
-        m.x -= step + (MON[m.type] || MON.rat).speed;
-        if (m.x <= heroFront + engageDist(eq)) { s.mode = 'fight'; s.atkT = TURN_N + 1; s.monT = 6; s.seq = null; s.pose = ''; s.loco = 'idle'; beginTurn(s, 'front'); beginMonTurn(m, 'front'); }
-      }
-    } else if (s.mode === 'fight' && m) {
-      s.loco = 'idle'; s.gaitF = (s.gaitF || 0) + 0.4;
-      beginTurn(s, 'front');
-      if (m.dead) {
-        if (++m.dead > 7) {
-          s.mon = null; s.spawn = nextGap(); s.seq = null; s.pose = '';
-          bstats.kills++; if (m.elite || m.boss) bstats.elites++;
-          saveStats(); if (killEl) killEl.textContent = '☠ ' + bstats.kills;
-          if (s.hp < s.max * 0.4) startHeal(); else goRun(s, true);
+      if (!closest && !allMons(s).some(m => m && m.dead && m.dead <= 7)) { if (--s.spawn <= 0) spawn(); }
+      else if (closest) {
+        approachMons(step);
+        if (closest.x <= heroFront + engageDist(eq)) {
+          const kind = atkKind(eq);
+          const ranged = kind === 'ranged' || kind === 'bolt';
+          s.mode = 'fight'; s.atkT = TURN_N + 1; s.monT = 6; s.seq = null; s.pose = '';
+          if (ranged && closest.x > heroFront + 40) { s.loco = 'walk'; beginTurn(s, 'side'); for (const m of live) beginMonTurn(m, 'side'); }
+          else { s.loco = 'idle'; beginTurn(s, 'front'); for (const m of live) beginMonTurn(m, 'front'); }
         }
+      }
+      tryFieldEvents(s);
+    } else if (s.mode === 'hop') {
+      s.hopT++;
+      const life = 12;
+      const p = Math.min(1, s.hopT / life);
+      s.hopY = -Math.sin(p * Math.PI) * ((s.hopOf && s.hopOf.h) || 14) - 4;
+      s.loco = s.hopT < 3 ? 'climb' : 'hop';
+      if (s.forceLoco) s.loco = s.forceLoco;
+      s.gaitF = (s.gaitF || 0) + 1.2;
+      moving(2);
+      beginTurn(s, 'side');
+      if (s.hopT >= life) goRun(s, true);
+    } else if (s.mode === 'dig') {
+      s.digT++;
+      s.loco = 'dig';
+      s.gaitF = (s.gaitF || 0) + 1;
+      beginTurn(s, 'side');
+      moving(0);
+      if (s.digT < 12 && s.digT % 2 === 0) {
+        const pile = s.digOf ? propScreenX(s.digOf, s.scroll, 0, 0) + 8 : s.heroX + 36;
+        s.fx.push({ k: 'dirt', x: pile, y: H - 12, vx: 0.6 + Math.random(), vy: -1.4 - Math.random(), t: 0, life: 6 });
+      }
+      if (s.digT === 13) {
+        const pile = s.digOf ? propScreenX(s.digOf, s.scroll, 0, 0) + 8 : s.heroX + 36;
+        s.fx.push({ k: 'glint', x: pile, y: H - 16, tx: s.heroX + 22, ty: HERO_Y + 38, t: 0, life: 8 });
+        bstats.gold += 1; saveStats();
+        addNum(s.heroX + 16, 10, 'SCRAP', '#ffe070');
+        s.toast = { msg: 'SCRAP', t: 0 };
+      }
+      if (s.digT >= 18) { s.digCd = 90; goRun(s, true); }
+    } else if (s.mode === 'fight') {
+      const kind = atkKind(eq);
+      const ranged = kind === 'ranged' || kind === 'bolt';
+      const m = closest || s.mon;
+      for (const mon of allMons(s)) {
+        if (mon.dead === 1 && !mon.scored) {
+          mon.scored = 1; bstats.kills++; if (mon.elite || mon.boss || mon.leader) bstats.elites++;
+          saveStats(); if (killEl) killEl.textContent = '☠ ' + bstats.kills;
+        }
+        if (mon.dead) mon.dead++;
+      }
+      if (allMons(s).length && allMons(s).every(mon => mon.dead > 7)) {
+        s.mon = null; s.mons = []; s.spawn = nextGap(); s.seq = null; s.pose = ''; s.leap = null;
+        if (s.hp < s.max * 0.4) startHeal(); else goRun(s, true);
         return;
       }
-      const close = heroFront + 8;
-      if (m.x > close) { m.x -= (MON[m.type] || MON.rat).speed * 0.7; m.walk++; if (m.x > close + 6) beginMonTurn(m, 'side'); else beginMonTurn(m, 'front'); }
-      else beginMonTurn(m, 'front');
-      const turningIn = s.turn && s.turnTo === 'front';
+      if (!m || (m.dead && !living(s).length)) return;
+      const foe = closest || m;
+      const dist = foe.x - heroFront;
+      const close = heroFront + closeDist();
+      if (ranged && dist > 40) {
+        s.loco = s.forceLoco || (dist > 70 ? 'walk' : 'idle');
+        beginTurn(s, 'side');
+        const step = s.loco === 'walk' ? 1 : 0;
+        if (step) { moving(step); s.gaitF += 1; } else s.gaitF += 0.4;
+        for (const mon of living(s)) {
+          mon.walk++;
+          mon.x -= (step + (MON[mon.type] || MON.rat).speed * 0.7);
+          beginMonTurn(mon, 'side');
+        }
+      } else {
+        s.loco = s.forceLoco || 'idle';
+        s.gaitF += 0.4;
+        beginTurn(s, 'front');
+        for (const mon of living(s)) {
+          if (mon.x > close) { mon.x -= (MON[mon.type] || MON.rat).speed * 0.7; mon.walk++; beginMonTurn(mon, mon.x > close + 6 ? 'side' : 'front'); }
+          else beginMonTurn(mon, 'front');
+        }
+      }
+      const turningIn = s.turn && s.turnTo === 'front' && !(ranged && dist > 40);
       if (!s.seq || s.seqI >= s.seq.length) {
-        if (!turningIn && --s.atkT <= 0) startAttack(s, eq, S, m);
+        if (!turningIn && --s.atkT <= 0) startAttack(s, eq, S, foe);
       } else if (--s.atkT <= 0) {
         s.seqI++;
         if (s.seqI < s.seq.length) {
           const step = s.seq[s.seqI];
           s.atkT = step.wait; s.pose = step.pose || '';
           if (step.lunge) s.lunge = step.lunge;
-          if (step.hit) fireHit(s, eq, S, m, step.hit);
+          if (step.leap) startLeap(s);
+          if (step.hit) fireHit(s, eq, S, foe, step.hit);
         }
       }
-      if (m.dead) return;
-      if (m.x <= close + 2 && --s.monT <= 0) {
-        const mc = MON[m.type] || MON.rat;
-        const md = m.dmg || mc.dmg;
-        s.monT = m.boss ? 9 : 10; m.lunge = 2;
-        let d = Math.max(1, Math.round(s.max * (0.03 + 0.012 * md) * (m.elite ? 1.4 : 1) * (0.7 + Math.random() * 0.6) * (1 - S.def / (S.def + 40))));
+      if (!living(s).length) return;
+      const striker = living(s).reduce((a, b) => a.x < b.x ? a : b);
+      if (striker.x <= close + 2 && --s.monT <= 0) {
+        const md = striker.dmg || (MON[striker.type] || MON.rat).dmg;
+        s.monT = striker.boss ? 9 : (living(s).length > 2 ? 8 : 10); striker.lunge = 2;
+        let d = Math.max(1, Math.round(s.max * (0.03 + 0.012 * md) * (striker.elite || striker.leader ? 1.4 : 1) * (0.7 + Math.random() * 0.6) * (1 - S.def / (S.def + 40))));
         if (s.hp - d < s.max * 0.12) { addNum(s.heroX + 18, 18, 'BLOCK', '#a8c8ff'); s.fx.push({ k: 'block', x: heroFront - 4, y: 34, t: 0, life: 3 }); }
         else { s.hp -= d; s.flashH = 3; addNum(s.heroX + 20, 18, d, '#ff6050'); }
       }
@@ -937,7 +1370,7 @@
     }
   }
   function startHeal(forced) {
-    st.potion = 0; st.seq = null; st.pose = ''; st.fire = null; st.loco = 'idle';
+    st.potion = 0; st.seq = null; st.pose = ''; st.fire = null; st.loco = 'idle'; st.leap = null; st.hopY = 0;
     beginTurn(st, 'front');
     const r = forced || (Math.random() < 0.34 ? 'potion' : Math.random() < 0.5 ? 'rest' : 'band');
     if (r === 'potion') st.mode = 'potion';
@@ -1190,24 +1623,28 @@
   function draw() {
     const s = st, a = s.alpha || 0;
     g.clearRect(0, 0, W, H);
-    const scStep = s.mode === 'run' ? (heroLoco(s) === 'walk' ? 1 : 2) : 0;
+    const scStep = (s.mode === 'run' || s.mode === 'hop') ? (heroLoco(s) === 'walk' || heroLoco(s) === 'climb' ? 1 : 2) : (s.mode === 'fight' && heroLoco(s) === 'walk' ? 1 : 0);
     if (!bgOn) { const bgOf = (L) => { tiled(L.sky, 0, H - L.TH); tiled(L.far, (s.scroll + a * scStep) * 0.2, H - L.TH); tiled(L.mid, (s.scroll + a * scStep) * 0.55, H - L.TH); }; fadeDraw(bgOf, H); }
     fadeDraw(L => tiled(L.fl, s.scroll + a * scStep, H - 9), H);
+    drawProps(g, s.scroll, a, scStep, 'mid');
+    drawProps(g, s.scroll, a, scStep, 'ground');
     if (s.fire) drawFire(s.fire.x, s.t);
     const loc = heroLoco(s);
-    const gaitSpd = loc === 'run' ? 1.5 : loc === 'walk' ? 1 : 0.4;
+    const gaitSpd = loc === 'run' || loc === 'hop' ? 1.5 : loc === 'walk' || loc === 'dig' || loc === 'climb' ? 1 : 0.4;
     const gaitFrame = Math.floor((s.gaitF || 0) + a * gaitSpd);
     const amt = faceAmt(s, a);
     const baseFront = heroSprite(s.pose);
-    let frontImg = baseFront, hy = HERO_Y;
+    let frontImg = baseFront, hy = HERO_Y + Math.round(s.hopY || 0);
     if (s.mode === 'rest') frontImg = sitOf(baseFront);
     const eq = heroEq(), rar = rarity(eqNow());
-    const sideImg = (P().heroCanvasSide) ? P().heroCanvasSide(eq, rar.best, rar.color, loc === 'idle' ? 'idle' : loc, gaitFrame) : baseFront;
-    const useSide = amt < 0.5 && s.mode !== 'rest' && s.mode !== 'potion' && s.mode !== 'band' && !s.pose;
+    const sideLoco = (loc === 'idle' && s.mode !== 'dig' && s.mode !== 'hop') ? 'idle' : loc;
+    const sideImg = (P().heroCanvasSide) ? P().heroCanvasSide(eq, rar.best, rar.color, sideLoco, gaitFrame) : baseFront;
+    const healFront = s.mode === 'rest' || s.mode === 'potion' || s.mode === 'band';
+    const useSide = amt < 0.5 && !healFront;
     let img = useSide ? sideImg : frontImg;
     img = degradeHero(img, hurtStage(s.hp, s.max));
-    const hx = s.heroX + (s.lunge ? 3 * Math.min(1, s.lunge - a * 0 + 0) / 3 : 0);
-    const hx2 = s.heroX + (s.lunge ? 3 : 0);
+    const hx = s.heroX + (s.lunge ? 3 * Math.min(1, s.lunge - a * 0 + 0) / 3 : 0) + leapOff(s, a);
+    const hx2 = s.heroX + (s.lunge ? 3 : 0) + leapOff(s, a);
     const ax = (useSide && img._ax != null) ? img._ax : (img.width / 2);
     const plant = hx2 + 24;
     const sx = amt < 0.5 ? lerp(1, 0.12, amt / 0.5) : lerp(0.12, 1, (amt - 0.5) / 0.5);
@@ -1233,9 +1670,8 @@
       g.fillRect(Math.round(ax + Math.cos(ang) * 5), Math.round(ay + Math.sin(ang) * 3 + 1), 3, 1);
     }
     bar(hx2 + 14, 2, 20, s.hp / s.max, s.hp / s.max > 0.4 ? '#50d050' : '#e0a030');
-    const m = s.mon;
-    if (m) {
-      const spr = monCanvas(m.type, { tier: m.tier, elite: m.elite });
+    for (const m of allMons(s)) {
+      const spr = monCanvas(m.type, { tier: m.tier, elite: m.elite || m.leader });
       const mw = m.w || spr.w, mh = m.h || spr.h;
       const mx = Math.round(ix(m, a) - (m.lunge ? 3 : 0) + (m.hurt ? ((m.hurt % 2) ? 1 : -1) : 0));
       const ground = H - 8;
@@ -1246,31 +1682,40 @@
       const sxm = amtM < 0.5 ? lerp(1, 0.12, amtM / 0.5) : lerp(0.12, 1, (amtM - 0.5) / 0.5);
       const dwm = Math.max(1, Math.round(iw * sxm));
       const dxm = Math.round(mx + mw / 2 - dwm / 2);
-      const dym = ground - ih + (posed.dy || 0);
-      if (!m.dead || m.dead < 3) {
-        if (m.elite || m.boss || (m.tier | 0) >= 2) {
+      const dym = ground - ih + (posed.dy || 0) + (m.yOff || 0);
+      if (!m.dead || m.dead < 8) {
+        if (m.elite || m.boss || m.leader || (m.tier | 0) >= 2) {
           const gr = g.createRadialGradient(mx + mw / 2, dym + ih / 2, 2, mx + mw / 2, dym + ih / 2, ih * 0.85);
-          const c = m.boss ? '170,100,255' : m.elite ? '255,200,80' : (m.tier >= 3 ? '255,90,40' : '160,80,220');
+          const c = m.boss ? '170,100,255' : (m.elite || m.leader) ? '255,200,80' : (m.tier >= 3 ? '255,90,40' : '160,80,220');
           gr.addColorStop(0, 'rgba(' + c + ',.35)'); gr.addColorStop(1, 'rgba(' + c + ',0)');
           g.fillStyle = gr; g.fillRect(mx - mh, dym - mh / 2, mw + mh * 2, mh * 2);
         }
         g.imageSmoothingEnabled = false;
-        g.globalAlpha = m.dead ? Math.max(0, 1 - m.dead / 3) : 1;
+        g.globalAlpha = m.dead ? Math.max(0, 1 - m.dead / 7) : 1;
         g.drawImage(posed.c, dxm, dym, dwm, ih);
         if (m.flash || m.dead) { g.globalAlpha = m.dead ? 0.5 : 0.65; g.drawImage(posed.f, dxm, dym, dwm, ih); }
         g.globalAlpha = 1;
       }
-      if (!m.dead && (s.mode === 'fight' || m.boss || m.elite)) bar(mx + mw / 2 - 8, Math.max(2, dym - 5), 16, Math.max(0, m.hp / m.max), m.boss ? '#b070ff' : m.elite ? '#ffc040' : '#d04030');
+      if (!m.dead && (s.mode === 'fight' || m.boss || m.elite || m.leader)) bar(mx + mw / 2 - 8, Math.max(2, dym - 5), 16, Math.max(0, m.hp / m.max), m.boss ? '#b070ff' : (m.elite || m.leader) ? '#ffc040' : '#d04030');
     }
     for (const f of s.fx) {
       const ft = f.t + a;
       if (f.k === 'slash') {
-        const down = f.style === 'down';
         const col = ['#ffffff', '#ffe8b0', '#e0b060', '#c08040', '#8a4a20'][f.t] || '#8a4a20';
         g.fillStyle = col;
-        for (let i = 0; i < 16; i++) {
-          const a0 = down ? (-1.7 + i * 0.2 + ft * 0.22) : (-0.4 + i * 0.16 + ft * 0.2);
-          for (const r of [12, 14, 16]) { if (r === 16 && (i < 3 || i > 12)) continue; g.fillRect(Math.round(f.x + Math.cos(a0) * r), Math.round(f.y + (down ? 2 : 6) + Math.sin(a0) * (down ? r * 0.85 : r * 0.55)), 1, 1); }
+        if (f.style === 'spin') {
+          const r = 8 + ft * 3;
+          for (let i = 0; i < 20; i++) {
+            const a0 = i * 0.31 + ft * 0.5;
+            g.fillRect(Math.round(f.x + Math.cos(a0) * r), Math.round(f.y + Math.sin(a0) * r * 0.55), 2, 1);
+            g.fillRect(Math.round(f.x + Math.cos(a0) * (r - 3)), Math.round(f.y + Math.sin(a0) * (r - 3) * 0.55), 1, 1);
+          }
+        } else {
+          const down = f.style === 'down';
+          for (let i = 0; i < 16; i++) {
+            const a0 = down ? (-1.7 + i * 0.2 + ft * 0.22) : (-0.4 + i * 0.16 + ft * 0.2);
+            for (const r of [12, 14, 16]) { if (r === 16 && (i < 3 || i > 12)) continue; g.fillRect(Math.round(f.x + Math.cos(a0) * r), Math.round(f.y + (down ? 2 : 6) + Math.sin(a0) * (down ? r * 0.85 : r * 0.55)), 1, 1); }
+          }
         }
       } else if (f.k === 'bash') {
         const r = 3 + ft * 3;
@@ -1283,8 +1728,9 @@
         g.fillStyle = '#fff6d0'; g.fillRect(Math.round(x1) - 2, f.y, 2, 1);
       } else if (f.k === 'boltshot') {
         const p = Math.min(1, ft / f.life), x = f.x + (f.tx - f.x) * p, y = f.y + (f.ty - f.y) * p;
-        g.fillStyle = f.col[2]; g.fillRect(Math.round(x) - 2, Math.round(y), 3, 1);
-        g.fillStyle = f.col[0]; g.fillRect(Math.round(x), Math.round(y) - 1, 2, 3);
+        const sz = f.small ? 1 : 2;
+        g.fillStyle = f.col[2]; g.fillRect(Math.round(x) - sz, Math.round(y), 1 + sz, 1);
+        g.fillStyle = f.col[0]; g.fillRect(Math.round(x), Math.round(y) - (sz > 1 ? 1 : 0), sz, sz + 1);
         g.fillStyle = '#ffffff'; g.fillRect(Math.round(x), Math.round(y), 1, 1);
       } else if (f.k === 'orb') {
         const p = Math.min(1, ft / f.life), x = f.x + (f.tx - f.x) * p, y = f.y + (f.ty - f.y) * p;
@@ -1336,6 +1782,28 @@
         const r = 2 + ft * 2; g.fillStyle = f.col;
         for (let i = 0; i < 8; i++) { const ang = i * 0.785 + ft; g.fillRect(Math.round(f.x + Math.cos(ang) * r), Math.round(f.y + Math.sin(ang) * r), 1, 1); }
         if (ft < 1) { g.fillStyle = '#ffffff'; g.fillRect(f.x - 1, f.y - 1, 3, 3); }
+      } else if (f.k === 'blast') {
+        const r = 6 + ft * 5, fade = 1 - ft / f.life, col = f.col || ['#e8ffff', '#60e0ff', '#2060a0'];
+        g.fillStyle = col[1];
+        for (let i = 0; i < 18; i++) {
+          const ang = i * 0.35 + ft * 0.25, rr = r * (0.7 + (i % 3) * 0.15);
+          g.globalAlpha = fade;
+          g.fillRect(Math.round(f.x + Math.cos(ang) * rr), Math.round(f.y + Math.sin(ang) * rr * 0.7), 2, 2);
+        }
+        g.globalAlpha = fade * 0.7; g.fillStyle = col[0];
+        g.fillRect(Math.round(f.x) - 2, Math.round(f.y) - 2, 5, 5);
+        g.globalAlpha = 1;
+        if (ft < 2) { g.fillStyle = '#ffffff'; g.fillRect(f.x - 3, f.y - 3, 7, 7); }
+      } else if (f.k === 'dirt') {
+        const x = f.x + (f.vx || 0) * ft, y = f.y + (f.vy || 0) * ft + 0.35 * ft * ft;
+        g.fillStyle = '#5a4630'; g.fillRect(Math.round(x), Math.round(y), 2, 1);
+        g.fillStyle = '#3a2a1a'; g.fillRect(Math.round(x) + 1, Math.round(y) + 1, 1, 1);
+      } else if (f.k === 'glint') {
+        const p = Math.min(1, ft / f.life);
+        const x = f.x + (f.tx - f.x) * p, y = f.y + (f.ty - f.y) * p - Math.sin(p * Math.PI) * 8;
+        g.fillStyle = '#fff6d0'; g.fillRect(Math.round(x), Math.round(y), 2, 2);
+        g.fillStyle = '#ffe070'; g.fillRect(Math.round(x) - 1, Math.round(y), 1, 1);
+        if (p > 0.7) { g.fillStyle = '#ffffff'; g.fillRect(Math.round(x), Math.round(y) - 1, 1, 1); }
       } else if (f.k === 'flash') {
         g.fillStyle = '#fff2a0'; g.fillRect(f.x, f.y - 1, 3, 3); g.fillStyle = '#ffb040'; g.fillRect(f.x + 3, f.y, 2, 1); g.fillRect(f.x + 1, f.y - 2, 1, 1); g.fillRect(f.x + 1, f.y + 2, 1, 1);
       } else if (f.k === 'block') {
@@ -1351,6 +1819,8 @@
     }
     for (const c of s.coins) { const x = ix(c, a), y = ix(c, a, 'y'); g.fillStyle = '#5a3a08'; g.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3); g.fillStyle = (s.t + c.t) % 2 ? '#ffe070' : '#d8a030'; g.fillRect(Math.round(x), Math.round(y), 1, 1); }
     for (const n of s.nums) text(g, n.v, n.x, n.y, n.col);
+    drawProps(g, s.scroll, a, scStep, 'fg');
+    if (s.toast) text(g, s.toast.msg, s.heroX + 8, 8, '#ffe070');
   }
 
   // ---------- lifecycle ----------
@@ -1462,9 +1932,30 @@
     _spawn(type, opts) {
       if (!st) st = freshState();
       const m = spawn(type || 'rat');
-      if (opts) Object.assign(m, opts);
-      if (m.x == null) m.x = st.heroX + 50;
+      if (opts && m) Object.assign(m, opts);
+      if (m && m.x == null) m.x = st.heroX + 50;
       return m;
+    },
+    _spawnPack(kind, leader) {
+      if (!st) st = freshState();
+      return spawnPack(kind || 'rats', !!leader);
+    },
+    _spawnProp(type, opts) {
+      if (!st) st = freshState();
+      seedProps(st);
+      return addProp(st, type || 'rubble', opts || { x: st.heroX + 36 });
+    },
+    _forceDig() { if (st) { const p = (st.props || []).find(q => q.dig && !q.looted) || addProp(st, 'rubble', { x: st.heroX + 32 }); st.forceDig = true; startDig(st, p); } },
+    _forceHop() { if (st) { const p = (st.props || []).find(q => q.hop && !q.used) || addProp(st, 'boulder', { x: st.heroX + 30 }); startHop(st, p); } },
+    _pickMoveAt(dist, packN) {
+      if (!st) st = freshState();
+      if (packN) {
+        st.mons = [];
+        for (let i = 0; i < packN; i++) st.mons.push({ type: 'rat', x: st.heroX + 40 + dist + i * 8, hp: 8, max: 8, dead: 0, w: 8, h: 8 });
+        st.mon = st.mons[0];
+      } else { st.mons = []; st.mon = { type: 'rat', x: st.heroX + 40 + dist, hp: 20, max: 20, dead: 0, w: 8, h: 8 }; }
+      const mv = pickMove(atkKind(eqNow()), dist);
+      return { move: mv, pack: living(st).length, dist };
     },
     _cycleAttacks() {
       stop();
@@ -1473,7 +1964,7 @@
       const S0 = stats(eqNow(), lvl());
       st.max = S0.hp; st.hp = S0.hp; st.fx = []; st.nums = []; st.coins = [];
       const out = {};
-      const clsOf = { overhead: 'warrior', sweep: 'warrior', bash: 'warrior', bolt: 'mage', chain: 'mage', orb: 'mage', single: 'shooter', burst: 'shooter', grenade: 'shooter' };
+      const clsOf = { overhead: 'warrior', sweep: 'warrior', bash: 'warrior', cleave: 'warrior', bolt: 'mage', chain: 'mage', orb: 'mage', blast: 'mage', single: 'shooter', burst: 'shooter', grenade: 'shooter' };
       for (const mv of MOVES.warrior.concat(MOVES.mage, MOVES.shooter)) {
         st.forceCls = clsOf[mv];
         st.mode = 'fight'; st.seq = null; st.seqI = 0; st.atkT = 0; st.pose = ''; st.fx = []; st.lunge = 0;
@@ -1567,6 +2058,101 @@
         } catch (e) { rec.error = String(e); }
         out.mons[type] = rec;
       }
+      return out;
+    },
+    _cycleProps() {
+      stop();
+      if (!st) st = freshState();
+      if (!cv) { try { size(); } catch (e) {} }
+      st.props = []; st.scroll = 0; st.nextProp = 0; st.mode = 'run'; st.mon = null; st.mons = [];
+      const types = Object.keys(PROP);
+      const spawned = [];
+      let x = st.heroX + 20;
+      for (const t of types) {
+        const p0 = addProp(st, t, { x: x, v: 0 });
+        spawned.push({ type: t, w: p0.w, h: p0.h, hop: !!p0.hop, dig: !!p0.dig });
+        x += (p0.w || 16) + 8;
+      }
+      let error = null;
+      try { draw(); } catch (e) { error = String(e); }
+      const drawn = st.props.map(p => ({ type: p.k, sx: Math.round(propScreenX(p, st.scroll, 0, 0)), onscreen: propScreenX(p, st.scroll, 0, 0) < W }));
+      return { types, spawned, drawn, count: st.props.length, error };
+    },
+    _cycleDig() {
+      stop();
+      if (!st) st = freshState();
+      if (!cv) { try { size(); } catch (e) {} }
+      const gold0 = bstats.gold;
+      st.mode = 'run'; st.mon = null; st.mons = []; st.fx = []; st.nums = [];
+      const p0 = addProp(st, 'rubble', { x: st.heroX + 32 });
+      startDig(st, p0);
+      const frames = [];
+      for (let i = 0; i < 22; i++) {
+        tick();
+        try { draw(); } catch (e) { return { error: String(e), frames }; }
+        frames.push({ mode: st.mode, loco: heroLoco(st), digT: st.digT, toast: !!(st.toast), fx: st.fx.map(f => f.k) });
+      }
+      return { ended: st.mode === 'run', gold: bstats.gold > gold0, toasted: frames.some(f => f.toast || (f.fx || []).includes('glint')), dug: frames.some(f => f.mode === 'dig'), dirt: frames.some(f => (f.fx || []).includes('dirt')), frames: frames.length };
+    },
+    _cycleHop() {
+      stop();
+      if (!st) st = freshState();
+      if (!cv) { try { size(); } catch (e) {} }
+      st.mode = 'run'; st.mon = null; st.mons = [];
+      const p0 = addProp(st, 'boulder', { x: st.heroX + 30 });
+      startHop(st, p0);
+      let maxY = 0;
+      for (let i = 0; i < 16; i++) {
+        tick();
+        try { draw(); } catch (e) { return { error: String(e) }; }
+        if (Math.abs(st.hopY || 0) > maxY) maxY = Math.abs(st.hopY || 0);
+      }
+      return { ended: st.mode === 'run', hopped: maxY >= 6, maxY };
+    },
+    _cyclePacks() {
+      stop();
+      if (!st) st = freshState();
+      if (!cv) { try { size(); } catch (e) {} }
+      const collect = (ticks, forceCls, forceMove, kind, leader) => {
+        st.forceCls = forceCls;
+        if (kind) spawnPack(kind, !!leader);
+        const n = living(st).length, hasLeader = allMons(st).some(m => m.leader);
+        st.mode = 'fight'; st.seq = null; st.seqI = 0; st.atkT = 0; st.fx = []; st.pose = ''; st.move = ''; st.forceMove = forceMove; st.leap = null;
+        const kinds = [], seen = {};
+        let first = '';
+        for (let i = 0; i < ticks; i++) {
+          tick();
+          if (!first && st.move) first = st.move;
+          for (const f of st.fx) { const k = f.k + (f.style ? ':' + f.style : ''); if (!seen[k]) { seen[k] = 1; kinds.push(k); } }
+        }
+        return { n, leader: hasLeader, kinds, move: first || st.move };
+      };
+      const out = {};
+      out.rats = collect(24, 'warrior', 'cleave', 'rats', true);
+      out.bats = collect(24, 'warrior', 'cleave', 'bats', false);
+      out.spiders = collect(24, 'warrior', 'cleave', 'spiders', false);
+      out.shooter = collect(30, 'shooter', 'grenade', 'rats', false);
+      out.mage = collect(24, 'mage', 'blast', 'bats', false);
+      st.forceCls = null; st.forceMove = null;
+      return out;
+    },
+    _cycleRange() {
+      stop();
+      if (!st) st = freshState();
+      const out = { mage: {}, shooter: {} };
+      st.forceCls = 'mage';
+      out.mage.far = this._pickMoveAt(110, 0).move;
+      out.mage.mid = this._pickMoveAt(60, 0).move;
+      out.mage.close = this._pickMoveAt(20, 0).move;
+      out.mage.pack = this._pickMoveAt(40, 4).move;
+      st.forceCls = 'shooter';
+      out.shooter.far = this._pickMoveAt(120, 0).move;
+      out.shooter.mid = this._pickMoveAt(65, 0).move;
+      out.shooter.close = this._pickMoveAt(20, 0).move;
+      out.shooter.pack = this._pickMoveAt(40, 4).move;
+      st.forceCls = 'warrior';
+      out.warrior = { solo: this._pickMoveAt(20, 0).move, pack: this._pickMoveAt(20, 4).move };
+      st.forceCls = null;
       return out;
     }
   };
