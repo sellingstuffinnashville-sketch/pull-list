@@ -697,7 +697,7 @@ async function applyResetIfNeeded(epoch) {
 // pick up the cleared shared list. Do not touch hero/XP profiles or login. A second pass
 // (applyPartNoteResetIfNeeded) also drops per-part notes, VIN marks, and part photos.
 const CHECK_RESET_KEY = 'pl_checkoff_reset_epoch';
-const LOCAL_CHECKOFF_RESET_EPOCH = 1795031000000; // v47 Field Test Reset pass 3 (1:43 PM CT Nov 18): also wipes the 35 Nov 13 checks device B re-added at 1:21 PM. v45 used 1795030000000. Do not lower.
+const LOCAL_CHECKOFF_RESET_EPOCH = 1795040100000; // v48 Field Test Reset pass 4 (4:15 PM CT Nov 18): wipe all check-offs again. Do not lower.
 const checkEpochNow = () => Number(localStorage.getItem(CHECK_RESET_KEY) || 0);
 function isCheckoffKey(k) { return /^(got|rm|why|day):/.test(String(k || '')); }
 async function applyCheckoffResetIfNeeded(epoch) {
@@ -730,11 +730,11 @@ async function applyCheckoffResetIfNeeded(epoch) {
   return true;
 }
 
-// Field Test Reset pass 2: also clear per-part notes, VIN marks, photo deletions, and
+// Field Test Reset pass 2+: also clear per-part notes, VIN marks, photo deletions, and
 // uploaded part/VIN photos. Keep receipts (tday / RECEIPT_*), hero profiles, XP, and login.
-// Cutoff is 1:21:00 PM CT Nov 18 (after leftover test marks, before new yard activity).
+// v48 cutoff is 4:15:00 PM CT Nov 18 so afternoon marks are included.
 const PARTNOTE_RESET_KEY = 'pl_partnote_reset_epoch';
-const LOCAL_PARTNOTE_RESET_EPOCH = 1795029660000; // keep in sync with Apps Script PARTNOTE_RESET_EPOCH
+const LOCAL_PARTNOTE_RESET_EPOCH = 1795040100000; // keep in sync with Apps Script PARTNOTE_RESET_EPOCH
 const partNoteEpochNow = () => Number(localStorage.getItem(PARTNOTE_RESET_KEY) || 0);
 function isReceiptName(name) { return /^RECEIPT_/i.test(String(name || '')); }
 function isPartNoteKey(k, rec) {
