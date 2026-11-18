@@ -1134,7 +1134,274 @@
     return S;
   }
 
-  const cache = new Map(), ccache = new Map();
+  // ================= SIDE PROFILE (walk / run / idle-side) =================
+  // Facing right. 56 x 64 so a long stride and trailing cape have room. Body plant at x=30, feet at y=61.
+  const SIDE_W = 56, SIDE_CX = 30, SIDE_FEET = 61;
+  function gaitPose(loco, frame) {
+    const n = 8, p = ((frame % n) + n) % n, tau = (p / n) * Math.PI * 2;
+    if (loco === 'idle' || loco === 'stand') {
+      const breath = Math.sin(tau) * 0.5;
+      return { rx: 1.2, lx: -1.2, rLift: 0, lLift: 0, bob: breath, head: breath * 0.4, cape: -3, flutter: Math.sin(tau * 0.5) * 0.8, lean: 0, armR: 0.5, armL: -0.5, armRY: 0, armLY: 0, run: false };
+    }
+    const run = loco === 'run';
+    const stride = run ? 8 : 5, lift = run ? 5 : 3, flight = run ? 1.2 : 0;
+    return {
+      rx: Math.cos(tau) * stride,
+      rLift: Math.max(flight, -Math.sin(tau)) * lift,
+      lx: -Math.cos(tau) * stride,
+      lLift: Math.max(flight, Math.sin(tau)) * lift,
+      bob: -Math.abs(Math.cos(tau)) * (run ? 3 : 1.4) + (run ? 1 : 0),
+      head: -Math.abs(Math.cos(tau - 0.45)) * (run ? 2.2 : 1.1) + (run ? 0.4 : 0),
+      cape: -4 - Math.sin(tau - 0.8) * (run ? 4 : 2) - (run ? 3 : 0),
+      flutter: Math.sin(tau - 0.8) * (run ? 3.5 : 1.8),
+      lean: run ? 5 : 1.5,
+      armR: -Math.cos(tau) * (run ? 6 : 4),
+      armL: Math.cos(tau) * (run ? 6 : 4),
+      armRY: Math.sin(tau) * (run ? 2 : 1.2),
+      armLY: -Math.sin(tau) * (run ? 2 : 1.2),
+      run
+    };
+  }
+  function capeMatOf(id) {
+    if (!id) return null;
+    if (id === 'cape-crimson') return 'crimson';
+    if (id === 'cape-night' || id === 'mg-cape-void') return 'capeN';
+    if (id === 'sh-cape-officer') return 'night';
+    if (id === 'mg-cape-star') return 'robeB';
+    if (id === 'mg-cape-grey' || id === 'cape-ash') return 'ash';
+    if (id === 'sh-cape-camo' || id === 'sh-cape-coat') return 'drab';
+    return 'ash';
+  }
+  function bodyMats(eq, cls) {
+    if (cls === 'shooter') {
+      const a = SH_ARMOR[eq.armor];
+      return { body: a ? (a.plate || a.vest || 'drab') : 'cloth', trim: a ? a.trim : 'leather', boot: 'leather', pants: a ? ((a.vest === 'night' || a.vest === 'crimson') ? 'night' : 'drab') : 'cloth', skin: 'skin' };
+    }
+    if (cls === 'mage') {
+      const r = MG_ROBE[eq.armor];
+      return { body: r ? r.robe : 'rag', trim: r ? r.trim : 'wood', boot: 'leather', pants: r ? r.robe : 'rag', skin: 'skin', runes: r && r.runes, stars: r && r.stars };
+    }
+    const a = ARMOR[eq.armor];
+    return { body: a ? a[0] : 'cloth', trim: a ? (a[1] === 'white' ? 'gold' : a[1]) : 'leather', boot: a ? 'iron' : 'rag', pants: a ? (a[0] === 'gold' ? 'gold' : 'iron') : 'skin', skin: 'skin', armored: !!a };
+  }
+  function sideLeg(S, hipX, hipY, footX, lift, mat, boot, thick) {
+    const fy = SIDE_FEET - lift, fx = hipX + footX, mx = hipX + footX * 0.5, my = (hipY + fy) * 0.5, t = thick || 2.2;
+    S.P({ shine: true }); S.poly([[hipX - t, hipY], [hipX + t, hipY], [mx + t, my], [mx - t, my]], mat);
+    S.P({ shine: true }); S.poly([[mx - t, my], [mx + t, my], [fx + t, fy - 3], [fx - t * 0.8, fy - 3]], mat);
+    S.P(); S.poly([[fx - 3, fy - 3], [fx + 5, fy - 3], [fx + 6, fy], [fx - 2, fy]], boot);
+  }
+  function sideArm(S, shX, shY, handX, handY, mat, skin, thick) {
+    const mx = (shX + handX) * 0.5, my = (shY + handY) * 0.5 + 1, t = thick || 1.8;
+    S.P({ shine: true }); S.poly([[shX - t, shY], [shX + t, shY + 1], [mx + t, my], [mx - t, my]], mat);
+    S.P({ shine: true }); S.poly([[mx - t, my], [mx + t, my], [handX + t, handY], [handX - t, handY]], mat);
+    S.P({ shine: true }); S.ell(handX, handY, 1.8, 1.7, skin);
+  }
+  function drawCapeSide(S, id, shX, shY, G) {
+    const mat = capeMatOf(id); if (!mat) return;
+    const tail = shX + (G.cape || -4), flutter = G.flutter || 0, hem = SIDE_FEET - 4;
+    S.P({ round: true });
+    S.poly([[shX - 1, shY], [shX + 4, shY + 2], [tail + 6, shY + 16], [tail + flutter, hem], [tail - 3, hem - 2 + Math.abs(flutter) * 0.3], [tail + 2, shY + 14]], mat);
+    S.tone(tail + 2, shY + 20, -1);
+    if (id === 'cape-night' || id === 'sh-cape-officer') { S.P({ flat: true, nocs: true }); S.line(tail - 1, hem - 1, tail + 6, hem, 'gold', 2); }
+    if (id === 'mg-cape-void') { S.P({ flat: true, nocs: true }); S.line(tail, shY + 16, tail + flutter, hem, 'glowP'); S.glow(tail, shY + 22, 4, 'glowP', 0.3); }
+    if (id === 'mg-cape-star') { S.P({ flat: true, nocs: true }); [[tail + 2, shY + 18], [tail, shY + 28], [tail + 4, hem - 6]].forEach(([x, y]) => S.px(x, y, 'white')); }
+    if (id === 'sh-cape-camo') { S.P({ flat: true, nocs: true }); S.rect(tail + 1, shY + 20, 2, 2, 'khaki', 1); S.rect(tail, hem - 8, 2, 2, 'leather', 2); }
+    if (id === 'cape-ash') { S.P({ flat: true, nocs: true }); S.px(tail + 1, hem - 3, null); S.px(tail + 3, hem - 5, null); }
+  }
+  function drawPackSide(S, id, cls, backX, backY) {
+    if (!id) return;
+    if (id === 'pack-banner') {
+      S.P(); S.rect(backX - 1, 2, 2, backY + 20, 'wood');
+      S.P({ round: true }); S.poly([[backX + 1, 4], [backX + 10, 4], [backX + 10, 16], [backX + 1, 16]], 'crimson');
+      skull(S, backX + 5, 9, 'glowR');
+      return;
+    }
+    if (id === 'pack-rack' || id === 'sh-pack-rack') {
+      S.P(); S.rect(backX - 2, backY - 2, 8, 8, 'iron');
+      S.P({ flat: true }); S.line(backX, backY - 2, backX - 2, backY - 12, 'steel', 1); S.line(backX + 5, backY - 2, backX + 6, backY - 11, 'steel', 0);
+      return;
+    }
+    if (id === 'pack-censer') {
+      S.P({ shine: true }); S.rect(backX - 1, backY, 8, 8, 'brass');
+      S.P({ shine: true }); S.ell(backX - 3, backY + 12, 2.4, 2.4, 'brass'); S.glow(backX - 3, backY + 12, 4, 'ember', 0.4);
+      return;
+    }
+    if (id === 'sh-pack-vox') { S.P({ shine: true }); S.rect(backX, backY, 7, 8, 'urban'); S.P(); S.rect(backX + 2, backY - 3, 2, 3, 'iron'); return; }
+    if (id === 'mg-pack-scrolls' || id === 'mg-pack-tome' || id === 'mg-pack-candles') {
+      S.P({ shine: true }); S.rect(backX, backY, 6, 8, id === 'mg-pack-tome' ? 'leather' : 'parch');
+      if (id === 'mg-pack-candles') { S.P(); S.rect(backX + 1, backY - 4, 1, 4, 'parch'); S.px(backX + 1, backY - 5, 'ember'); }
+      return;
+    }
+    S.P({ shine: true }); S.rect(backX, backY, 8, 9, cls === 'shooter' ? 'drab' : 'iron');
+  }
+  function drawPaulSide(S, id, cls, x, y) {
+    if (!id) return;
+    if (cls === 'mage') {
+      const mat = id === 'mg-paul-fur' ? 'fur' : id === 'mg-paul-bone' ? 'bone' : id === 'mg-paul-crystal' ? 'crystal' : 'gold';
+      S.P({ shine: true, round: true }); S.poly([[x - 4, y + 4], [x - 3, y - 2], [x + 5, y - 3], [x + 6, y + 3]], mat);
+      if (id === 'mg-paul-crystal') { S.P({ flat: true }); S.line(x, y - 2, x + 1, y - 8, 'crystal', 2); S.glow(x + 1, y - 6, 3, 'glowC', 0.4); }
+      if (id === 'mg-paul-bone') skull(S, x, y, 'void');
+      return;
+    }
+    if (cls === 'shooter') {
+      const mat = id === 'sh-paul-gilt' ? 'gold' : id === 'sh-paul-stripe' ? 'steel' : 'drab';
+      S.P({ shine: true }); S.rect(x - 3, y, 8, 4, mat);
+      if (id === 'sh-paul-gilt') { S.P({ flat: true, nocs: true }); S.line(x - 2, y, x + 4, y, 'gold', 3); }
+      return;
+    }
+    const mat = (id === 'paul-gilt' || id === 'paul-sun') ? 'gold' : id === 'paul-bone' ? 'bone' : 'iron';
+    S.P({ shine: true, round: true }); S.poly([[x - 4, y + 6], [x - 4, y - 1], [x + 1, y - 4], [x + 7, y - 2], [x + 6, y + 5]], mat);
+    if (id === 'paul-spike') { S.P({ flat: true }); S.line(x, y - 2, x, y - 9, 'steel', 2); S.line(x + 3, y - 2, x + 4, y - 8, 'steel', 1); }
+    if (id === 'paul-bone') skull(S, x + 1, y, 'void');
+    if (id === 'paul-gilt' || id === 'paul-sun') { S.P({ flat: true, nocs: true }); S.line(x - 2, y - 1, x + 5, y - 1, 'gold', 3); }
+  }
+  function drawHeadSide(S, eq, cls, cx, cy) {
+    const id = eq.helm;
+    S.P({ shine: true }); S.ell(cx, cy, 4, 5, 'skin');
+    S.P({ shine: true }); S.poly([[cx + 2, cy - 3], [cx + 6, cy - 1], [cx + 6.5, cy + 1], [cx + 5, cy + 3], [cx + 2, cy + 4]], 'skin');
+    S.P({ flat: true, nocs: true }); S.px(cx + 3, cy - 1, 'void'); S.px(cx + 3, cy - 2, 'skin', 0); S.line(cx + 4, cy + 2, cx + 5, cy + 2, 'skin', 0);
+    S.P(); S.ell(cx - 3, cy, 1.3, 1.7, 'skin');
+    if (!id) {
+      if (cls === 'mage') {
+        const robe = bodyMats(eq, cls).body;
+        S.P({ round: true }); S.poly([[cx - 6, cy + 6], [cx - 6, cy - 2], [cx - 2, cy - 7], [cx + 4, cy - 6], [cx + 6, cy - 1], [cx + 3, cy + 1], [cx - 2, cy + 1], [cx - 4, cy + 6]], robe);
+      } else {
+        S.P(); S.poly([[cx - 4, cy - 1], [cx - 3, cy - 6], [cx + 2, cy - 6], [cx + 4, cy - 3], [cx + 1, cy - 1]], 'hair');
+      }
+      return;
+    }
+    if (id.indexOf('mg-helm') === 0) {
+      const robe = bodyMats(eq, cls).body;
+      S.P({ round: true }); S.poly([[cx - 6, cy + 6], [cx - 7, cy - 1], [cx - 2, cy - 8], [cx + 5, cy - 7], [cx + 7, cy - 1], [cx + 4, cy + 1], [cx - 2, cy + 2], [cx - 4, cy + 7]], robe);
+      if (id === 'mg-helm-circlet' || id === 'mg-helm-crown') { S.P({ shine: true }); S.rect(cx - 3, cy - 5, 8, 2, 'gold'); }
+      if (id === 'mg-helm-crystal') { S.P({ flat: true }); S.line(cx + 1, cy - 7, cx + 2, cy - 12, 'crystal', 2); S.glow(cx + 2, cy - 10, 3, 'glowC', 0.4); }
+      if (id === 'mg-helm-mask' || id === 'mg-helm-crown') { S.P({ shine: true }); S.ell(cx + 2, cy, 3, 3.2, 'gold'); S.P({ flat: true, nocs: true }); S.px(cx + 3, cy - 1, 'glowY'); }
+      return;
+    }
+    if (id.indexOf('sh-helm') === 0) {
+      if (id === 'sh-helm-cap' || id === 'sh-helm-peak') {
+        S.P(); S.poly([[cx - 5, cy], [cx - 3, cy - 5], [cx + 3, cy - 5], [cx + 6, cy - 1], [cx + 8, cy + 1], [cx + 2, cy + 1]], id === 'sh-helm-peak' ? 'night' : 'drab');
+        if (id === 'sh-helm-peak') { S.P({ flat: true, nocs: true }); S.line(cx - 2, cy - 2, cx + 5, cy - 2, 'gold', 2); }
+      } else {
+        const mat = id === 'sh-helm-sun' ? 'gold' : 'iron';
+        S.P({ shine: true, round: true }); S.poly([[cx - 5, cy + 3], [cx - 5, cy - 3], [cx, cy - 6], [cx + 5, cy - 5], [cx + 6, cy + 2], [cx + 3, cy + 5]], mat);
+        S.P({ flat: true, nocs: true }); S.rect(cx + 1, cy - 1, 5, 2, 'void');
+        if (id === 'sh-helm-mask') { S.P(); S.rect(cx, cy + 1, 6, 3, 'urban'); }
+        if (id === 'sh-helm-sun') S.glow(cx + 2, cy - 5, 4, 'ember', 0.4);
+      }
+      return;
+    }
+    const goldish = id === 'helm-mask' || id === 'helm-phoenix' || id === 'helm-laurel';
+    const mat = goldish ? 'gold' : id === 'helm-skull' ? 'bone' : 'iron';
+    if (id === 'helm-crest') { S.P({ round: true }); S.poly([[cx - 1, cy - 5], [cx + 1, cy - 12], [cx + 6, cy - 8], [cx + 4, cy - 5]], 'plume'); }
+    if (id === 'helm-phoenix') { S.P({ round: true }); S.poly([[cx, cy - 6], [cx + 1, cy - 12], [cx + 4, cy - 7]], 'gold'); S.px(cx + 1, cy - 12, 'fire'); S.glow(cx + 1, cy - 11, 3, 'ember', 0.5); }
+    if (id === 'helm-horn') { S.P(); S.poly([[cx + 2, cy - 4], [cx + 8, cy - 10], [cx + 7, cy - 6], [cx + 3, cy - 3]], 'bone'); }
+    S.P({ shine: true, round: true }); S.poly([[cx - 5, cy + 4], [cx - 5, cy - 3], [cx - 1, cy - 7], [cx + 4, cy - 6], [cx + 6, cy - 1], [cx + 5, cy + 5], [cx + 1, cy + 6]], mat);
+    S.P({ flat: true, nocs: true }); S.rect(cx + 1, cy - 1, 5, 2, 'void');
+    const glow = id === 'helm-phoenix' || id === 'helm-mask' ? 'glowY' : (id === 'helm-skull' ? 'glowR' : 'glowC');
+    S.rect(cx + 2, cy - 1, 3, 1, glow);
+    if (id === 'helm-skull' || id === 'helm-mask') { S.P({ shine: true }); S.ell(cx + 2, cy + 1, 3, 3, id === 'helm-mask' ? 'gold' : 'bone'); S.P({ flat: true, nocs: true }); S.px(cx + 3, cy, glow); }
+    if (id === 'helm-laurel') { S.P({ flat: true, nocs: true }); S.line(cx - 3, cy - 5, cx + 4, cy - 6, 'leaf', 2); }
+  }
+  function drawWepSide(S, id, cls, hx, hy, G) {
+    id = id || '';
+    if (cls === 'mage' || id.indexOf('mg-wep') === 0) {
+      if (id === 'mg-wep-sword') {
+        S.P({ shine: true }); S.poly([[hx, hy - 2], [hx + 14, hy - 4], [hx + 15, hy - 2], [hx, hy + 1]], 'steel');
+        S.P(); S.rect(hx - 2, hy - 1, 4, 3, 'leather');
+        return;
+      }
+      const tipy = hy - 20 + (G.armRY || 0), tipx = hx - 1 + (G.armR || 0) * 0.15;
+      const mat = id === 'mg-wep-iron' ? 'iron' : (id === 'mg-wep-crystal' ? 'crystal' : 'wood');
+      S.P(); S.line(hx, hy, tipx, tipy, mat, 2);
+      S.P({ shine: true });
+      if (id === 'mg-wep-skull') skull(S, tipx, tipy, 'glowP');
+      else if (id === 'mg-wep-orb' || id === 'mg-wep-eye' || id === 'mg-wep-storm') {
+        S.ell(tipx, tipy, 2.4, 2.4, id === 'mg-wep-storm' ? 'gold' : 'crystal');
+        S.P({ flat: true, nocs: true }); S.px(tipx, tipy, 'glowP'); S.glow(tipx, tipy, 5, 'glowP', 0.45);
+      } else if (id === 'mg-wep-crystal') {
+        S.poly([[tipx, tipy - 4], [tipx + 2, tipy], [tipx, tipy + 2], [tipx - 2, tipy]], 'crystal'); S.glow(tipx, tipy, 4, 'glowC', 0.4);
+      } else S.ell(tipx, tipy, 1.6, 1.6, 'wood');
+      return;
+    }
+    const gun = cls === 'shooter' || /rifle|carbine|sun|slug|siege|revolver|boltc|pipe/.test(id);
+    if (gun) {
+      const mat = /sun|siege/.test(id) ? 'gold' : (/slug|boltc/.test(id) ? 'blood' : 'iron');
+      S.P({ shine: true }); S.rect(hx - 2, hy - 2, 14, 3, mat);
+      S.P(); S.rect(hx + 12, hy - 3, 5, 2, 'steel');
+      S.P(); S.rect(hx - 4, hy - 1, 3, 4, 'wood');
+      S.P({ flat: true, nocs: true }); S.px(hx + 16, hy - 3, 'void');
+      if (/sun/.test(id)) S.glow(hx + 14, hy - 2, 4, 'ember', 0.4);
+      return;
+    }
+    S.P(); S.rect(hx - 1, hy - 2, 3, 5, 'leather');
+    if (id === 'wep-axe' || id === 'wep-maul' || id === 'wep-storm') {
+      S.P(); S.line(hx, hy, hx + 1, hy - 16, 'wood', 2);
+      S.P({ shine: true });
+      if (id === 'wep-axe') S.poly([[hx - 2, hy - 16], [hx + 8, hy - 14], [hx + 8, hy - 18], [hx, hy - 20]], 'steel');
+      else S.ell(hx + 1, hy - 17, 4, 3.2, 'iron');
+      if (id === 'wep-storm' || id === 'wep-maul') S.glow(hx + 1, hy - 17, 4, 'glowC', 0.35);
+    } else {
+      S.P({ round: true, shine: true }); S.poly([[hx - 1, hy - 3], [hx + 3, hy - 4], [hx + 4, hy - 18], [hx + 2, hy - 21], [hx, hy - 18]], 'steel');
+      S.P(); S.rect(hx - 3, hy - 4, 7, 2, id === 'wep-rune' ? 'brass' : 'iron');
+      if (id === 'wep-rune' || id === 'wep-glaive') { S.P({ flat: true, nocs: true }); S.px(hx + 2, hy - 12, 'glowC'); S.glow(hx + 2, hy - 12, 4, id === 'wep-glaive' ? 'ember' : 'glowC', 0.35); }
+    }
+  }
+  function drawFamiliarSide(S, id, x, y) {
+    if (id === 'pack-skull') { S.P({ shine: true }); S.ell(x, y, 3.4, 3.2, 'bone'); S.P({ flat: true, nocs: true }); S.px(x + 1, y, 'glowR'); S.glow(x, y, 3, 'glowR', 0.35); }
+    else if (id === 'sh-pack-drone') { S.P({ shine: true }); S.ell(x, y, 3, 2.2, 'iron'); S.P({ flat: true, nocs: true }); S.px(x + 1, y, 'glowC'); }
+    else if (id === 'mg-pack-grimoire') { S.P({ shine: true }); S.rect(x - 3, y - 3, 7, 6, 'leather'); S.glow(x, y, 3, 'glowP', 0.35); }
+  }
+  function drawHeroSide(S, eq, cls, loco, frame) {
+    const G = gaitPose(loco, frame), M = bodyMats(eq, cls);
+    const bob = G.bob, lean = G.lean;
+    const hipX = SIDE_CX + lean * 0.3, hipY = 44 + bob;
+    const chestX = SIDE_CX + lean, chestY = 22 + bob;
+    const headX = chestX + 3, headY = 11 + G.head;
+    const shX = chestX + 1, shY = 20 + bob;
+    S.P({ flat: true }); S.ell(SIDE_CX + (G.rx + G.lx) * 0.15, SIDE_FEET + 0.5, 12, 2.2, 'shadow');
+    if (cls !== 'mage') sideLeg(S, hipX - 1, hipY, G.lx, G.lLift, M.pants, M.boot, 2);
+    drawCapeSide(S, eq.cape, shX - 3, shY, G);
+    drawPackSide(S, eq.pack, cls, shX - 7, shY + 4);
+    sideArm(S, shX - 2, shY + 2, shX - 2 + G.armL - 1, shY + 16 + G.armLY, M.body, M.skin, 1.6);
+    if (cls === 'mage') {
+      S.P({ round: true, shine: true });
+      S.poly([[chestX - 3, chestY], [chestX + 5, chestY], [chestX + 6, hipY], [chestX + 7 + G.flutter * 0.3, SIDE_FEET - 1], [chestX - 4 + G.cape * 0.2, SIDE_FEET - 1], [chestX - 4, hipY]], M.body);
+      if (M.trim && M.trim !== 'iron') { S.P({ flat: true, nocs: true }); S.line(chestX - 3, SIDE_FEET - 2, chestX + 6, SIDE_FEET - 2, M.trim, 2); }
+      const fwd = G.rx >= G.lx ? [G.rx, G.rLift] : [G.lx, G.lLift];
+      S.P(); S.poly([[hipX + fwd[0] - 2, SIDE_FEET - fwd[1] - 3], [hipX + fwd[0] + 5, SIDE_FEET - fwd[1] - 3], [hipX + fwd[0] + 6, SIDE_FEET - fwd[1]], [hipX + fwd[0] - 1, SIDE_FEET - fwd[1]]], M.boot);
+      if (M.runes) { S.P({ flat: true, nocs: true }); S.px(chestX + 1, hipY, M.runes); S.glow(chestX + 1, hipY - 4, 5, M.runes, 0.25); }
+      if (M.stars) { S.P({ flat: true, nocs: true }); S.px(chestX, hipY - 6, 'white'); S.px(chestX + 3, hipY + 4, 'white'); }
+    } else {
+      S.P({ shine: true, round: true });
+      S.poly([[chestX - 3, chestY], [chestX + 6, chestY + 1], [chestX + 5, hipY + 2], [chestX - 3, hipY + 3]], M.body);
+      if (M.trim) { S.P({ nocs: true }); S.rect(chestX - 2, hipY - 2, 8, 2, M.trim === 'white' ? 'gold' : M.trim); }
+      sideLeg(S, hipX + 1, hipY, G.rx, G.rLift, M.pants, M.boot, 2.3);
+    }
+    S.P(); S.rect(chestX, chestY - 3, 3, 4, M.skin, -1);
+    drawPaulSide(S, eq.pauldrons, cls, shX + 2, shY);
+    drawHeadSide(S, eq, cls, headX, headY);
+    if (cls === 'shooter') {
+      const hx = shX + 8, hy = shY + 10 + G.armRY * 0.3;
+      sideArm(S, shX + 2, shY, hx, hy, M.body, 'leather', 1.8);
+      drawWepSide(S, eq.weapon, cls, hx, hy, G);
+    } else {
+      const hx = shX + 4 + G.armR, hy = shY + 15 + G.armRY;
+      sideArm(S, shX + 2, shY, hx, hy, M.body, M.skin, 1.9);
+      drawWepSide(S, eq.weapon, cls, hx, hy, G);
+    }
+    if (eq.pack === 'pack-skull' || eq.pack === 'sh-pack-drone' || eq.pack === 'mg-pack-grimoire') {
+      drawFamiliarSide(S, eq.pack, headX - 10, headY - 4 + Math.sin((frame || 0) * 0.7) * 1.5);
+    }
+  }
+  function heroSpriteSide(eq, rank, color, loco, frame) {
+    const S = new Spr(SIDE_W, 64);
+    drawHeroSide(S, eq || {}, eq && eq._cls || 'warrior', loco || 'run', frame | 0);
+    return S;
+  }
+
+  const cache = new Map(), ccache = new Map(), scache = new Map();
+
   function url(key, make, crop) {
     let u = cache.get(key);
     if (!u) {
@@ -1153,10 +1420,22 @@
     heroCanvas(eq, rank, color, pose) {
       const k = 'hc|' + JSON.stringify(eq) + '|' + rank + '|' + color + '|' + (pose || '');
       let c = ccache.get(k);
-      if (!c) { c = toCanvas(heroSprite(eq, rank, color, '', pose)); if (ccache.size > 60) ccache.clear(); ccache.set(k, c); }
+      if (!c) { c = toCanvas(heroSprite(eq, rank, color, '', pose)); if (ccache.size > 80) ccache.clear(); ccache.set(k, c); }
       return c;
     },
+    heroCanvasSide(eq, rank, color, loco, frame) {
+      const k = 'hs|' + JSON.stringify(eq) + '|' + rank + '|' + color + '|' + (loco || 'run') + '|' + (frame | 0);
+      let c = scache.get(k);
+      if (!c) {
+        c = toCanvas(heroSpriteSide(eq, rank, color, loco, frame));
+        c._ax = SIDE_CX;
+        if (scache.size > 120) scache.clear();
+        scache.set(k, c);
+      }
+      return c;
+    },
+    gaitPose: gaitPose,
     Spr: Spr, toCanvas: toCanvas, skull: skull,
-    HERO_W: 48, HERO_H: 64, CHEST_W: 52, CHEST_H: 46
+    HERO_W: 48, HERO_H: 64, HERO_SIDE_W: SIDE_W, HERO_SIDE_AX: SIDE_CX, CHEST_W: 52, CHEST_H: 46
   };
 })();

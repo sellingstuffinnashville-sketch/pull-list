@@ -46,14 +46,14 @@
     return P().toCanvas(S);
   }
   const MON = {
-    rat: { k: 3.1, name: 'Cave Rat', hp: 10, dmg: 2, w: 20, h: 11, min: 1, wt: 30, speed: 1.4, draw(S) {
+    rat: { k: 3.1, name: 'Cave Rat', hp: 10, dmg: 2, w: 20, h: 11, min: 1, wt: 30, speed: 1.4, gait: 'scurry', draw(S) {
       S.P({ round: true }); S.ell(11, 6.5, 6.5, 3.6, 'fur'); S.tone(9, 4, 1);
       S.P(); S.poly([[1, 7], [5, 3.5], [8, 4], [8, 9], [4, 9]], 'fur'); S.px(5, 3, 'skin', 2); S.px(6, 2, 'skin', 1);
       S.P({ flat: true, nocs: true }); S.px(4, 5, 'glowR'); S.px(1, 7, 'skin', 3); S.px(2, 8, 'bone', 4);
       S.P({ flat: true }); S.line(17, 6, 19, 3, 'skin', 1); S.px(19, 2, 'skin', 1);
       S.P({ flat: true }); S.px(6, 10, 'skin', 1); S.px(9, 10, 'skin', 1); S.px(13, 10, 'skin', 1); S.px(16, 10, 'skin', 1);
     } },
-    skel: { k: 1.6, name: 'Bone Walker', hp: 18, dmg: 3, w: 18, h: 27, min: 1, wt: 26, speed: 1, draw(S) {
+    skel: { k: 1.6, name: 'Bone Walker', hp: 18, dmg: 3, w: 18, h: 27, min: 1, wt: 26, speed: 1, gait: 'walk', draw(S) {
       S.P({ shine: true }); S.ell(9, 4.5, 3.4, 3.6, 'bone'); S.rect(7, 7, 4, 2, 'bone');
       S.P({ flat: true, nocs: true }); S.px(7, 4, 'void'); S.px(10, 4, 'void'); S.px(7, 4, 'glowR'); S.px(8, 8, 'void');
       S.P(); S.rect(9, 9, 1, 9, 'bone');
@@ -63,7 +63,7 @@
       S.line(6, 10, 4, 15, 'bone', 2); S.line(12, 10, 13, 15, 'bone', 1);
       S.P(); S.line(4, 15, 0, 9, 'rust'); S.line(4, 16, 1, 10, 'rust', -1); S.P(); S.rect(3, 15, 3, 1, 'iron');
     } },
-    cult: { k: 1.6, name: 'Hooded Zealot', hp: 24, dmg: 4, w: 18, h: 27, min: 2, wt: 20, speed: 1, draw(S) {
+    cult: { k: 1.6, name: 'Hooded Zealot', hp: 24, dmg: 4, w: 18, h: 27, min: 2, wt: 20, speed: 1, gait: 'walk', draw(S) {
       S.P({ round: true }); S.poly([[5, 9], [13, 9], [15, 26], [3, 26]], 'crimson'); S.tone(7, 15, 1); S.tone(12, 20, -1);
       S.P({ round: true }); S.poly([[5, 9], [6, 3], [9, 1], [12, 3], [13, 9]], 'crimson', -1);
       S.P({ flat: true, nocs: true }); S.rect(6, 4, 5, 4, 'void'); S.px(7, 5, 'glowY'); S.px(9, 5, 'glowY');
@@ -71,7 +71,7 @@
       S.P(); S.rect(3, 15, 3, 2, 'skin', -1);
       S.P(); S.poly([[0, 13], [4, 15], [4, 16], [0, 15]], 'steel');
     } },
-    crawl: { k: 2.7, name: 'Plague Crawler', hp: 20, dmg: 3, w: 24, h: 13, min: 3, wt: 16, speed: 1.2, draw(S) {
+    crawl: { k: 2.7, name: 'Plague Crawler', hp: 20, dmg: 3, w: 24, h: 13, min: 3, wt: 16, speed: 1.2, gait: 'scuttle', draw(S) {
       S.P({ flat: true }); for (let k = 0; k < 4; k++) { S.line(6 + k * 4, 9, 4 + k * 4, 12, 'sick', 1); S.line(7 + k * 4, 9, 9 + k * 4, 12, 'sick', 0); }
       S.P({ round: true }); S.ell(16, 7, 6, 4.4, 'sick');
       S.P({ round: true }); S.ell(9, 7, 4.5, 4, 'sick');
@@ -80,7 +80,7 @@
       S.px(15, 4, 'glowG'); S.px(18, 5, 'glowG'); S.px(12, 5, 'glowG');
       
     } },
-    mut: { k: 1.6, name: 'Pit Mutant', hp: 34, dmg: 5, w: 24, h: 28, min: 4, wt: 12, speed: 0.8, draw(S) {
+    mut: { k: 1.6, name: 'Pit Mutant', hp: 34, dmg: 5, w: 24, h: 28, min: 4, wt: 12, speed: 0.8, gait: 'walk', draw(S) {
       S.P(); S.rect(10, 20, 3, 8, 'flesh', -1); S.P(); S.rect(15, 20, 3, 8, 'flesh', -1);
       S.P({ round: true, shine: true }); S.ell(14, 14, 7.5, 8, 'flesh');
       S.P({ flat: true, nocs: true }); S.line(11, 10, 17, 17, 'skin', 0); for (let k = 0; k < 4; k++) S.px(12 + k * 1.6, 12 + k * 1.6, 'bone', 3);
@@ -88,7 +88,7 @@
       S.P({ round: true }); S.poly([[8, 10], [3, 14], [1, 21], [6, 22], [9, 16]], 'flesh'); S.P({ shine: true }); S.ell(3, 22, 3, 2.5, 'flesh', 1);
       S.P({ flat: true }); S.px(1, 24, 'bone', 4); S.px(4, 24, 'bone', 4); S.P(); S.rect(10, 17, 9, 2, 'leather');
     } },
-    brute: { k: 1.55, name: 'Horned Brute', hp: 48, dmg: 6, w: 28, h: 33, min: 6, wt: 9, speed: 0.8, draw(S) {
+    brute: { k: 1.55, name: 'Horned Brute', hp: 48, dmg: 6, w: 28, h: 33, min: 6, wt: 9, speed: 0.8, gait: 'lumber', draw(S) {
       S.P(); S.poly([[10, 22], [14, 22], [13, 32], [8, 32]], 'demon'); S.P(); S.poly([[17, 22], [21, 22], [22, 32], [17, 32]], 'demon', -1);
       S.P({ round: true, shine: true }); S.poly([[7, 10], [22, 9], [24, 16], [21, 23], [9, 23], [6, 16]], 'demon');
       S.P({ round: true }); S.ell(12, 7, 4.2, 4, 'demon');
@@ -98,7 +98,7 @@
       S.P({ flat: true }); S.px(0, 25, 'bone', 4); S.px(2, 26, 'bone', 4); S.px(4, 25, 'bone', 4);
       S.P(); S.rect(9, 20, 13, 2, 'iron');
     } },
-    boss: { k: 1.5, name: 'Ash Tyrant', hp: 90, dmg: 7, w: 34, h: 42, min: 1, wt: 0, speed: 0.7, boss: true, draw(S) {
+    boss: { k: 1.5, name: 'Ash Tyrant', hp: 90, dmg: 7, w: 34, h: 42, min: 1, wt: 0, speed: 0.7, boss: true, gait: 'lumber', draw(S) {
       S.P({ round: true }); S.poly([[13, 12], [27, 12], [32, 40], [8, 40]], 'crimson', -1);
       S.P(); S.rect(12, 30, 5, 11, 'night'); S.P(); S.rect(20, 30, 5, 11, 'night', -1);
       S.P(); S.rect(11, 39, 7, 3, 'iron'); S.P(); S.rect(19, 39, 7, 3, 'iron');
@@ -113,13 +113,13 @@
       S.P({ flat: true, nocs: true }); S.line(4, 20, 2, 6, 'glowP', 0); S.rect(2, 23, 7, 1, 'gold', 3);
       S.glow(17.5, 7.5, 4, 'glowP', 0.45);
     } },
-    wisp: { k: 2.4, name: 'Ash Wisp', hp: 22, dmg: 4, w: 14, h: 16, min: 5, wt: 14, speed: 1.3, draw(S) {
+    wisp: { k: 2.4, name: 'Ash Wisp', hp: 22, dmg: 4, w: 14, h: 16, min: 5, wt: 14, speed: 1.3, gait: 'hover', draw(S) {
       S.P({ flat: true }); S.glow(7, 8, 7, 'ember', 0.5); S.glow(7, 6, 4, 'glowY', 0.45);
       S.P({ shine: true }); S.ell(7, 7, 3.4, 3.8, 'gold');
       S.P({ flat: true, nocs: true }); S.px(6, 6, 'white'); S.px(7, 7, 'glowY');
       S.P({ flat: true }); S.line(6, 11, 4, 15, 'ember', 1); S.line(8, 11, 10, 15, 'ember', 0); S.px(7, 13, 'fire');
     } },
-    rustknight: { k: 1.55, name: 'Rust Knight', hp: 42, dmg: 5, w: 20, h: 30, min: 7, wt: 11, speed: 0.85, draw(S) {
+    rustknight: { k: 1.55, name: 'Rust Knight', hp: 42, dmg: 5, w: 20, h: 30, min: 7, wt: 11, speed: 0.85, gait: 'lumber', draw(S) {
       S.P(); S.rect(7, 20, 4, 10, 'rust'); S.P(); S.rect(12, 20, 4, 10, 'rust', -1);
       S.P(); S.rect(6, 28, 6, 2, 'iron'); S.P(); S.rect(11, 28, 6, 2, 'iron');
       S.P({ shine: true, round: true }); S.rect(6, 11, 11, 10, 'rust');
@@ -129,7 +129,7 @@
       S.P(); S.line(3, 14, 0, 22, 'rust'); S.P({ shine: true }); S.poly([[0, 12], [4, 14], [4, 22], [1, 24], [-1, 16]], 'iron');
       S.P(); S.line(16, 14, 19, 8, 'rust'); S.P({ shine: true }); S.poly([[18, 8], [20, 4], [19, 8], [20, 12]], 'steel');
     } },
-    wraith: { k: 1.55, name: 'Grave Wraith', hp: 38, dmg: 6, w: 18, h: 32, min: 9, wt: 10, speed: 1.1, draw(S) {
+    wraith: { k: 1.55, name: 'Grave Wraith', hp: 38, dmg: 6, w: 18, h: 32, min: 9, wt: 10, speed: 1.1, gait: 'drift', draw(S) {
       S.P({ round: true }); S.poly([[4, 10], [14, 10], [16, 30], [9, 32], [2, 30]], 'capeN');
       S.tone(7, 18, 1); S.tone(12, 22, -1);
       S.P({ round: true }); S.poly([[5, 10], [6, 3], [9, 1], [12, 3], [13, 10]], 'night');
@@ -139,7 +139,7 @@
       S.glow(9, 6, 5, 'glowP', 0.4);
       for (let x = 3; x < 16; x += 3) S.px(x, 30 - (x % 2), null);
     } },
-    wyrm: { k: 1.5, name: 'Cave Wyrm', hp: 58, dmg: 7, w: 32, h: 24, min: 12, wt: 7, speed: 0.9, draw(S) {
+    wyrm: { k: 1.5, name: 'Cave Wyrm', hp: 58, dmg: 7, w: 32, h: 24, min: 12, wt: 7, speed: 0.9, gait: 'slither', draw(S) {
       S.P({ round: true }); S.poly([[18, 10], [30, 4], [28, 12], [22, 14]], 'demon');
       S.P({ round: true, shine: true }); S.ell(16, 14, 10, 6, 'demon');
       S.P({ round: true }); S.ell(6, 12, 5, 4.2, 'demon');
@@ -149,7 +149,7 @@
       S.P({ flat: true }); S.px(8, 19, 'bone', 4); S.px(14, 20, 'bone', 4); S.px(20, 19, 'bone', 4);
       S.P({ flat: true, nocs: true }); S.px(1, 13, 'fire'); S.glow(3, 13, 4, 'ember', 0.45);
     } },
-    lich: { k: 1.5, name: 'Vault Lich', hp: 110, dmg: 8, w: 30, h: 40, min: 8, wt: 0, speed: 0.75, boss: true, draw(S) {
+    lich: { k: 1.5, name: 'Vault Lich', hp: 110, dmg: 8, w: 30, h: 40, min: 8, wt: 0, speed: 0.75, boss: true, gait: 'lumber', draw(S) {
       S.P({ round: true }); S.poly([[8, 14], [22, 14], [26, 38], [6, 38]], 'capeN', -1);
       S.P(); S.rect(10, 28, 4, 12, 'bone'); S.P(); S.rect(16, 28, 4, 12, 'bone', -1);
       S.P({ shine: true }); S.ell(14, 8, 5, 5.2, 'bone');
@@ -232,6 +232,102 @@
   };
   Object.keys(DETAIL).forEach(k => MON[k].detail = DETAIL[k]);
 
+  // Front-facing silhouettes (idle, spawn, and engage). Same materials as the side view.
+  const FRONT = {
+    rat(S) {
+      S.P({ round: true }); S.ell(10, 6.5, 6, 4.2, 'fur'); S.tone(8, 4, 1);
+      S.P(); S.poly([[6, 3], [8, 0], [10, 3]], 'fur'); S.poly([[10, 3], [12, 0], [14, 3]], 'fur');
+      S.P({ flat: true, nocs: true }); S.px(7, 6, 'glowR'); S.px(12, 6, 'glowR'); S.px(9, 8, 'void');
+      S.P({ flat: true }); S.px(5, 10, 'skin', 1); S.px(8, 10, 'skin', 1); S.px(12, 10, 'skin', 1); S.px(15, 10, 'skin', 1);
+    },
+    skel(S) {
+      S.P({ shine: true }); S.ell(9, 4.5, 4, 3.8, 'bone');
+      S.P({ flat: true, nocs: true }); S.px(7, 4, 'void'); S.px(10, 4, 'void'); S.px(7, 4, 'glowR'); S.px(10, 4, 'glowR'); S.px(8, 7, 'void');
+      S.P(); S.rect(8, 8, 3, 8, 'bone');
+      S.P({ flat: true }); for (let y = 10; y < 16; y += 2) S.line(5, y, 13, y, 'bone', 2);
+      S.P(); S.rect(5, 17, 8, 2, 'bone');
+      S.P({ flat: true }); S.line(6, 19, 5, 26, 'bone', 2); S.line(12, 19, 13, 26, 'bone', 1);
+      S.P(); S.line(4, 11, 1, 16, 'bone', 2); S.line(13, 11, 16, 16, 'bone', 1);
+    },
+    cult(S) {
+      S.P({ round: true }); S.poly([[4, 9], [14, 9], [16, 26], [2, 26]], 'crimson');
+      S.P({ round: true }); S.poly([[4, 9], [5, 3], [9, 1], [13, 3], [14, 9]], 'crimson', -1);
+      S.P({ flat: true, nocs: true }); S.rect(6, 4, 6, 5, 'void'); S.px(7, 6, 'glowY'); S.px(11, 6, 'glowY');
+      S.P({ nocs: true, flat: true }); S.line(3, 25, 15, 25, 'gold', 2); S.rect(8, 12, 2, 6, 'gold', 2);
+      S.P(); S.rect(2, 16, 3, 2, 'skin', -1); S.rect(13, 16, 3, 2, 'skin', -1);
+    },
+    crawl(S) {
+      S.P({ flat: true }); for (let k = 0; k < 3; k++) { S.line(6 + k * 5, 8, 4 + k * 5, 12, 'sick', 1); S.line(10 + k * 4, 8, 12 + k * 4, 12, 'sick', 0); }
+      S.P({ round: true }); S.ell(12, 7, 8, 5, 'sick');
+      S.P({ round: true }); S.ell(12, 5, 4, 3.2, 'flesh');
+      S.P({ flat: true, nocs: true }); S.px(10, 4, 'glowR'); S.px(14, 4, 'glowR'); S.px(8, 6, 'glowG'); S.px(16, 6, 'glowG');
+    },
+    mut(S) {
+      S.P(); S.rect(8, 20, 4, 8, 'flesh', -1); S.P(); S.rect(14, 20, 4, 8, 'flesh', -1);
+      S.P({ round: true, shine: true }); S.ell(13, 14, 8, 8, 'flesh');
+      S.P({ shine: true }); S.ell(13, 6, 4, 4, 'flesh');
+      S.P({ flat: true, nocs: true }); S.px(11, 5, 'glowY'); S.px(15, 5, 'glowY'); S.px(11, 5, 'void'); S.px(15, 7, 'void');
+      S.P(); S.rect(8, 17, 10, 2, 'leather');
+    },
+    brute(S) {
+      S.P(); S.poly([[8, 22], [13, 22], [12, 32], [7, 32]], 'demon'); S.P(); S.poly([[16, 22], [21, 22], [22, 32], [16, 32]], 'demon', -1);
+      S.P({ round: true, shine: true }); S.poly([[6, 12], [22, 12], [24, 22], [6, 22]], 'demon');
+      S.P({ round: true }); S.ell(14, 8, 5, 5, 'demon');
+      S.P(); S.poly([[10, 5], [7, 0], [6, 2], [10, 7]], 'bone'); S.poly([[18, 5], [21, 0], [22, 2], [18, 7]], 'bone');
+      S.P({ flat: true, nocs: true }); S.px(12, 8, 'glowY'); S.px(16, 8, 'glowY');
+      S.P(); S.rect(8, 20, 13, 2, 'iron');
+    },
+    boss(S) {
+      S.P({ round: true }); S.poly([[10, 14], [24, 14], [28, 40], [6, 40]], 'crimson', -1);
+      S.P(); S.rect(10, 30, 5, 11, 'night'); S.P(); S.rect(19, 30, 5, 11, 'night', -1);
+      S.P(); S.rect(9, 39, 7, 3, 'iron'); S.P(); S.rect(18, 39, 7, 3, 'iron');
+      S.P({ round: true, shine: true }); S.poly([[8, 14], [26, 14], [27, 28], [7, 28]], 'night');
+      S.P({ shine: true }); S.poly([[12, 14], [12, 5], [15, 2], [21, 2], [24, 5], [24, 14]], 'night');
+      S.P({ flat: true, nocs: true }); S.rect(14, 7, 8, 3, 'void'); S.px(16, 8, 'glowP'); S.px(20, 8, 'glowP');
+      S.P({ shine: true }); S.ell(7, 16, 4, 4, 'night'); S.ell(27, 16, 4, 4, 'night');
+    },
+    wisp(S) {
+      S.P({ flat: true }); S.glow(7, 8, 7, 'ember', 0.5); S.glow(7, 6, 4, 'glowY', 0.45);
+      S.P({ shine: true }); S.ell(7, 7, 3.6, 3.8, 'gold');
+      S.P({ flat: true, nocs: true }); S.px(5, 6, 'white'); S.px(8, 6, 'white'); S.px(7, 8, 'glowY');
+      S.P({ flat: true }); S.line(5, 11, 3, 15, 'ember', 1); S.line(9, 11, 11, 15, 'ember', 0);
+    },
+    rustknight(S) {
+      S.P(); S.rect(6, 20, 4, 10, 'rust'); S.P(); S.rect(12, 20, 4, 10, 'rust', -1);
+      S.P(); S.rect(5, 28, 6, 2, 'iron'); S.P(); S.rect(11, 28, 6, 2, 'iron');
+      S.P({ shine: true, round: true }); S.rect(5, 11, 12, 10, 'rust');
+      S.P({ shine: true }); S.ell(11, 6, 5, 4.4, 'iron');
+      S.P({ flat: true, nocs: true }); S.rect(7, 5, 8, 2, 'void'); S.px(8, 6, 'glowR'); S.px(13, 6, 'glowR');
+      S.P({ shine: true }); S.rect(4, 10, 4, 4, 'rust'); S.rect(14, 10, 4, 4, 'rust');
+      S.P({ shine: true }); S.poly([[1, 14], [5, 14], [5, 24], [0, 24]], 'iron');
+    },
+    wraith(S) {
+      S.P({ round: true }); S.poly([[3, 10], [15, 10], [17, 30], [9, 32], [1, 30]], 'capeN');
+      S.P({ round: true }); S.poly([[4, 10], [5, 3], [9, 1], [13, 3], [14, 10]], 'night');
+      S.P({ flat: true, nocs: true }); S.rect(6, 4, 6, 5, 'void'); S.px(7, 6, 'glowP'); S.px(11, 6, 'glowP');
+      S.glow(9, 6, 5, 'glowP', 0.4);
+    },
+    wyrm(S) {
+      S.P({ round: true, shine: true }); S.ell(16, 14, 10, 8, 'demon');
+      S.P({ round: true }); S.ell(16, 8, 6, 5, 'demon');
+      S.P({ flat: true, nocs: true }); S.px(13, 7, 'glowY'); S.px(18, 7, 'glowY'); S.px(16, 10, 'glowR');
+      S.P(); S.poly([[14, 11], [16, 16], [18, 11]], 'bone');
+      S.P({ flat: true }); S.px(8, 20, 'bone', 4); S.px(16, 21, 'bone', 4); S.px(24, 20, 'bone', 4);
+      S.glow(16, 9, 5, 'ember', 0.4);
+    },
+    lich(S) {
+      S.P({ round: true }); S.poly([[6, 14], [24, 14], [26, 38], [4, 38]], 'capeN', -1);
+      S.P(); S.rect(8, 28, 5, 12, 'bone'); S.P(); S.rect(17, 28, 5, 12, 'bone', -1);
+      S.P({ shine: true }); S.ell(15, 8, 5.5, 5.4, 'bone');
+      S.P({ flat: true, nocs: true }); S.px(12, 7, 'void'); S.px(17, 7, 'void'); S.px(12, 7, 'glowP'); S.px(17, 7, 'glowP'); S.px(15, 10, 'void');
+      S.P(); S.rect(13, 13, 5, 2, 'bone'); S.rect(14, 15, 3, 10, 'bone');
+      S.P({ flat: true }); for (let y = 16; y < 24; y += 2) S.line(10, y, 20, y, 'bone', 2);
+      S.P(); S.line(5, 16, 1, 8, 'night'); S.P({ shine: true }); S.ell(1, 7, 2.4, 2.4, 'crystal'); S.glow(1, 7, 4, 'glowP', 0.45);
+    }
+  };
+  Object.keys(FRONT).forEach(k => { if (MON[k]) MON[k].front = FRONT[k]; });
+
+
   // Visual tiers stacked on a base type so new looks can be added later without new draw functions.
   const TIERS = [
     { id: 'feral', prefix: '', scale: 1, min: 1, tint: null, acc: null },
@@ -273,6 +369,20 @@
     }
   }
   const mcache = {};
+  function tintMon(c, T, elite) {
+    if (!(T.tint || elite)) return c;
+    const x = c.getContext('2d');
+    x.globalCompositeOperation = 'source-atop';
+    if (T.tint) { x.fillStyle = 'rgba(' + T.tint.join(',') + ')'; x.fillRect(0, 0, c.width, c.height); }
+    if (elite) { x.fillStyle = 'rgba(180,140,40,0.22)'; x.fillRect(0, 0, c.width, c.height); }
+    x.globalCompositeOperation = 'source-over';
+    return c;
+  }
+  function flashOf(c) {
+    const f = document.createElement('canvas'); f.width = c.width; f.height = c.height;
+    const fx = f.getContext('2d'); fx.drawImage(c, 0, 0); fx.globalCompositeOperation = 'source-in'; fx.fillStyle = '#fff6e0'; fx.fillRect(0, 0, f.width, f.height);
+    return f;
+  }
   function monCanvas(type, opts) {
     opts = opts || {};
     const m = MON[type]; if (!m) return monCanvas('rat', opts);
@@ -281,16 +391,9 @@
     if (mcache[key]) return mcache[key];
     const T = TIERS[tier] || TIERS[0];
     const k = m.k * T.scale * (elite ? 1.12 : 1);
-    const c = mk(m.w, m.h, m.draw, k, (S, kk) => { if (m.detail) m.detail(S, kk); adorn(S, T.acc, elite, kk, m); });
-    if (T.tint || elite) {
-      const x = c.getContext('2d');
-      x.globalCompositeOperation = 'source-atop';
-      if (T.tint) { x.fillStyle = 'rgba(' + T.tint.join(',') + ')'; x.fillRect(0, 0, c.width, c.height); }
-      if (elite) { x.fillStyle = 'rgba(180,140,40,0.22)'; x.fillRect(0, 0, c.width, c.height); }
-    }
-    const f = document.createElement('canvas'); f.width = c.width; f.height = c.height;
-    const fx = f.getContext('2d'); fx.drawImage(c, 0, 0); fx.globalCompositeOperation = 'source-in'; fx.fillStyle = '#fff6e0'; fx.fillRect(0, 0, f.width, f.height);
-    return (mcache[key] = { c, f, w: c.width, h: c.height, glow: T.acc, name: T.prefix + m.name });
+    const c = tintMon(mk(m.w, m.h, m.draw, k, (S, kk) => { if (m.detail) m.detail(S, kk); adorn(S, T.acc, elite, kk, m); }), T, elite);
+    const fc = m.front ? tintMon(mk(m.w, m.h, m.front, k, (S, kk) => adorn(S, T.acc, elite, kk, m)), T, elite) : c;
+    return (mcache[key] = { c, f: flashOf(c), front: fc, frontF: flashOf(fc), w: c.width, h: c.height, fw: fc.width, fh: fc.height, glow: T.acc, name: T.prefix + m.name, gait: m.gait || 'walk' });
   }
   function whiteOf(c) {
     if (c._white) return c._white;
@@ -509,7 +612,7 @@
   let cv, g, wrap, killEl, on = false, timer = 0, raf = 0, acc = 0, lastTs = 0, W = 300, scale = 1;
   let st = null;
   function freshState() {
-    return { mode: 'run', t: 0, scroll: 0, hp: 1, max: 1, heroX: 22, mon: null, spawn: 40, fx: [], nums: [], coins: [], fire: null, atkT: 0, monT: 0, pose: '', lunge: 0, flashH: 0, potion: 0, eqKey: '', biome: 0, bt: 0, seq: null, seqI: 0, move: '', forceMove: null, forceCls: null, alpha: 0 };
+    return { mode: 'run', t: 0, scroll: 0, hp: 1, max: 1, heroX: 22, mon: null, spawn: 40, fx: [], nums: [], coins: [], fire: null, atkT: 0, monT: 0, pose: '', lunge: 0, flashH: 0, potion: 0, eqKey: '', biome: 0, bt: 0, seq: null, seqI: 0, move: '', forceMove: null, forceCls: null, forceLoco: null, alpha: 0, loco: 'run', facing: 'side', turn: 0, turnTo: 'side', gaitF: 0, coolWalk: 0 };
   }
   function eqNow() { return (typeof xpState !== 'undefined' && xpState.equipped) || {}; }
   function lvl() { return (typeof xpState !== 'undefined' && xpState.level) || 1; }
@@ -538,7 +641,7 @@
     const spr = monCanvas(type, { tier, elite });
     const hp = Math.round(base.hp * (1 + 0.22 * (L - 1)) * (1 + 0.18 * tier) * (elite ? 2.4 : 1));
     const dmg = base.dmg * (1 + 0.12 * (L - 1)) * (1 + 0.1 * tier) * (elite ? 1.35 : 1);
-    st.mon = { type, x: W + 4, px: W + 4, hp, max: hp, dmg, elite, boss: !!base.boss, tier, w: spr.w, h: spr.h, flash: 0, lunge: 0, dead: 0, walk: 0, hurt: 0 };
+    st.mon = { type, x: W + 4, px: W + 4, hp, max: hp, dmg, elite, boss: !!base.boss, tier, w: spr.w, h: spr.h, flash: 0, lunge: 0, dead: 0, walk: 0, hurt: 0, facing: 'front', turn: 0, turnTo: 'front', spawnFace: 6 };
     return st.mon;
   }
   function nextGap() { return Math.round(FPS * (18 - Math.min(8, lvl() * 0.5)) * (0.6 + Math.random() * 0.8)); }
@@ -704,6 +807,40 @@
       if (f.t < f.life) s.fx.push(f);
     }
   }
+  const TURN_N = 5;
+  function beginTurn(s, view) {
+    if (!s) return;
+    if (s.facing === view && !s.turn) return;
+    if (s.turn && s.turnTo === view) return;
+    s.turnTo = view; s.turn = TURN_N;
+  }
+  function beginMonTurn(m, view) {
+    if (!m) return;
+    if (m.facing === view && !m.turn) return;
+    if (m.turn && m.turnTo === view) return;
+    m.turnTo = view; m.turn = TURN_N;
+  }
+  function tickTurn(o) {
+    if (!o || !o.turn) return;
+    o.turn--;
+    if (o.turn <= 0) { o.turn = 0; o.facing = o.turnTo; }
+  }
+  function faceAmt(o, a) {
+    if (!o) return 0;
+    if (!o.turn) return o.facing === 'front' ? 1 : 0;
+    const p = Math.max(0, Math.min(1, (TURN_N - o.turn + a) / TURN_N));
+    return o.turnTo === 'front' ? p : 1 - p;
+  }
+  function heroLoco(s) {
+    if (s.forceLoco) return s.forceLoco;
+    return s.loco || 'run';
+  }
+  function goRun(s, walkFirst) {
+    s.mode = 'run'; s.potion = 0;
+    if (walkFirst) { s.coolWalk = 12; s.loco = 'walk'; } else s.loco = s.coolWalk ? 'walk' : 'run';
+    beginTurn(s, 'side');
+  }
+
   function tick() {
     const s = st, eq = eqNow(), S = stats(eq, lvl());
     const key = JSON.stringify(eq) + lvl() + clsNow();
@@ -726,29 +863,47 @@
     s.coins = s.coins.filter(c => c.t < 12);
     const m = s.mon;
     if (m) { if (m.hurt) m.hurt--; if (m.flash) m.flash--; if (m.lunge) m.lunge--; }
-    const moving = () => { s.scroll += 2; if (++s.bt >= BIOME_TICKS) { s.bt = 0; s.prevBiome = s.biome; s.biome = (s.biome + 1) % BIOMES.length; s.fade = FADE; } if (s.fire) s.fire.x -= 2; if (s.fire && s.fire.x < -20) s.fire = null; };
+    tickTurn(s); if (m) tickTurn(m);
+    const stepFor = loco => loco === 'walk' ? 1 : 2;
+    const moving = (step) => { step = step || 2; s.scroll += step; if (++s.bt >= BIOME_TICKS) { s.bt = 0; s.prevBiome = s.biome; s.biome = (s.biome + 1) % BIOMES.length; s.fade = FADE; } if (s.fire) s.fire.x -= step; if (s.fire && s.fire.x < -20) s.fire = null; };
     if (s.mode === 'run') {
-      moving();
+      if (s.coolWalk > 0) s.coolWalk--;
+      if (!m) s.loco = (s.coolWalk || s.forceLoco === 'walk') ? 'walk' : 'run';
+      else {
+        const dist = m.x - heroFront - engageDist(eq);
+        s.loco = dist <= 64 ? 'walk' : 'run';
+      }
+      if (s.forceLoco) s.loco = s.forceLoco;
+      const step = stepFor(heroLoco(s));
+      s.gaitF = (s.gaitF || 0) + (heroLoco(s) === 'run' ? 1.5 : 1);
+      moving(step);
+      beginTurn(s, 'side');
       if (!m) { if (--s.spawn <= 0) spawn(); }
       else {
         m.walk++;
-        m.x -= 2 + (MON[m.type] || MON.rat).speed;
-        if (m.x <= heroFront + engageDist(eq)) { s.mode = 'fight'; s.atkT = 2; s.monT = 6; s.seq = null; s.pose = ''; }
+        if (m.spawnFace > 0) { m.spawnFace--; if (m.spawnFace <= 0) beginMonTurn(m, 'side'); }
+        else if (m.facing === 'front' && !m.turn) beginMonTurn(m, 'side');
+        m.x -= step + (MON[m.type] || MON.rat).speed;
+        if (m.x <= heroFront + engageDist(eq)) { s.mode = 'fight'; s.atkT = TURN_N + 1; s.monT = 6; s.seq = null; s.pose = ''; s.loco = 'idle'; beginTurn(s, 'front'); beginMonTurn(m, 'front'); }
       }
     } else if (s.mode === 'fight' && m) {
+      s.loco = 'idle'; s.gaitF = (s.gaitF || 0) + 0.4;
+      beginTurn(s, 'front');
       if (m.dead) {
         if (++m.dead > 7) {
           s.mon = null; s.spawn = nextGap(); s.seq = null; s.pose = '';
           bstats.kills++; if (m.elite || m.boss) bstats.elites++;
           saveStats(); if (killEl) killEl.textContent = '☠ ' + bstats.kills;
-          if (s.hp < s.max * 0.4) startHeal(); else s.mode = 'run';
+          if (s.hp < s.max * 0.4) startHeal(); else goRun(s, true);
         }
         return;
       }
       const close = heroFront + 8;
-      if (m.x > close) { m.x -= (MON[m.type] || MON.rat).speed * 0.7; m.walk++; }
+      if (m.x > close) { m.x -= (MON[m.type] || MON.rat).speed * 0.7; m.walk++; if (m.x > close + 6) beginMonTurn(m, 'side'); else beginMonTurn(m, 'front'); }
+      else beginMonTurn(m, 'front');
+      const turningIn = s.turn && s.turnTo === 'front';
       if (!s.seq || s.seqI >= s.seq.length) {
-        if (--s.atkT <= 0) startAttack(s, eq, S, m);
+        if (!turningIn && --s.atkT <= 0) startAttack(s, eq, S, m);
       } else if (--s.atkT <= 0) {
         s.seqI++;
         if (s.seqI < s.seq.length) {
@@ -770,19 +925,20 @@
     } else if (s.mode === 'potion') {
       s.potion++; s.pose = '';
       if (s.potion >= 6 && s.potion % 2 === 0 && s.hp < s.max) { const h = Math.ceil(s.max / 5); s.hp = Math.min(s.max, s.hp + h); addNum(s.heroX + 14 + (s.potion % 4) * 2, 12, '+' + h, '#70ff70'); }
-      if (s.potion > 16) { s.mode = 'run'; s.potion = 0; }
+      if (s.potion > 16) goRun(s, true);
     } else if (s.mode === 'rest') {
       s.potion++; s.pose = '';
       if (s.potion > 6 && s.potion % 6 === 0 && s.hp < s.max) { const h = Math.ceil(s.max / 8); s.hp = Math.min(s.max, s.hp + h); addNum(s.heroX + 16, 18, '+' + h, '#70ff70'); }
-      if (s.potion > 60 || (s.hp >= s.max && s.potion > 30)) { s.mode = 'run'; s.potion = 0; }
+      if (s.potion > 60 || (s.hp >= s.max && s.potion > 30)) goRun(s, true);
     } else if (s.mode === 'band') {
       s.potion++; s.pose = 'band';
       if (s.potion >= 6 && s.potion % 3 === 0 && s.hp < s.max) { const h = Math.ceil(s.max / 6); s.hp = Math.min(s.max, s.hp + h); addNum(s.heroX + 16, 14, '+' + h, '#70ff70'); }
-      if (s.potion > 18) { s.mode = 'run'; s.potion = 0; s.pose = ''; }
+      if (s.potion > 18) { goRun(s, true); s.pose = ''; }
     }
   }
   function startHeal(forced) {
-    st.potion = 0; st.seq = null; st.pose = ''; st.fire = null;
+    st.potion = 0; st.seq = null; st.pose = ''; st.fire = null; st.loco = 'idle';
+    beginTurn(st, 'front');
     const r = forced || (Math.random() < 0.34 ? 'potion' : Math.random() < 0.5 ? 'rest' : 'band');
     if (r === 'potion') st.mode = 'potion';
     else if (r === 'rest') { st.mode = 'rest'; st.fire = { x: st.heroX + 46 }; }
@@ -950,21 +1106,116 @@
     }
     return (img[key] = o);
   }
+  const poseCache = new Map();
+  function padCanvas(src, px, py) {
+    const o = document.createElement('canvas'); o.width = src.width + px * 2; o.height = src.height + py * 2;
+    const x = o.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(src, px, py);
+    return o;
+  }
+  function waveShift(src, phase, amp, freq) {
+    const pad = Math.ceil(Math.abs(amp) + 2);
+    const o = document.createElement('canvas'); o.width = src.width + pad * 2; o.height = src.height;
+    const x = o.getContext('2d'); x.imageSmoothingEnabled = false;
+    const w = src.width, h = src.height;
+    for (let y = 0; y < h; y++) {
+      const dx = Math.round(Math.sin(phase * 0.5 + y * freq) * amp);
+      x.drawImage(src, 0, y, w, 1, pad + dx, y, w, 1);
+    }
+    return o;
+  }
+  function cloakDrift(src, phase) {
+    const pad = 4;
+    const o = document.createElement('canvas'); o.width = src.width + pad * 2; o.height = src.height + 4;
+    const x = o.getContext('2d'); x.imageSmoothingEnabled = false;
+    const w = src.width, h = src.height, mid = Math.round(h * 0.35);
+    x.drawImage(src, 0, 0, w, mid, pad, 2, w, mid);
+    for (let y = mid; y < h; y++) {
+      const dx = Math.round(Math.sin(phase * 0.35 + (y - mid) * 0.2) * (2 + (y - mid) / 8));
+      x.drawImage(src, 0, y, w, 1, pad + dx, 2 + y, w, 1);
+    }
+    return o;
+  }
+  function strideShift(src, phase, heavy, scurry) {
+    const pad = 5;
+    const o = document.createElement('canvas'); o.width = src.width + pad * 2; o.height = src.height + pad;
+    const x = o.getContext('2d'); x.imageSmoothingEnabled = false;
+    const tau = phase * (heavy ? 0.35 : scurry ? 0.85 : 0.55);
+    const bob = Math.round(Math.abs(Math.sin(tau)) * (heavy ? 2 : 1));
+    const mid = (src.width / 2) | 0;
+    const legY = Math.round(src.height * 0.55);
+    const lift0 = Math.max(0, Math.round(Math.sin(tau) * (heavy ? 3 : scurry ? 2 : 2)));
+    const lift1 = Math.max(0, Math.round(-Math.sin(tau) * (heavy ? 3 : scurry ? 2 : 2)));
+    const ox0 = Math.round(Math.cos(tau) * (heavy ? 1 : 2));
+    const ox1 = -ox0;
+    x.drawImage(src, 0, 0, src.width, legY, pad, pad - bob, src.width, legY);
+    x.drawImage(src, 0, legY, mid, src.height - legY, pad + ox0, pad + legY - bob - lift0, mid, src.height - legY);
+    x.drawImage(src, mid, legY, src.width - mid, src.height - legY, pad + mid + ox1, pad + legY - bob - lift1, src.width - mid, src.height - legY);
+    return o;
+  }
+  function flashCopy(src) {
+    const f = document.createElement('canvas'); f.width = src.width; f.height = src.height;
+    const fx = f.getContext('2d'); fx.drawImage(src, 0, 0); fx.globalCompositeOperation = 'source-in'; fx.fillStyle = '#fff6e0'; fx.fillRect(0, 0, f.width, f.height);
+    return f;
+  }
+  function posedMon(spr, m, a, moving, view) {
+    const gait = (MON[m.type] && MON[m.type].gait) || 'walk';
+    const phase = (m.walk || 0) + a;
+    const frame = moving ? ((phase * (gait === 'lumber' ? 0.5 : gait === 'scurry' ? 1.4 : 1)) | 0) % 8 : 0;
+    const key = (m.type || '') + '|' + (m.tier | 0) + (m.elite ? 'e' : '') + '|' + view + '|' + gait + '|' + (moving ? frame : 'idle');
+    let hit = poseCache.get(key);
+    if (hit) return hit;
+    const src = view === 'front' ? (spr.front || spr.c) : spr.c;
+    let c = src, dy = 0;
+    if (moving && !m.dead) {
+      if (gait === 'hover') {
+        c = padCanvas(src, 2, 4);
+        dy = Math.round(Math.sin(phase * 0.45) * 3) - 2;
+      } else if (gait === 'drift') {
+        c = cloakDrift(src, phase);
+        dy = Math.round(Math.sin(phase * 0.3) * 2) - 1;
+      } else if (gait === 'slither') {
+        c = waveShift(src, phase, 2.4, 0.35);
+      } else if (gait === 'scuttle') {
+        c = waveShift(src, phase * 1.4, 1.6, 0.7);
+        dy = -((frame % 2) ? 1 : 0);
+      } else if (gait === 'lumber' || gait === 'walk' || gait === 'scurry') {
+        c = strideShift(src, phase, gait === 'lumber', gait === 'scurry');
+      }
+    }
+    const out = { c, f: c === src ? ((view === 'front' ? spr.frontF : spr.f) || spr.f) : flashCopy(c), w: c.width, h: c.height, dy };
+    if (poseCache.size > 160) poseCache.clear();
+    poseCache.set(key, out);
+    return out;
+  }
   function draw() {
     const s = st, a = s.alpha || 0;
     g.clearRect(0, 0, W, H);
-    if (!bgOn) { const bgOf = (L) => { tiled(L.sky, 0, H - L.TH); tiled(L.far, (s.scroll + a * (s.mode === 'run' ? 2 : 0)) * 0.2, H - L.TH); tiled(L.mid, (s.scroll + a * (s.mode === 'run' ? 2 : 0)) * 0.55, H - L.TH); }; fadeDraw(bgOf, H); }
-    fadeDraw(L => tiled(L.fl, s.scroll + a * (s.mode === 'run' ? 2 : 0), H - 9), H);
+    const scStep = s.mode === 'run' ? (heroLoco(s) === 'walk' ? 1 : 2) : 0;
+    if (!bgOn) { const bgOf = (L) => { tiled(L.sky, 0, H - L.TH); tiled(L.far, (s.scroll + a * scStep) * 0.2, H - L.TH); tiled(L.mid, (s.scroll + a * scStep) * 0.55, H - L.TH); }; fadeDraw(bgOf, H); }
+    fadeDraw(L => tiled(L.fl, s.scroll + a * scStep, H - 9), H);
     if (s.fire) drawFire(s.fire.x, s.t);
-    const base = heroSprite(s.pose);
-    let img = base, hy = HERO_Y;
-    if (s.mode === 'run') { const ph = s.t + a; img = legShift(base, (ph / 2 | 0) & 1); hy += Math.sin(ph * Math.PI) < 0 ? -1 : 0; }
-    else if (s.mode === 'rest') img = sitOf(base);
+    const loc = heroLoco(s);
+    const gaitSpd = loc === 'run' ? 1.5 : loc === 'walk' ? 1 : 0.4;
+    const gaitFrame = Math.floor((s.gaitF || 0) + a * gaitSpd);
+    const amt = faceAmt(s, a);
+    const baseFront = heroSprite(s.pose);
+    let frontImg = baseFront, hy = HERO_Y;
+    if (s.mode === 'rest') frontImg = sitOf(baseFront);
+    const eq = heroEq(), rar = rarity(eqNow());
+    const sideImg = (P().heroCanvasSide) ? P().heroCanvasSide(eq, rar.best, rar.color, loc === 'idle' ? 'idle' : loc, gaitFrame) : baseFront;
+    const useSide = amt < 0.5 && s.mode !== 'rest' && s.mode !== 'potion' && s.mode !== 'band' && !s.pose;
+    let img = useSide ? sideImg : frontImg;
     img = degradeHero(img, hurtStage(s.hp, s.max));
     const hx = s.heroX + (s.lunge ? 3 * Math.min(1, s.lunge - a * 0 + 0) / 3 : 0);
     const hx2 = s.heroX + (s.lunge ? 3 : 0);
-    g.drawImage(img, hx2, hy);
-    if (s.flashH) { g.globalAlpha = 0.55 * Math.min(1, s.flashH / 2); g.drawImage(whiteOf(img), hx2, hy); g.globalAlpha = 1; }
+    const ax = (useSide && img._ax != null) ? img._ax : (img.width / 2);
+    const plant = hx2 + 24;
+    const sx = amt < 0.5 ? lerp(1, 0.12, amt / 0.5) : lerp(0.12, 1, (amt - 0.5) / 0.5);
+    const dw = Math.max(1, Math.round(img.width * sx));
+    const dx = Math.round(plant - (ax / img.width) * dw);
+    g.imageSmoothingEnabled = false;
+    g.drawImage(img, dx, hy, dw, img.height);
+    if (s.flashH) { g.globalAlpha = 0.55 * Math.min(1, s.flashH / 2); g.drawImage(whiteOf(img), dx, hy, dw, img.height); g.globalAlpha = 1; }
     if (s.mode === 'potion') {
       const p = Math.min(1, s.potion / 5), fx = hx2 + 16, fy = Math.round(hy + 34 - p * 18);
       g.fillStyle = '#0c0705'; g.fillRect(fx - 1, fy - 3, 5, 7);
@@ -986,22 +1237,30 @@
     if (m) {
       const spr = monCanvas(m.type, { tier: m.tier, elite: m.elite });
       const mw = m.w || spr.w, mh = m.h || spr.h;
-      const bob = m.dead ? 0 : ((m.walk + a) / 2 | 0) & 1;
       const mx = Math.round(ix(m, a) - (m.lunge ? 3 : 0) + (m.hurt ? ((m.hurt % 2) ? 1 : -1) : 0));
-      const my = H - 8 - mh - bob;
+      const ground = H - 8;
+      const amtM = faceAmt(m, a);
+      const movingMon = !m.dead && ((s.mode === 'run') || (s.mode === 'fight' && m.x > (s.heroX + 40 + 8)));
+      const posed = posedMon(spr, m, a, movingMon, amtM < 0.5 ? 'side' : 'front');
+      const iw = posed.w, ih = posed.h;
+      const sxm = amtM < 0.5 ? lerp(1, 0.12, amtM / 0.5) : lerp(0.12, 1, (amtM - 0.5) / 0.5);
+      const dwm = Math.max(1, Math.round(iw * sxm));
+      const dxm = Math.round(mx + mw / 2 - dwm / 2);
+      const dym = ground - ih + (posed.dy || 0);
       if (!m.dead || m.dead < 3) {
         if (m.elite || m.boss || (m.tier | 0) >= 2) {
-          const gr = g.createRadialGradient(mx + mw / 2, my + mh / 2, 2, mx + mw / 2, my + mh / 2, mh * 0.85);
+          const gr = g.createRadialGradient(mx + mw / 2, dym + ih / 2, 2, mx + mw / 2, dym + ih / 2, ih * 0.85);
           const c = m.boss ? '170,100,255' : m.elite ? '255,200,80' : (m.tier >= 3 ? '255,90,40' : '160,80,220');
           gr.addColorStop(0, 'rgba(' + c + ',.35)'); gr.addColorStop(1, 'rgba(' + c + ',0)');
-          g.fillStyle = gr; g.fillRect(mx - mh, my - mh / 2, mw + mh * 2, mh * 2);
+          g.fillStyle = gr; g.fillRect(mx - mh, dym - mh / 2, mw + mh * 2, mh * 2);
         }
+        g.imageSmoothingEnabled = false;
         g.globalAlpha = m.dead ? Math.max(0, 1 - m.dead / 3) : 1;
-        g.drawImage(spr.c, mx, my);
-        if (m.flash || m.dead) { g.globalAlpha = m.dead ? 0.5 : 0.65; g.drawImage(spr.f, mx, my); }
+        g.drawImage(posed.c, dxm, dym, dwm, ih);
+        if (m.flash || m.dead) { g.globalAlpha = m.dead ? 0.5 : 0.65; g.drawImage(posed.f, dxm, dym, dwm, ih); }
         g.globalAlpha = 1;
       }
-      if (!m.dead && (s.mode === 'fight' || m.boss || m.elite)) bar(mx + mw / 2 - 8, Math.max(2, my - 5), 16, Math.max(0, m.hp / m.max), m.boss ? '#b070ff' : m.elite ? '#ffc040' : '#d04030');
+      if (!m.dead && (s.mode === 'fight' || m.boss || m.elite)) bar(mx + mw / 2 - 8, Math.max(2, dym - 5), 16, Math.max(0, m.hp / m.max), m.boss ? '#b070ff' : m.elite ? '#ffc040' : '#d04030');
     }
     for (const f of s.fx) {
       const ft = f.t + a;
@@ -1251,6 +1510,62 @@
         const startHp = st.hp;
         for (let i = 0; i < 70; i++) tick();
         out[mode] = { ended: st.mode === 'run', healed: st.hp > startHp, hp: st.hp, max: st.max };
+      }
+      return out;
+    },
+    _forceLoco(l) { if (st) st.forceLoco = l || null; },
+    _cycleMoves() {
+      stop();
+      if (!st) st = freshState();
+      if (!cv) { try { size(); } catch (e) {} }
+      const snap = () => ({ mode: st.mode, loco: heroLoco(st), facing: st.facing, turn: st.turn || 0, turnTo: st.turnTo, gaitF: st.gaitF || 0, monFacing: st.mon && st.mon.facing, monTurn: st.mon && (st.mon.turn || 0), monType: st.mon && st.mon.type });
+      const out = { hero: {}, mons: {} };
+      for (const cls of ['warrior', 'shooter', 'mage']) {
+        st.forceCls = cls; st.mon = null; st.mode = 'run'; st.facing = 'side'; st.turn = 0; st.turnTo = 'side'; st.gaitF = 0; st.coolWalk = 0;
+        const rec = {};
+        for (const loco of ['walk', 'run', 'idle']) {
+          st.forceLoco = loco; st.loco = loco; st.mode = loco === 'idle' ? 'fight' : 'run';
+          if (loco === 'idle') { st.mon = { type: 'rat', x: st.heroX + 30, px: st.heroX + 30, hp: 9, max: 9, dmg: 1, elite: false, boss: false, tier: 0, w: 8, h: 8, flash: 0, lunge: 0, dead: 0, walk: 0, hurt: 0, facing: 'front', turn: 0, turnTo: 'front' }; }
+          const frames = [];
+          for (let i = 0; i < 10; i++) { tick(); try { draw(); } catch (e) { rec.error = String(e); break; } frames.push(snap().loco); }
+          rec[loco] = { loco: st.loco, facing: st.facing, frames };
+        }
+        st.forceLoco = 'idle'; st.loco = 'idle'; st.mode = 'potion'; st.potion = 0; st.mon = null; st.facing = 'side'; st.turn = 0; st.turnTo = 'side';
+        beginTurn(st, 'front');
+        const turns = [];
+        for (let i = 0; i < 8; i++) { tickTurn(st); turns.push({ facing: st.facing, turn: st.turn, amt: faceAmt(st, 0) }); }
+        rec.turnFront = { facing: st.facing, steps: turns };
+        beginTurn(st, 'side');
+        const back = [];
+        for (let i = 0; i < 8; i++) { tickTurn(st); back.push({ facing: st.facing, turn: st.turn, amt: faceAmt(st, 0) }); }
+        rec.turnSide = { facing: st.facing, steps: back };
+        st.mode = 'run'; st.potion = 0; st.forceLoco = null;
+        // render one side canvas per class to prove pixels exist
+        try {
+          const c = P().heroCanvasSide({ _cls: cls }, 0, null, 'run', 2);
+          const ctx = c.getContext('2d'); const d = ctx.getImageData(0, 0, c.width, c.height).data;
+          let lit = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 40) lit++;
+          rec.sidePixels = lit; rec.sideSize = [c.width, c.height]; rec.anchor = c._ax;
+        } catch (e) { rec.sideError = String(e); }
+        out.hero[cls] = rec;
+      }
+      st.forceCls = null; st.forceLoco = null;
+      for (const type of Object.keys(MON)) {
+        const rec = { gait: MON[type].gait };
+        try {
+          const spr = monCanvas(type, { tier: 0 });
+          rec.side = [spr.w, spr.h]; rec.hasFront = !!(spr.front && spr.front !== spr.c);
+          rec.front = [spr.fw || spr.front.width, spr.fh || spr.front.height];
+          const fake = { type, walk: 6, tier: 0, elite: false, dead: 0, flash: 0, facing: 'side', turn: 0, turnTo: 'side' };
+          const p1 = posedMon(spr, fake, 0, true, 'side');
+          rec.posed = [p1.w, p1.h];
+          fake.walk = 10;
+          const p2 = posedMon(spr, fake, 0, true, 'side');
+          rec.animChanged = p1.c !== p2.c;
+          beginMonTurn(fake, 'front');
+          rec.turnStarts = fake.turn > 0 && fake.turnTo === 'front';
+        } catch (e) { rec.error = String(e); }
+        out.mons[type] = rec;
       }
       return out;
     }
