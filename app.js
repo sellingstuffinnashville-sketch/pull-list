@@ -660,6 +660,7 @@ async function api(fn, ...args) {
   const r = await call(fn, TOKEN, ...args);
   if (r && r.error === 'login') { const e = new Error('login'); e.login = 1; throw e; }
   if (r && r.resetEpoch) await applyResetIfNeeded(r.resetEpoch);
+  if (r && r.checkResetEpoch) await applyCheckoffResetIfNeeded(r.checkResetEpoch);
   if (r && r.error === 'reset') { const e = new Error('reset'); e.reset = 1; throw e; }
   if (r && r.error) throw new Error(r.error);
   return r;
@@ -687,6 +688,42 @@ async function applyResetIfNeeded(epoch) {
   localStorage.setItem(RESET_KEY, String(target));
   if (window.PLLoot) window.PLLoot.init();
   renderXpBar();
+  if (scan && date) render();
+  return true;
+}
+
+// Field Test Reset (pre-yard-trip, 2026-11-18): wipe got/rm/why/day marks in local cache so phones
+// pick up the cleared shared list. Do not touch photos, notes, hero/XP profiles, or login.
+const CHECK_RESET_KEY = 'pl_checkoff_reset_epoch';
+const LOCAL_CHECKOFF_RESET_EPOCH = 1795030000000; // keep in sync with Apps Script CHECKOFF_RESET_EPOCH
+const checkEpochNow = () => Number(localStorage.getItem(CHECK_RESET_KEY) || 0);
+function isCheckoffKey(k) { return /^(got|rm|why|day):/.test(String(k || '')); }
+async function applyCheckoffResetIfNeeded(epoch) {
+  const target = Math.max(Number(epoch || 0), LOCAL_CHECKOFF_RESET_EPOCH);
+  if (checkEpochNow() >= target) return false;
+  localOps = (localOps || []).filter(o => !isCheckoffKey(o.k));
+  if (serverState) {
+    for (const k of Object.keys(serverState)) if (isCheckoffKey(k)) delete serverState[k];
+  }
+  if (typeof VIEWS !== 'undefined') {
+    for (const d of Object.keys(VIEWS)) {
+      const st = VIEWS[d];
+      if (!st) continue;
+      for (const k of Object.keys(st)) if (isCheckoffKey(k)) delete st[k];
+    }
+  }
+  await tx('ops', 'readwrite', s => req(s.getAll()).then(rs => {
+    for (const o of rs) if (isCheckoffKey(o.k)) s.delete(o.id);
+  }));
+  await tx('server', 'readwrite', s => req(s.getAll()).then(rs => {
+    for (const rec of rs) {
+      if (!rec || !rec.state) continue;
+      let changed = false;
+      for (const k of Object.keys(rec.state)) if (isCheckoffKey(k)) { delete rec.state[k]; changed = true; }
+      if (changed) s.put(rec);
+    }
+  }));
+  localStorage.setItem(CHECK_RESET_KEY, String(target));
   if (scan && date) render();
   return true;
 }
@@ -792,6 +829,7 @@ function clock(ts) { return new Date(ts).toLocaleTimeString([], { hour: 'numeric
 async function sync(extra = []) {
   if (syncing) return;
   await applyResetIfNeeded(0);
+  await applyCheckoffResetIfNeeded(0);
   if (!navigator.onLine) { status(); return; }
   syncing = true;
   try {
@@ -805,8 +843,9 @@ async function sync(extra = []) {
       const pend = allPend.filter(o => o.date === d);
       if (d === date) for (const o of localOps) if (o.pending && !pend.some(p => p.id === o.id)) pend.push(o);
       const epoch = epochNow();
+      const checkEpoch = checkEpochNow();
       let j;
-      try { j = await api('sync', d, pend.map(({ id, k, v, dev, ts }) => ({ id, k, v, dev, ts })), epoch); }
+      try { j = await api('sync', d, pend.map(({ id, k, v, dev, ts }) => ({ id, k, v, dev, ts })), epoch, checkEpoch); }
       catch (e) { if (e.login) throw e; break; } // no signal or server hiccup: ops stay pending for next time
       if (epochNow() > epoch) continue; // a reset landed mid-call; those ops were wiped
       await tx('server', 'readwrite', s => s.put({ date: d, state: j.state || {} }));
@@ -1544,6 +1583,7 @@ async function start() {
   tryAutoBgm();
   if (!TOKEN) return showLogin(navigator.onLine ? '' : 'Needs signal the first time.');
   await applyResetIfNeeded(0);
+  await applyCheckoffResetIfNeeded(0);
   ensureDevice();
   if (RPG) {
     renderXpBar();
