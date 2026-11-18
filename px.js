@@ -998,11 +998,21 @@
     if (id === 'mg-cape-star') { S.P({ flat: true, nocs: true }); [[10, 44], [37, 48], [11, 55], [38, 56], [12, 38], [36, 40]].forEach(([x, y]) => S.px(x, y, 'white')); }
     if (id === 'mg-cape-void') { S.P({ flat: true, nocs: true }); S.line(10, 38, 8, 59, 'glowP'); S.line(38, 38, 40, 59, 'glowP'); S.glow(9, 50, 4, 'glowP', 0.3); S.glow(39, 50, 4, 'glowP', 0.3); }
   }
+  function poseShift(pose, sh) {
+    if (pose === 'raise') return sh ? [2, -2] : [1, -7];
+    if (pose === 'overhead') return [2, -12];
+    if (pose === 'sweep') return sh ? [8, 0] : [11, 2];
+    if (pose === 'bash' || pose === 'thrust') return sh ? [8, -1] : [9, 0];
+    if (pose === 'cast') return [3, -10];
+    if (pose === 'aim') return [7, -2];
+    if (pose === 'band') return [-6, -5];
+    return [0, 0];
+  }
   function classSprite(S, eq, cls, only, pose) {
     const sh = cls === 'shooter';
     const a = sh ? SH_ARMOR[eq.armor] : MG_ROBE[eq.armor];
     let ax = 32, ay = 35;
-    if (pose === 'raise' && !sh) { ax += 1; ay -= 7; }
+    const ps = poseShift(pose, sh); ax += ps[0]; ay += ps[1];
     const wep = (id, x, y) => { if (sh) drawWeapon(S, id ? id.replace(/^sh-/, '') : 'wep-pipe', x, y); else mgWeapon(S, id, x, y); };
     if (only) {
       if (only === 'base') drawBase(S, eq.base);
@@ -1038,7 +1048,7 @@
     const armored = !!ARMOR[eq.armor];
     let ax = armored ? 34 : 32, ay = armored ? 37 : 35;
     const sy = armored ? 18 : 21;
-    if (pose === 'raise') { ax += 1; ay -= 7; }
+    const ps = poseShift(pose, false); ax += ps[0]; ay += ps[1];
     if (only) {
       if (only === 'base') drawBase(S, eq.base);
       else if (only === 'cape') drawCape(S, eq.cape, 18);

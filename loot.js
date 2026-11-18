@@ -372,7 +372,7 @@ function openArmory() {
     $('#armprev').innerHTML = heroSvg(xpState.equipped, 240);
     if (window.PLBattle) {
       const st = PLBattle.stats(xpState.equipped, xpState.level), k = PLBattle.kills();
-      $('#armstats').innerHTML = '<span>ATK <b>' + st.atk + '</b></span><span>ARM <b>' + st.arm + '</b></span><span>HP <b>' + st.hp + '</b></span><span>Kills <b>' + k.kills + '</b></span>' + (k.elites ? '<span>Elites <b>' + k.elites + '</b></span>' : '');
+      $('#armstats').innerHTML = '<span>HP <b>' + st.hp + '</b></span><span>ATK <b>' + st.atk + '</b></span><span>DEF <b>' + (st.def != null ? st.def : st.arm) + '</b></span><span>SPD <b>' + (st.spd || 0) + '</b></span><span>CRIT <b>' + (st.crit || 0) + '%</b></span><span>Kills <b>' + k.kills + '</b></span>' + (k.elites ? '<span>Elites <b>' + k.elites + '</b></span>' : '');
     }
     $('#armslots').innerHTML = LOOT_SLOTS.map(([id, lab0]) => {
       const lab = CLASSES[curClass()].slots[id] || lab0;

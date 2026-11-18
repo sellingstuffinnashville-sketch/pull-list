@@ -2,7 +2,7 @@
 // never cached. Same-origin files are network-first with a short timeout, so weak yard signal falls back to the
 // cached copy fast instead of hanging. Reference thumbs (i.ebayimg.com, yard photos) are cached once seen.
 // The /plain/ app has its own service worker; this one must not intercept or fallback-serve that path.
-const V = 'pl-pages-v23';
+const V = 'pl-pages-v24';
 const SHELL = ['./', 'index.html', 'style.css', 'fonts/cinzel.woff2', 'app.js', 'px.js', 'loot.js', 'battle.js', 'zip.js', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'music.mp3'];
 const rootPath = new URL('./', self.registration.scope).pathname;
 const isPlain = u => { const p = u.pathname; return p === rootPath + 'plain' || p.startsWith(rootPath + 'plain/'); };
