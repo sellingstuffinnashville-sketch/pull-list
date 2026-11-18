@@ -1140,6 +1140,9 @@
   function gaitPose(loco, frame) {
     const walkish = (loco === 'run' || loco === 'walk');
     const n = walkish ? 16 : 8, p = ((frame % n) + n) % n, tau = (p / n) * Math.PI * 2;
+    if (loco === 'skid') {
+      return { rx: 3.4, lx: -2.6, rLift: 0, lLift: 0.4, rAng: 0.35, lAng: -0.15, bob: 1.2, head: 0.6, cape: -7, flutter: 2.2, lean: 1.5, armR: 3, armL: -2.4, armRY: 1, armLY: 0.4, run: false, skid: true };
+    }
     if (loco === 'idle' || loco === 'stand') {
       const breath = Math.sin(tau) * 0.5;
       return { rx: 1.2, lx: -1.2, rLift: 0, lLift: 0, rAng: 0, lAng: 0, bob: breath, head: breath * 0.4, cape: -3, flutter: Math.sin(tau * 0.5) * 0.8, lean: 0, armR: 0.5, armL: -0.5, armRY: 0, armLY: 0, run: false };
@@ -1332,6 +1335,23 @@
   }
   function drawWepSide(S, id, cls, hx, hy, G) {
     id = id || '';
+    if (G && G.flavor === 'guitar') {
+      if (cls === 'warrior') {
+        S.P({ round: true, shine: true }); S.poly([[hx - 1, hy + 2], [hx + 3, hy], [hx + 2, hy - 18], [hx, hy - 22], [hx - 1, hy - 16]], 'steel');
+        S.P(); S.rect(hx - 3, hy, 7, 2, 'iron');
+        return;
+      }
+      if (cls === 'shooter' || /rifle|carbine|sun|slug|siege|revolver|boltc|pipe/.test(id)) {
+        // Rifle as an air-guitar, neck up and forward.
+        S.P({ shine: true }); S.poly([[hx - 3, hy + 2], [hx + 4, hy + 3], [hx + 10, hy - 8], [hx + 8, hy - 10]], 'iron');
+        S.P(); S.rect(hx - 4, hy, 4, 3, 'wood');
+        return;
+      }
+      // Staff as a guitar: neck up-right, body at the hip.
+      S.P(); S.line(hx - 2, hy + 2, hx + 8, hy - 16, 'wood', 2);
+      S.P({ shine: true }); S.ell(hx - 1, hy + 3, 3.2, 2.4, 'wood');
+      return;
+    }
     if (cls === 'mage' || id.indexOf('mg-wep') === 0) {
       if (id === 'mg-wep-sword') {
         S.P({ shine: true }); S.poly([[hx, hy - 2], [hx + 14, hy - 4], [hx + 15, hy - 2], [hx, hy + 1]], 'steel');
@@ -1379,8 +1399,23 @@
     else if (id === 'sh-pack-drone') { S.P({ shine: true }); S.ell(x, y, 3, 2.2, 'iron'); S.P({ flat: true, nocs: true }); S.px(x + 1, y, 'glowC'); }
     else if (id === 'mg-pack-grimoire') { S.P({ shine: true }); S.rect(x - 3, y - 3, 7, 6, 'leather'); S.glow(x, y, 3, 'glowP', 0.35); }
   }
-  function drawHeroSide(S, eq, cls, loco, frame) {
+  function drawHeroSide(S, eq, cls, loco, frame, flavor) {
     const G = gaitPose(loco, frame), M = bodyMats(eq, cls);
+    if (flavor) {
+      const n = 16, p = ((frame % n) + n) % n, tau = (p / n) * Math.PI * 2;
+      G.flavor = flavor;
+      if (flavor === 'bang') {
+        G.head += Math.sin(tau * 2) * 3.4;
+        G.lean += Math.sin(tau * 2) * 1.6;
+        G.bob += Math.abs(Math.sin(tau * 2)) * 0.4;
+      } else if (flavor === 'horns') {
+        G.armL = -7; G.armLY = -13;
+      } else if (flavor === 'guitar') {
+        G.armR = 2 + Math.sin(tau * 2) * 3.2;
+        G.armRY = 3 + Math.sin(tau * 2) * 2.2;
+        G.armL = 5; G.armLY = 2;
+      }
+    }
     const bob = G.bob, lean = G.lean;
     let hipX, hipY, chestX, chestY, headX, headY, shX, shY;
     hipY = 44 + bob;
@@ -1406,7 +1441,14 @@
     drawCapeSide(S, eq.cape, shX - 3, shY, G);
     drawPackSide(S, eq.pack, cls, shX - 7, shY + 4);
     // Rear (left) arm: swing is centered on the shoulder so it clearly comes forward opposite the back leg.
-    sideArm(S, shX - 2, shY + 2, shX + G.armL, shY + 15 + G.armLY, M.body, M.skin, 1.6, G.run);
+    if (G.flavor === 'horns') {
+      sideArm(S, shX - 2, shY + 2, shX - 4, shY - 8, M.body, M.skin, 1.6, true);
+      S.P({ flat: true, nocs: true });
+      S.px(shX - 6, shY - 11, M.skin); S.px(shX - 5, shY - 12, M.skin);
+      S.px(shX - 3, shY - 11, M.skin); S.px(shX - 2, shY - 12, M.skin);
+    } else {
+      sideArm(S, shX - 2, shY + 2, shX + G.armL, shY + 15 + G.armLY, M.body, M.skin, 1.6, G.run);
+    }
     if (cls === 'mage') {
       // Both boots peek from a raised hem so the walk reads forward (same gait as the other classes).
       const mageBoot = (footX, lift, footAng) => {
@@ -1430,7 +1472,15 @@
     S.P(); S.rect(chestX, chestY - 3, 3, 4, M.skin, -1);
     drawPaulSide(S, eq.pauldrons, cls, shX + 2, shY);
     drawHeadSide(S, eq, cls, headX, headY);
-    if (cls === 'shooter') {
+    if (G.flavor === 'guitar' && cls === 'warrior') {
+      const hx = shX + 3, hy = shY - 10;
+      sideArm(S, shX + 2, shY, hx, hy, M.body, M.skin, 1.9, true);
+      drawWepSide(S, eq.weapon, cls, hx, hy, G);
+    } else if (G.flavor === 'guitar') {
+      const hx = shX + 6 + (G.armR || 0) * 0.2, hy = shY + 11 + (G.armRY || 0) * 0.3;
+      sideArm(S, shX + 2, shY, hx, hy, M.body, cls === 'shooter' ? 'leather' : M.skin, 1.8, true);
+      drawWepSide(S, eq.weapon, cls, hx, hy, G);
+    } else if (cls === 'shooter') {
       const hx = shX + 8, hy = shY + 9 + G.armRY * 0.25;
       sideArm(S, shX + 2, shY, hx, hy, M.body, 'leather', 1.8, G.run);
       drawWepSide(S, eq.weapon, cls, hx, hy, G);
@@ -1448,9 +1498,9 @@
       drawFamiliarSide(S, eq.pack, headX - 10, headY - 4 + Math.sin((frame || 0) * 0.7) * 1.5);
     }
   }
-  function heroSpriteSide(eq, rank, color, loco, frame) {
+  function heroSpriteSide(eq, rank, color, loco, frame, flavor) {
     const S = new Spr(SIDE_W, 64);
-    drawHeroSide(S, eq || {}, eq && eq._cls || 'warrior', loco || 'run', frame | 0);
+    drawHeroSide(S, eq || {}, eq && eq._cls || 'warrior', loco || 'run', frame | 0, flavor || null);
     return S;
   }
 
@@ -1477,11 +1527,11 @@
       if (!c) { c = toCanvas(heroSprite(eq, rank, color, '', pose)); if (ccache.size > 80) ccache.clear(); ccache.set(k, c); }
       return c;
     },
-    heroCanvasSide(eq, rank, color, loco, frame) {
-      const k = 'hs|' + JSON.stringify(eq) + '|' + rank + '|' + color + '|' + (loco || 'run') + '|' + (frame | 0);
+    heroCanvasSide(eq, rank, color, loco, frame, flavor) {
+      const k = 'hs|' + JSON.stringify(eq) + '|' + rank + '|' + color + '|' + (loco || 'run') + '|' + (frame | 0) + '|' + (flavor || '');
       let c = scache.get(k);
       if (!c) {
-        c = toCanvas(heroSpriteSide(eq, rank, color, loco, frame));
+        c = toCanvas(heroSpriteSide(eq, rank, color, loco, frame, flavor));
         c._ax = SIDE_CX;
         if (scache.size > 220) scache.clear();
         scache.set(k, c);

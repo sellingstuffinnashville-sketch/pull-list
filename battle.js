@@ -1124,11 +1124,25 @@
     if (crit) d *= 2;
     return { d, crit };
   }
+  function goreKind(m) {
+    const t = m && m.type;
+    if (t === 'skel' || t === 'archer' || t === 'lich') return 'bone';
+    if (t === 'wraith' || t === 'wisp') return 'ecto';
+    if (t === 'crawl' || t === 'spider' || t === 'botfly' || t === 'bat') return 'ichor';
+    return 'blood';
+  }
   function splat(s, m, n) {
-    const mid = monMid(m);
-    const c = 3 + ((Math.random() * (n || 4)) | 0);
+    const mid = (m && m.w != null) ? monMid(m) : { x: (m && m.x) || 0, y: GROUND - 20 };
+    const kind = goreKind(m);
+    const c = 4 + ((Math.random() * (n || 4)) | 0);
     for (let i = 0; i < c; i++) {
-      s.fx.push({ k: 'blood', x: mid.x + Math.random() * 6 - 2, y: mid.y + Math.random() * 6 - 3, vx: 0.4 + Math.random() * 1.4, vy: -1.2 - Math.random() * 1.6, t: 0, life: 5 + ((Math.random() * 4) | 0) });
+      s.fx.push({ k: kind, x: mid.x + Math.random() * 7 - 2, y: mid.y + Math.random() * 6 - 3, vx: 0.5 + Math.random() * 1.6, vy: -1.4 - Math.random() * 1.8, t: 0, life: 6 + ((Math.random() * 4) | 0) });
+    }
+  }
+  function sparkBurst(s, x, y, n) {
+    const c = n || (4 + ((Math.random() * 3) | 0));
+    for (let i = 0; i < c; i++) {
+      s.fx.push({ k: 'spark', x: x + Math.random() * 4 - 2, y: y + Math.random() * 4 - 2, vx: 0.6 + Math.random() * 1.8, vy: -1.6 - Math.random() * 1.8, t: 0, life: 4 + ((Math.random() * 3) | 0) });
     }
   }
   function lightningArcs(s, x, y, col) {
@@ -1143,7 +1157,7 @@
   }
   function hurtMon(s, m, d, crit) {
     if (!m || m.dead) return;
-    m.hp -= d; m.flash = 3; m.hurt = 5; m.x += 3; m.px = (m.px != null ? m.px : m.x) ;
+    m.hp -= d; m.hurt = 5; m.x += 5; m.px = (m.px != null ? m.px : m.x);
     addNum(m.x + (m.w || 16) / 2 - 4, Math.max(4, GROUND - 2 - (m.h || 16) - 4), d, crit ? '#ffd040' : '#fff6e0');
     if (m.hp <= 0) {
       m.dead = 1;
@@ -1155,9 +1169,10 @@
   }
   function impact(s, m, S, scale, blood) {
     const { d, crit } = rollDmg(S, scale);
+    const mid = monMid(m);
     hurtMon(s, m, d, crit);
-    if (blood && !m.dead) splat(s, m);
-    else if (blood) splat(s, m, 5);
+    splat(s, m, blood ? (m.dead ? 6 : 4) : 3);
+    if (blood) sparkBurst(s, mid.x, mid.y, 3);
   }
   function fireHit(s, eq, S, m, hit) {
     const targets = living(s);
@@ -1208,13 +1223,13 @@
   function applyHeroHit(s, d, src) {
     const canDie = s.forceDeath || (!s.noDeath && (s.deathCd || 0) <= 0 && src && ((src.boss || src.elite || src.leader) ? Math.random() < 0.18 : Math.random() < 0.045));
     if ((canDie && s.hp - d < s.max * 0.15) || s.forceDeath) {
-      s.hp = 0; s.flashH = 5; addNum(s.heroX + 20, 18, d, '#ff6050'); s.forceDeath = false; startDeath(s, src); return true;
+      s.hp = 0; splat(s, { x: s.heroX + 16, w: 20, h: 28, type: 'hero' }, 5); addNum(s.heroX + 20, 18, d, '#ff6050'); s.forceDeath = false; startDeath(s, src); return true;
     }
     if (s.hp - d < s.max * 0.08 && !s.forceDeath && Math.random() < 0.35) {
       addNum(s.heroX + 18, 18, 'BLOCK', '#a8c8ff'); s.fx.push({ k: 'block', x: s.heroX + 36, y: 34, t: 0, life: 3 });
       return false;
     }
-    s.hp = Math.max(0, s.hp - d); s.flashH = 3; addNum(s.heroX + 20, 18, d, '#ff6050');
+    s.hp = Math.max(0, s.hp - d); s.knock = 3; splat(s, { x: s.heroX + 16, w: 20, h: 28, type: 'hero' }, 4); addNum(s.heroX + 20, 18, d, '#ff6050');
     if (s.hp <= 0) { s.hp = 0; startDeath(s, src); return true; }
     return false;
   }
@@ -1294,7 +1309,10 @@
     s.fx = [];
     for (const f of cur) {
       f.t++;
-      if (f.k === 'blood' || f.k === 'acidDrop') { f.x += f.vx; f.y += f.vy; f.vy += 0.45; }
+      if (f.k === 'blood' || f.k === 'ichor' || f.k === 'bone' || f.k === 'ecto' || f.k === 'acidDrop') {
+        f.x += f.vx; f.y += f.vy;
+        f.vy += (f.k === 'ecto' ? 0.18 : (f.k === 'bone' ? 0.4 : 0.45));
+      }
       if ((f.k === 'boltshot' || f.k === 'orb') && f.t >= f.life) {
         const m = (f.mon && !f.mon.dead && st.mon === f.mon) ? f.mon : (st.mon && !st.mon.dead ? st.mon : null);
         if (m && f.dmg) {
@@ -1363,6 +1381,7 @@
   function heroGaitFrame(s) {
     const loc = heroLoco(s);
     const beats = beatTime();
+    if (loc === 'skid') return 0;
     if (loc === 'run') return ((beats * 16) % 16 + 16) % 16; // 1 cycle / beat, 2 steps / beat
     if (loc === 'walk') return ((beats * 8) % 16 + 16) % 16;  // 1 cycle / 2 beats, 1 step / beat
     return ((beats * 2) % 8 + 8) % 8;
@@ -1370,16 +1389,14 @@
   function scrollSpeed(pace) {
     pace = Math.max(0, Math.min(1, pace || 0));
     if (pace < 0.5) return (pace / 0.5) * 1;
-    return 1 + ((pace - 0.5) / 0.5) * 2; // walk 1 … run 3
+    return 1 + ((pace - 0.5) / 0.5) * 2.6; // walk 1 … run 3.6 (~20% faster)
   }
   function paceForDist(d) {
     if (!(d > 0) || !(d < 1e8)) return 1; // behind / overlapping / none: run
     // Full run until ~50px from the stop / engage point, then brake quickly.
     // encounterDist already subtracts ranged/melee engageDist, so shooters/mages
     // only slow near their attack range, not half a screen early.
-    if (d > 52) return 1;
-    if (d > 16) return 0.22 + (d - 16) / 36 * 0.78;
-    return 0.16; // creep the last few pixels; the encounter zeros pace
+    return 1; // full run until the stop; plantStop handles the skid
   }
   function encounterDist(s, eq, heroFront) {
     let d = Infinity;
@@ -1395,37 +1412,87 @@
       ahead(sx - plant);
     }
     if (s.vendor && s.vendor.mode === 'wait') ahead((s.vendor.wx - s.scroll) - (s.heroX + 36));
-    if (s.npc && s.npc.mode === 'approach') ahead(s.npc.x - (s.heroX + 50));
     return d;
   }
   function heroLoco(s) {
     if (s.forceLoco) return s.forceLoco;
     return s.loco || 'run';
   }
-  function goRun(s, walkFirst) {
+  function goRun(s) {
     s.mode = 'run'; s.potion = 0; s.pose = ''; s.leap = null; s.hopT = 0; s.hopY = 0; s.digT = 0; s.pullT = 0; s.pullOf = null; s.pullPart = null; s.pullY = 0;
-    s.paceTarget = 1;
-    if (walkFirst) {
-      s.coolWalk = 12; s.loco = 'walk';
-      // Stops leave pace at 0; lift to a real walk so we accelerate back to a run.
-      let p = (s.pace == null ? 0 : s.pace);
-      if (p < 0.38) p = 0.38;
-      if (p > 0.45) p = 0.42;
-      s.pace = p;
-    } else {
-      s.loco = s.coolWalk ? 'walk' : 'run';
-      if (s.pace == null) s.pace = s.loco === 'walk' ? 0.4 : 1;
-    }
-    s.scrollSpd = scrollSpeed(s.pace);
+    s.coolWalk = 0; s.skid = 0;
+    s.loco = 'run';
+    s.pace = 1; s.paceTarget = 1;
+    s.scrollSpd = scrollSpeed(1);
     beginTurn(s, 'side');
+  }
+  function plantStop(s) {
+    s.pace = 0; s.paceTarget = 0; s.scrollSpd = 0;
+    s.skid = 3; s.loco = 'skid';
+    s.dance = null;
+  }
+  function tickSkid(s) {
+    if (!(s.skid > 0)) return false;
+    s.skid--;
+    const still = s.skid > 0;
+    s.loco = still ? 'skid' : (s.forceLoco || 'idle');
+    s.pace = 0; s.paceTarget = 0; s.scrollSpd = 0;
+    s.gaitF = heroGaitFrame(s);
+    if (!still && s.mode === 'fight') {
+      const face = s.fightFace || 'front';
+      beginTurn(s, face);
+      for (const mon of living(s)) beginMonTurn(mon, face);
+    }
+    return still;
+  }
+  const DANCE_KINDS = ['horns', 'bang', 'guitar'];
+  const CHORUS_WIN = [
+    [49.96, 65.60],
+    [102.12, 119.46],
+    [119.98, 152.70],
+    [153.30, 172.46]
+  ];
+  function musicOn() { return !!(window.PLBgm && PLBgm.playing && PLBgm.playing()); }
+  function inChorus() {
+    if (!musicOn()) return false;
+    const t = PLBgm.time();
+    for (let i = 0; i < CHORUS_WIN.length; i++) if (t >= CHORUS_WIN[i][0] && t < CHORUS_WIN[i][1]) return true;
+    return false;
+  }
+  function startDance(s, kind) {
+    if (!s || s.skid) return null;
+    if (!musicOn() && !s.forceDance) return null;
+    kind = DANCE_KINDS.indexOf(kind) >= 0 ? kind : DANCE_KINDS[(Math.random() * DANCE_KINDS.length) | 0];
+    s.dance = { kind, t: 0, life: 48 };
+    s.danceCd = 720 + ((Math.random() * 720) | 0);
+    s.forceDance = null;
+    return s.dance;
+  }
+  function maybeDance(s, afterWin) {
+    if (!s || s.dance || (s.danceCd > 0 && !afterWin && !s.forceDance)) return null;
+    if (!musicOn()) return null;
+    if (!afterWin && s.mode !== 'run') return null;
+    const chorus = inChorus();
+    const p = afterWin ? (chorus ? 0.5 : 0.22) : (chorus ? 0.004 : 0.0009);
+    if (s.forceDance || Math.random() < p) return startDance(s, s.forceDance);
+    return null;
+  }
+  function tickDance(s) {
+    if (s.danceCd > 0) s.danceCd--;
+    if (s.dance) {
+      s.dance.t++;
+      if (s.dance.t >= s.dance.life || s.mode !== 'run' || s.skid || !musicOn()) s.dance = null;
+      return;
+    }
+    if (s.mode === 'run' && !s.skid && !s.forceLoco) maybeDance(s, false);
   }
 
   // ---------- wasteland / woods / cave props ----------
   const PROP = {
     // sx/sy are draw scales vs the authored sprite. Hero is ~61px tall; cars should read as
     // ~0.8-1x as tall and ~2.5-3x as long, buildings several hero-heights (and may overflow the strip).
-    car: { w: 72, h: 34, sx: 2.25, sy: 1.7 },
-    carbrush: { w: 72, h: 34, sx: 2.2, sy: 1.7 },
+    car: { w: 72, h: 44, sx: 2.35, sy: 1.28 },
+    carbrush: { w: 72, h: 44, sx: 2.3, sy: 1.28 },
     bike: { w: 32, h: 18, sx: 2.85, sy: 2.2 },
     bus: { w: 78, h: 30, sx: 2.85, sy: 2.35 },
     gas: { w: 92, h: 54, sx: 2.35, sy: 2.55, rare: 1, set: 1, cool: 10, mid: 1 },
@@ -1441,7 +1508,7 @@
     rubble: { w: 28, h: 14, sx: 1.25, sy: 1.25, dig: 1, cool: 3 },
     debris: { w: 16, h: 9, sx: 1.15, sy: 1.15, cool: 3 },
     deadtree: { w: 22, h: 36, sx: 2.1, sy: 2.55, cool: 3 },
-    sign: { w: 18, h: 24, sx: 1.45, sy: 1.55, cool: 5 },
+    sign: { w: 18, h: 24, sx: 1.45, sy: 1.55, mid: 1, cool: 5 },
     barrel: { w: 12, h: 15, sx: 1.35, sy: 1.35, cool: 4 },
     mailbox: { w: 14, h: 18, sx: 1.3, sy: 1.3, cool: 7 },
     stump: { w: 14, h: 10, sx: 1.35, sy: 1.35, cool: 3 },
@@ -1550,8 +1617,8 @@
   }
   const CAR_STYLES = ['sedan', 'hatch', 'pickup', 'suv', 'van', 'coupe', 'muscle'];
   const CAR_SCALE = {
-    sedan: { sx: 2.25, sy: 1.7 }, hatch: { sx: 2.05, sy: 1.8 }, pickup: { sx: 2.5, sy: 1.7 },
-    suv: { sx: 2.2, sy: 2.05 }, van: { sx: 2.35, sy: 2.15 }, coupe: { sx: 2.2, sy: 1.5 }, muscle: { sx: 2.55, sy: 1.55 }
+    sedan: { sx: 2.35, sy: 1.28 }, hatch: { sx: 2.15, sy: 1.35 }, pickup: { sx: 2.55, sy: 1.28 },
+    suv: { sx: 2.3, sy: 1.45 }, van: { sx: 2.4, sy: 1.5 }, coupe: { sx: 2.25, sy: 1.18 }, muscle: { sx: 2.6, sy: 1.2 }
   };
   const CAR_PALS = [
     { body: '#6a2e1a', hi: '#8a4a28', lo: '#3a1a10' }, { body: '#3a3230', hi: '#5a524e', lo: '#1e1a18' },
@@ -1628,79 +1695,107 @@
       const miss = car0.miss || [];
       const has = (k) => miss.indexOf(k) < 0;
       const sagL = (!has('fl') || !has('rl')) ? 2 : 0;
-      const sagR = (!has('fr') || !has('rr')) ? 2 : 0;
-      const tall = (st === 'suv' || st === 'van') ? 1 : 0;
-      const low = (st === 'coupe' || st === 'muscle') ? 1 : 0;
-      const bodyH0 = tall ? 16 : (st === 'van' ? 18 : (low ? 9 : 11));
-      const cabinH = tall ? 12 : (st === 'van' ? 10 : (low ? 8 : 11));
-      const by = gnd - 6 - sagL;
-      // front / engine is on the left so the hero meets the bay first
+      const sagR = (!has('fr') || !has('rr')) ? 1 : 0;
+      const suvish = st === 'suv' || st === 'van';
+      const low = st === 'coupe' || st === 'muscle';
+      const wr = suvish ? 6 : 5;
+      const wy = gnd - wr;
       let x0 = 2, x1 = 70;
       if (st === 'hatch') { x0 = 4; x1 = 66; }
-      if (st === 'coupe') { x0 = 2; x1 = 64; }
+      if (st === 'coupe') { x0 = 3; x1 = 64; }
       const wBody = x1 - x0;
-      const hoodW = st === 'van' ? 10 : (st === 'hatch' ? 16 : (st === 'pickup' ? 14 : (st === 'muscle' || st === 'coupe' ? 26 : 18)));
+      const bodyH0 = suvish ? 14 : (st === 'pickup' ? 12 : (low ? 10 : 12));
+      const cabinH = suvish ? 16 : (st === 'pickup' ? 13 : (low ? 11 : 14));
+      const hoodW = st === 'van' ? 11 : (st === 'hatch' ? 16 : (st === 'pickup' ? 15 : (low ? 24 : 18)));
       const cabX = x0 + hoodW;
-      const cabW = st === 'pickup' ? 18 : (st === 'van' ? wBody - hoodW - 2 : (st === 'muscle' || st === 'coupe' ? 18 : (st === 'hatch' ? 28 : 24)));
+      const cabW = st === 'pickup' ? 20 : (st === 'van' ? wBody - hoodW - 2 : (low ? 20 : (st === 'hatch' ? 30 : 26)));
       const bedX = cabX + cabW;
-      P(x0 + 2, gnd - 1, C.char, wBody - 4, 1);
-      box3(x0, by - bodyH0 + sagL, wBody, bodyH0, pal0.body, pal0.hi, pal0.lo);
+      const by = gnd - wr - 1 - sagL;
+      const wfl = x0 + 11, wrl = x1 - 13;
+      const disc = (cx, cy, r, col) => {
+        for (let dy = -r; dy <= r; dy++) {
+          const ww = Math.round(Math.sqrt(Math.max(0, r * r - dy * dy)));
+          if (ww > 0) P(cx - ww, cy + dy, col, ww * 2, 1);
+        }
+      };
+      const wheelR = (cx, cy, r, smashed) => {
+        disc(cx, cy, r, C.char);
+        disc(cx, cy, Math.max(2, r - 1), smashed ? C.rustL : C.metalL);
+        disc(cx, cy, 2, C.metalH);
+        P(cx - 1, cy - 1, C.char, 2, 2);
+        if (smashed) { P(cx + r - 2, cy, C.rust, 3, 2); P(cx - r, cy + r - 1, C.ash, 3, 1); }
+      };
+      P(x0 + 4, gnd - 1, C.char, wBody - 8, 1);
+      if (has('fl')) wheelR(wfl, wy + sagL, wr, car0.smash === 2); else { P(wfl - 2, gnd - 3, C.metalL, 4, 2); }
+      if (has('rl')) wheelR(wrl, wy + sagR, wr, 0); else { P(wrl - 2, gnd - 3, C.metalL, 4, 2); }
+      if (suvish || st === 'pickup') {
+        if (has('fr')) wheelR(wfl + 9, wy, wr - 1, 0);
+        if (has('rr')) wheelR(wrl - 9, wy, wr - 1, 0);
+      }
+      box3(x0, by - bodyH0, wBody, bodyH0, pal0.body, pal0.hi, pal0.lo);
       if (sagR) box3(x0 + (wBody >> 1), by - bodyH0 + sagR, wBody - (wBody >> 1), bodyH0, pal0.body, pal0.hi, pal0.lo);
-      // cabin
-      const cy = by - bodyH0 - cabinH + 2;
-      box3(cabX, cy, cabW, cabinH + 2, pal0.body, pal0.hi, pal0.lo);
-      if (st === 'pickup') {
-        box3(bedX, by - 7, x1 - bedX - 1, 7, pal0.lo, pal0.body, C.char);
-        P(bedX + 1, by - 8, C.char, x1 - bedX - 3, 1);
-        if (car0.smash) P(bedX + 4, by - 6, C.rust, 8, 3);
-      }
-      if (st === 'hatch') P(cabX + cabW - 6, cy + 2, pal0.body, 8, cabinH);
-      // windows / doors
-      if (car0.doorL) {
-        windw(cabX + 3, cy + 2, st === 'van' ? 8 : 7, cabinH - 4, car0.smash !== 0, 0);
-        if (cabW > 18) windw(cabX + 12, cy + 2, 7, cabinH - 4, car0.smash === 2, 0);
-      } else {
-        P(cabX + 2, cy + 2, C.char, 10, cabinH - 3);
-        P(cabX + 3, cy + 3, '#1a100c', 8, cabinH - 5);
-        P(cabX + 4, cy + 6, C.rustL, 3, 4);
-      }
-      if (st === 'van') {
-        for (let i = 0; i < 3; i++) windw(cabX + 14 + i * 10, cy + 2, 7, cabinH - 4, ((car0.smash + i) % 3) !== 0, 0);
-      }
-      // hood / engine bay (left)
-      const hx = x0 + 2, hw = hoodW - 3, hy = by - bodyH0 + 1;
+      P(x0 - 1, by - 4, pal0.lo, 3, 4); P(x0 - 1, by - 3, C.metalL, 3, 2);
+      P(x1 - 2, by - 4, pal0.lo, 3, 4); P(x1 - 2, by - 3, pal0.hi, 2, 2);
+      const hy = by - bodyH0 + 1;
       if (car0.hood === 'up') {
-        P(hx, hy, C.char, hw, bodyH0 - 3);
-        P(hx + 1, hy + 1, '#2a1a10', hw - 2, bodyH0 - 5);
-        P(hx + 3, hy + 3, C.metalL, 6, 4); P(hx + 4, hy + 4, C.metal, 4, 2);
-        P(hx + 2, hy + 8, C.rust, 3, 2);
-        // raised hood panel, hinged at the cowl
-        const hx2 = hx + hw - 2, hh = 10;
+        P(x0 + 2, hy, C.char, hoodW - 3, bodyH0 - 3);
+        P(x0 + 3, hy + 1, '#2a1a10', hoodW - 5, bodyH0 - 5);
+        P(x0 + 5, hy + 3, C.metalL, 6, 4); P(x0 + 6, hy + 4, C.metal, 4, 2);
+        const hx2 = x0 + hoodW - 2, hh = 11;
         P(hx2, hy - hh, pal0.body, 2, hh);
         for (let i = 0; i < hh; i++) P(hx2 - 1 - (i >> 1), hy - hh + i, pal0.hi, 6 + (i >> 2), 1);
-        P(hx2 - 2, hy - hh, pal0.lo, 8, 1);
       } else {
-        box3(hx, hy, hw, Math.max(3, bodyH0 - 5), pal0.body, pal0.hi, pal0.lo);
-        P(hx + 2, hy + 1, car0.smash ? C.char : pal0.lo, hw - 4, 1);
+        box3(x0 + 2, hy, hoodW - 3, Math.max(3, bodyH0 - 4), pal0.body, pal0.hi, pal0.lo);
+        P(x0 + 4, hy + 2, pal0.lo, hoodW - 8, 1);
+        P(x0 + 3, hy + 1, car0.smash ? C.char : pal0.hi, hoodW - 6, 1);
       }
-      // lights
-      P(x0 + 1, by - 5, car0.smash ? C.char : '#c8a050', 3, 2);
-      P(x1 - 5, by - 5, '#5a2010', 3, 2);
-      const wr = 5, wy = gnd - wr;
-      const wfl = x0 + 10, wrl = x1 - 14;
-      if (has('fl')) wheel(wfl, wy, wr, car0.smash === 2); else { P(wfl - 2, gnd - 3, C.metalL, 4, 2); P(wfl, gnd - 1, C.char, 2, 1); }
-      if (has('rl')) wheel(wrl, wy, wr, 0); else { P(wrl - 2, gnd - 3, C.metalL, 4, 2); }
-      if (st === 'van' || st === 'suv' || st === 'pickup') {
-        if (has('fr')) wheel(wfl + 10, wy, wr - 1, 0);
-        if (has('rr')) wheel(wrl - 10, wy, wr - 1, 0);
+      if (st === 'pickup') {
+        box3(bedX, by - 8, x1 - bedX - 1, 8, pal0.lo, pal0.body, C.char);
+        P(bedX + 1, by - 9, C.char, x1 - bedX - 3, 1);
+        P(bedX + 2, by - 5, pal0.lo, x1 - bedX - 5, 1);
+        if (car0.smash) P(bedX + 4, by - 6, C.rust, 8, 3);
+      } else if (st !== 'van') {
+        P(cabX + cabW + 1, hy + 2, pal0.lo, Math.max(2, x1 - cabX - cabW - 4), 1);
+      }
+      const cy = by - bodyH0 - cabinH + 3;
+      box3(cabX, cy, cabW, cabinH + 1, pal0.body, pal0.hi, pal0.lo);
+      P(cabX + 2, cy, pal0.lo, cabW - 4, 1);
+      P(cabX + 3, cy - 1, pal0.hi, cabW - 6, 1);
+      const winY = cy + 2, winH = cabinH - 4;
+      const aPill = cabX + 1, cPill = cabX + cabW - 2;
+      P(aPill, winY, pal0.lo, 2, winH);
+      P(cPill, winY, pal0.lo, 2, winH);
+      if (car0.doorL) {
+        const w1 = st === 'van' ? 8 : 7;
+        windw(cabX + 4, winY, w1, winH, car0.smash !== 0, 0);
+        if (cabW > 18) {
+          P(cabX + 4 + w1 + 1, winY, pal0.lo, 2, winH);
+          windw(cabX + 7 + w1, winY, Math.min(7, Math.max(3, cPill - (cabX + 8 + w1))), winH, car0.smash === 2, 0);
+        }
       } else {
-        if (!has('fr')) P(wfl + 8, gnd - 2, C.ash, 3, 1);
+        P(cabX + 3, winY, C.char, 10, winH);
+        P(cabX + 4, winY + 1, '#1a100c', 8, winH - 2);
       }
-      if (car0.crush) { P(x0 + 8, cy - 2, pal0.lo, 14, 3); P(x0 + 10, cy - 3, C.char, 8, 2); }
-      for (let i = 0; i < car0.rust + 1; i++) rustStreak(x0 + 8 + i * 14, cy + 2, 6 + i * 2);
+      if (st === 'van') {
+        for (let i = 0; i < 3; i++) {
+          P(cabX + 13 + i * 10, winY, pal0.lo, 2, winH);
+          windw(cabX + 15 + i * 10, winY, 7, winH, ((car0.smash + i) % 3) !== 0, 0);
+        }
+      }
+      if (st === 'hatch') P(cabX + cabW - 5, cy + 1, pal0.body, 6, cabinH - 1);
+      P(x0, by - 5, car0.smash ? C.char : '#c8a050', 3, 2);
+      P(x1 - 4, by - 5, '#5a2010', 3, 2);
+      const wellLip = (cx, sag) => {
+        P(cx - wr - 1, by - 1 + sag, pal0.lo, wr * 2 + 2, 2);
+        P(cx - wr, by + sag, pal0.body, wr * 2, 1);
+      };
+      if (has('fl')) wellLip(wfl, sagL);
+      if (has('rl')) wellLip(wrl, sagR);
+      if (car0.crush) { P(cabX + 2, cy - 1, pal0.lo, 14, 3); P(cabX + 4, cy - 2, C.char, 8, 2); }
+      for (let i = 0; i < car0.rust + 1; i++) rustStreak(x0 + 8 + i * 14, cy + 4, 6 + i * 2);
       if (car0.brush) {
         for (let i = 0; i < 16; i++) P(x0 + i * 4, gnd - (6 + (i + car0.rust) % 5), (i % 2) ? C.moss : C.mossH, 2, 3 + (i % 3));
-        P(cabX + 4, cy - 3, C.mossH, 4, 4); P(bedX - 4, cy, C.moss, 5, 5);
+        P(cabX + 4, cy - 3, C.mossH, 4, 4);
       }
     } else if (type === 'bike') {
       P(3, gnd - 1, C.char, 26, 1);
@@ -1923,8 +2018,9 @@
       let par = 1;
       if (meta.hang || meta.mid) par = 0.55;
       const gap = (meta.rare || meta.set ? 160 : 40) + ((Math.random() * (meta.rare || meta.set ? 240 : 100)) | 0);
-      const sc = 0.92 + Math.random() * 0.16;
-      const p0 = { k: type, wx: Math.round(s.nextProp), v: (Math.random() * 6) | 0, par, w: meta.w, h: meta.h, hop: !!meta.hop, dig: !!meta.dig, hang: !!meta.hang, glow: !!meta.glow, flip: Math.random() < 0.5, sc, yOff: meta.hang ? 0 : (par < 0.9 ? -2 : 0) };
+      const mid = !!(meta.mid && !meta.hang);
+      const sc = (mid ? 0.72 : 1) * (0.92 + Math.random() * 0.16);
+      const p0 = { k: type, wx: Math.round(s.nextProp), v: (Math.random() * 6) | 0, par, w: meta.w, h: meta.h, hop: !!meta.hop, dig: !!meta.dig, hang: !!meta.hang, glow: !!meta.glow, flip: Math.random() < 0.5, sc, yOff: meta.hang ? 0 : (mid ? -12 : 0) };
       if (type === 'car' || type === 'carbrush') p0.car = rollCar(type);
       s.props.push(p0);
       for (const ck in s.propCool) if (s.propCool[ck] > 0) s.propCool[ck]--;
@@ -1939,7 +2035,9 @@
     opts = opts || {};
     const meta = PROP[type] || PROP.debris;
     const wx = Math.round(opts.wx != null ? opts.wx : s.scroll + (opts.x != null ? opts.x : W - 10));
-    const p0 = { k: type, wx, v: opts.v || 0, par: opts.par != null ? opts.par : (meta.hang || meta.mid ? 0.55 : 1), w: meta.w, h: meta.h, hop: !!meta.hop, dig: !!meta.dig, hang: !!meta.hang, glow: !!meta.glow, flip: !!opts.flip, sc: opts.sc || 1, yOff: meta.hang ? 0 : 0 };
+    const par = opts.par != null ? opts.par : (meta.hang || meta.mid ? 0.55 : 1);
+    const mid = par < 0.9 && !meta.hang;
+    const p0 = { k: type, wx, v: opts.v || 0, par, w: meta.w, h: meta.h, hop: !!meta.hop, dig: !!meta.dig, hang: !!meta.hang, glow: !!meta.glow, flip: !!opts.flip, sc: opts.sc || (mid ? 0.72 : 1), yOff: opts.yOff != null ? opts.yOff : (meta.hang ? 0 : (mid ? -12 : 0)) };
     if (type === 'car' || type === 'carbrush') p0.car = opts.car || rollCar(type);
     if (!s.props) s.props = [];
     s.props.push(p0);
@@ -1967,6 +2065,31 @@
     const sx = (st ? st.sx : (meta.sx || 1)) * sc, sy = (st ? st.sy : (meta.sy || 1)) * sc;
     return { dw: Math.round(p.w * sx), dh: Math.round(p.h * sy) };
   }
+  const hazeCache = {};
+  let hazeSeq = 0;
+  function hazeTint(biome) {
+    const name = BIOMES[biome] || 'plains';
+    if (name === 'forest') return 'rgba(32,46,30,0.40)';
+    if (name === 'cave') return 'rgba(24,20,16,0.46)';
+    if (name === 'ruins') return 'rgba(72,42,28,0.36)';
+    return 'rgba(176,138,118,0.34)';
+  }
+  function hazeCanvas(c, biome) {
+    if (!c._hid) c._hid = ++hazeSeq;
+    const ck = c._hid + '|' + (biome | 0);
+    if (hazeCache[ck]) return hazeCache[ck];
+    const o = document.createElement('canvas'); o.width = c.width; o.height = c.height;
+    const x = o.getContext('2d'); x.imageSmoothingEnabled = false;
+    x.drawImage(c, 0, 0);
+    x.globalCompositeOperation = 'source-atop';
+    x.fillStyle = 'rgba(160,160,168,0.18)';
+    x.fillRect(0, 0, o.width, o.height);
+    x.fillStyle = hazeTint(biome);
+    x.fillRect(0, 0, o.width, o.height);
+    o._pad = c._pad || 0;
+    if (Object.keys(hazeCache).length > 90) { for (const k in hazeCache) delete hazeCache[k]; }
+    return (hazeCache[ck] = o);
+  }
   function drawProps(ctx, scroll, a, step, layer) {
     if (!st || !st.props) return;
     const ground = (ctx === bg && BH) ? BH - BAND : GROUND;
@@ -1976,7 +2099,8 @@
       if (layer === 'fg' && !fg) continue;
       if (layer === 'mid' && !mid) continue;
       if (layer === 'ground' && (fg || mid)) continue;
-      const c = paintProp(p.k, p.v, p.car);
+      let c = paintProp(p.k, p.v, p.car);
+      if (mid && !p.hang) c = hazeCanvas(c, st.biome);
       const x = Math.round(propScreenX(p, scroll, a, step));
       const { dw, dh } = propDrawSize(p);
       const pad = c._pad || 0;
@@ -2039,23 +2163,25 @@
     beginTurn(s, 'side');
   }
   function startDig(s, prop) {
-    s.mode = 'dig'; s.digT = 0; s.digOf = prop; s.loco = 'dig'; s.pose = ''; s.toast = null;
+    plantStop(s);
+    s.mode = 'dig'; s.digT = 0; s.digOf = prop; s.loco = 'skid'; s.pose = ''; s.toast = null;
     if (prop) prop.looted = 1;
     beginTurn(s, 'side');
   }
   function startPull(s, prop) {
+    plantStop(s);
     s.mode = 'pull'; s.pullT = 0; s.pullOf = prop; s.pullY = 0; s.pose = ''; s.toast = null;
     s.pullPart = PULL_PARTS[(Math.random() * PULL_PARTS.length) | 0];
     s.pullKind = (prop && prop.car && prop.car.hood === 'up') ? 'engine' : 'dash';
-    s.loco = 'climb';
+    s.loco = 'skid';
     if (prop) prop.looted = 1;
     beginTurn(s, 'side');
   }
   function tryFieldEvents(s) {
     if (s.mode !== 'run' || s.forceLoco) return;
     if (s.vendor && (s.vendor.wx - s.scroll) < s.heroX + 100) return;
-    if (!s.forcePull && !s.forceDig && (s.pace || 0) > 0.22) return;
-    if (s.npc && s.npc.mode === 'approach' && s.npc.x < s.heroX + 90) return;
+    if (s.skid) return;
+    if (s.npc && s.npc.mode === 'approach' && npcScreenX(s.npc, s, 0) < s.heroX + 90) return;
     if (living(s).some(m => m.x < s.heroX + 150)) return;
     const plant = s.heroX + 28;
     for (const p of (s.props || [])) {
@@ -2210,7 +2336,7 @@
     look = look || {};
     const pal = look.pal | 0, build = look.build || 'avg', head = look.head || 'hat';
     const packed = !!look.pack, haul = look.haul || '';
-    const key = [pal, build, head, packed ? 1 : 0, haul, wave ? 'w' : 's', frame & 3].join('|');
+    const key = [pal, build, head, packed ? 1 : 0, haul, wave ? 'w' : 's', (frame | 0) & 15].join('|');
     if (npcCache[key]) return npcCache[key];
     const wide = haul === 'cart' || haul === 'wagon';
     const c = mkc(wide ? 64 : 28, 48), x = c.getContext('2d'), gnd = 47;
@@ -2223,7 +2349,8 @@
     const legH = tallB ? 10 : shortB ? 5 : stock ? 6 : 8;
     const bw = stock ? 13 : tallB ? 9 : 10;
     const ox = haul === 'cart' ? 30 : haul === 'wagon' ? 6 : 2;
-    const liftL = wave ? 0 : ((frame & 2) ? 2 : 0), liftR = wave ? 0 : ((frame & 2) ? 0 : 2);
+    const liftL = wave ? 0 : Math.max(0, Math.round(Math.sin(frame * 0.7) * 2));
+    const liftR = wave ? 0 : Math.max(0, Math.round(-Math.sin(frame * 0.7) * 2));
     if (haul === 'cart') paintHaul(P, 'cart', 1, gnd);
     P(ox + 7, gnd - legH + liftL, boot, stock ? 5 : 4, legH);
     P(ox + 7 + Math.max(5, bw - 5), gnd - legH + liftR, boot, stock ? 5 : 4, legH);
@@ -2287,8 +2414,12 @@
     kind = kind || 'wanderer';
     const linePool = (kind === 'cls' && CLS_GREET[cls]) ? CLS_GREET[cls] : GREETINGS;
     const line = opts.line || pickGreet(linePool);
+    const screenX = opts.x != null ? opts.x : W + 10;
+    const haul0 = opts.haul != null ? opts.haul : (kind === 'cls' ? null : (Math.random() < 0.22 ? (Math.random() < 0.5 ? 'cart' : 'wagon') : null));
     s.npc = {
-      x: opts.x != null ? opts.x : W + 10,
+      wx: opts.wx != null ? opts.wx : (s.scroll || 0) + screenX,
+      x: screenX,
+      spd: haul0 ? 1.5 : 2,
       mode: 'approach',
       t: 0,
       gaitF: 0,
@@ -2299,7 +2430,7 @@
       build: opts.build || NPC_BUILDS[(Math.random() * NPC_BUILDS.length) | 0],
       head: opts.head || NPC_HEADS[(Math.random() * NPC_HEADS.length) | 0],
       pack: opts.pack != null ? !!opts.pack : Math.random() < 0.58,
-      haul: opts.haul != null ? opts.haul : (kind === 'cls' ? null : (Math.random() < 0.22 ? (Math.random() < 0.5 ? 'cart' : 'wagon') : null)),
+      haul: haul0,
       line
     };
     return s.npc;
@@ -2320,38 +2451,49 @@
     if (s.mode === 'fight' || s.mode === 'death') {
       n.mode = 'leave';
     }
+    if (n.wx == null) n.wx = (s.scroll || 0) + (n.x || 0);
     if (n.mode === 'approach') {
-      n.gaitF++;
-      n.x -= n.haul ? 1.5 : 2;
-      if (n.x <= s.heroX + 50) {
-        if (s.mode !== 'run' || living(s).some(m => m.x < s.heroX + 150)) n.mode = 'leave';
-        else if (!s.forceNpc && (s.pace || 0) > 0.22) { n.x = s.heroX + 50; }
+      n.gaitF += 0.9;
+      n.spd = n.haul ? 1.5 : 2;
+      n.wx -= n.spd;
+      const sx = n.wx - s.scroll;
+      if (sx <= s.heroX + 50) {
+        if (s.mode !== 'run' || living(s).some(m => m.x < s.heroX + 150)) { n.mode = 'leave'; n.spd = 2.5; }
         else {
-          n.mode = 'wave'; n.t = 0; n.wave = 0;
-          s.mode = 'greet'; s.greetT = 0; s.loco = 'idle'; s.pose = ''; s.pace = 0; s.paceTarget = 0;
-          beginTurn(s, 'side');
+          n.mode = 'wave'; n.t = 0; n.wave = 0; n.spd = 0;
+          s.greetT = 0;
         }
       }
     } else if (n.mode === 'wave') {
-      n.wave++; s.greetT = (s.greetT || 0) + 1;
-      if (n.wave >= 30) { n.mode = 'leave'; n.t = 0; if (s.mode === 'greet') goRun(s, true); }
+      n.wave++; n.spd = 0; s.greetT = (s.greetT || 0) + 1;
+      if (n.wave >= 36) { n.mode = 'leave'; n.t = 0; n.spd = 2.5; }
     } else {
-      n.gaitF++;
-      n.x -= 2.5;
+      n.gaitF += 0.9;
+      n.spd = 2.5;
+      n.wx -= n.spd;
     }
+    n.x = n.wx - s.scroll;
     if (n.x < (n.haul || n.kind === 'cls' ? -80 : -36)) { s.npc = null; s.npcCd = 380 + ((Math.random() * 260) | 0); s.forceNpc = false; }
+  }
+  function npcScreenX(n, s, a) {
+    if (!n) return 0;
+    const cam = camX(s.scroll, a || 0, scrollStep(s));
+    const wx = n.wx != null ? n.wx : ((s.scroll || 0) + (n.x || 0));
+    const spd = (n.mode === 'wave') ? 0 : (n.spd || 0);
+    return wx + spd * (1 - (a || 0)) - cam;
   }
   function drawNpc(ctx, s, a) {
     if (!s.npc) return;
     const n = s.npc;
-    const frame = ((n.gaitF || 0) + (a || 0)) | 0;
+    const frame = (n.gaitF || 0) + (a || 0);
+    const sx = npcScreenX(n, s, a);
     ctx.imageSmoothingEnabled = false;
     if (n.kind === 'cls' && n.cls && P().heroCanvasSide) {
       const eq = wandererEq(n.cls);
       const loco = n.mode === 'wave' ? 'idle' : 'walk';
       const c = P().heroCanvasSide(eq, 0, null, loco, frame);
       const ax = c._ax != null ? c._ax : (c.width / 2);
-      const plant = Math.round(n.x + 16);
+      const plant = Math.round(sx + 16);
       const y = HERO_Y;
       ctx.save();
       ctx.translate(plant, 0);
@@ -2363,7 +2505,7 @@
     }
     const c = paintNpc(n, n.mode === 'wave', frame);
     const plant = c._plant || 12;
-    const x = Math.round(n.x - plant + 8), y = GROUND - c.height + 2;
+    const x = Math.round(sx - plant + 8), y = GROUND - c.height + 2;
     ctx.drawImage(c, x, y);
     if (n.mode === 'wave' && n.line) drawBubble(ctx, x + plant, y + (c._headY || 8), n.line);
   }
@@ -2473,9 +2615,10 @@
     const v = s.vendor;
     const sx = v.wx - s.scroll;
     if (v.mode === 'wait') {
-      if (sx <= s.heroX + 44 && s.mode === 'run' && !living(s).some(m => m.x < s.heroX + 150) && (s.forceVendor || (s.pace || 0) <= 0.25)) {
+      if (sx <= s.heroX + 44 && s.mode === 'run' && !living(s).some(m => m.x < s.heroX + 150)) {
         v.mode = 'deal'; v.t = 0; s.vendorT = 0;
-        s.mode = 'vendor'; s.loco = 'idle'; s.pose = ''; s.pace = 0; s.paceTarget = 0;
+        plantStop(s);
+        s.mode = 'vendor'; s.pose = '';
         s.forceVendor = false;
         beginTurn(s, 'side');
       }
@@ -2563,7 +2706,7 @@
     return (spiritCache[f] = c);
   }
   // ---------- occasional weather (rain / storm; skipped in the cave) ----------
-  const RAIN_MAX = 48, SPLASH_MAX = 10;
+  const RAIN_MAX = 72, SPLASH_MAX = 12;
   let rainDrops = null, rainSplashes = null;
   function weatherBiomeOk(s) {
     if (!s) return false;
@@ -2572,9 +2715,9 @@
     return true;
   }
   function allocRain() {
-    if (rainDrops) return;
+    if (rainDrops && rainDrops.length >= RAIN_MAX) return;
     rainDrops = [];
-    for (let i = 0; i < RAIN_MAX; i++) rainDrops.push({ x: 0, y: -8, len: 4, spd: 4, a: 0.4, on: 0 });
+    for (let i = 0; i < RAIN_MAX; i++) rainDrops.push({ x: 0, y: -8, len: 10, spd: 10, a: 0.45, on: 0 });
     rainSplashes = [];
     for (let i = 0; i < SPLASH_MAX; i++) rainSplashes.push({ x: 0, y: 0, t: 0, life: 0 });
   }
@@ -2611,15 +2754,15 @@
       nextBolt: storm ? (28 + ((Math.random() * 50) | 0)) : (90 + ((Math.random() * 150) | 0)),
       forced: !!forced
     };
-    const n = storm ? RAIN_MAX : 22;
+    const n = storm ? RAIN_MAX : 32;
     for (let i = 0; i < RAIN_MAX; i++) {
       const d = rainDrops[i];
       d.on = i < n ? 1 : 0;
       d.x = Math.random() * ((W || 200) + 40) - 16;
       d.y = Math.random() * (H + 16) - 16;
-      d.len = storm ? 5 + ((Math.random() * 4) | 0) : 3 + ((Math.random() * 3) | 0);
-      d.spd = storm ? 5.5 + Math.random() * 3 : 3.2 + Math.random() * 1.8;
-      d.a = storm ? 0.42 + Math.random() * 0.38 : 0.26 + Math.random() * 0.28;
+      d.len = storm ? 11 + ((Math.random() * 7) | 0) : 7 + ((Math.random() * 5) | 0);
+      d.spd = storm ? 11 + Math.random() * 5 : 7.5 + Math.random() * 3.5;
+      d.a = storm ? 0.48 + Math.random() * 0.36 : 0.32 + Math.random() * 0.28;
     }
     for (const sp of rainSplashes) sp.life = 0;
     s.weatherCd = 0;
@@ -2645,8 +2788,8 @@
     if (reduced()) return;
     allocRain();
     const storm = w.kind === 'storm';
-    const wind = 1.5 + (s.scrollSpd || 0) * 0.4;
-    const n = storm ? RAIN_MAX : 22;
+    const wind = 3.4 + (s.scrollSpd || 0) * 0.55;
+    const n = storm ? RAIN_MAX : 32;
     const ww = W || 200;
     for (let i = 0; i < n; i++) {
       const d = rainDrops[i];
@@ -2714,9 +2857,9 @@
       if (flashHere && w.flash) { ctx.save(); ctx.globalAlpha = (w.flash / (storm ? 3 : 2)) * (storm ? 0.5 : 0.32) * fade; ctx.fillStyle = '#d8e8ff'; ctx.fillRect(0, 0, wW, H0); ctx.restore(); }
       return;
     }
-    const wind = 1.5 + (s.scrollSpd || 0) * 0.4;
+    const wind = 3.4 + (s.scrollSpd || 0) * 0.55;
     const aa = a || 0;
-    const n = storm ? RAIN_MAX : 22;
+    const n = storm ? RAIN_MAX : 32;
     const yOff = 0;
     const reps = bgMode ? 3 : 1;
     const gap = bgMode && BH ? Math.max(40, ((BH - BAND) / 3) | 0) : 0;
@@ -2729,10 +2872,13 @@
         const y = d.y + d.spd * aa - rep * gap + yOff;
         if (bgMode && BH && y > BH - H) continue;
         if (!bgMode && (y < -6 || y > GROUND + 2)) continue;
-        ctx.globalAlpha = d.a * fade * (rep ? 0.7 : 1);
+        const dx = wind * 0.9;
+        const dy = d.len * 0.95;
         ctx.fillStyle = storm ? '#c4d4e8' : '#a8b8cc';
-        const dx = wind * 0.45;
-        for (let k = 0; k < d.len; k++) ctx.fillRect(Math.round(x + dx * k / d.len), Math.round(y + k * 0.9), 1, 1);
+        ctx.globalAlpha = d.a * fade * (rep ? 0.7 : 1) * 0.38;
+        for (let k = 0; k < d.len; k++) ctx.fillRect(Math.round(x - dx * 0.35 + dx * k / d.len), Math.round(y - d.spd * 0.28 + k * 0.95), 1, 2);
+        ctx.globalAlpha = d.a * fade * (rep ? 0.7 : 1);
+        for (let k = 0; k < d.len; k++) ctx.fillRect(Math.round(x + dx * k / d.len), Math.round(y + k * 0.95), 1, 1);
       }
     }
     if (!bgMode) {
@@ -2761,7 +2907,7 @@
     s.mode = 'death'; s.deathT = 0; s.deathPhase = 'fall'; s.deathAng = 0; s.deathY = 0;
     s.deathLine = DEATH_LINES[(Math.random() * DEATH_LINES.length) | 0];
     s.spiritY = 0; s.spiritA = 0; s.pose = ''; s.seq = null; s.leap = null; s.loco = 'idle';
-    s.hp = 0; s.flashH = 5; s.fire = null;
+    s.hp = 0; s.fire = null;
     if (s.npc) { s.npc.mode = 'leave'; s.npc.wave = 0; }
     if (s.vendor && s.vendor.mode === 'deal') s.vendor.mode = 'done';
     beginTurn(s, 'side');
@@ -2808,7 +2954,7 @@
         s.mon = null; s.mons = []; s.spawn = nextGap();
         s.deathCd = 220;
         s.spiritA = 0;
-        goRun(s, true);
+        goRun(s);
       }
     }
     for (const mon of allMons(s)) {
@@ -2849,6 +2995,7 @@
     snap(s);
     s.t++;
     if (s.flashH) s.flashH--;
+    if (s.knock) s.knock--;
     if (s.fade) s.fade--;
     if (s.lunge) s.lunge--;
     if (s.leap) { s.leap.t++; if (s.leap.t >= s.leap.life) s.leap = null; }
@@ -2893,36 +3040,31 @@
     const live = living(s);
     const closest = live.length ? live.reduce((a, b) => a.x < b.x ? a : b) : null;
     if (s.mode === 'run') {
-      if (s.coolWalk > 0) s.coolWalk--;
       if (s.forceLoco) {
         s.loco = s.forceLoco;
         s.pace = s.loco === 'run' ? 1 : (s.loco === 'walk' ? 0.4 : 0);
         s.paceTarget = s.pace;
       } else {
-        const tgt = paceForDist(encounterDist(s, eq, heroFront));
-        s.paceTarget = tgt;
-        const cur = (s.pace != null) ? s.pace : 1;
-        const rate = tgt < cur ? 0.18 : 0.07;
-        s.pace = cur + (tgt < cur ? -1 : 1) * Math.min(Math.abs(tgt - cur), rate);
-        s.loco = s.pace < 0.07 ? 'idle' : (s.pace < 0.5 ? 'walk' : 'run');
+        s.pace = 1; s.paceTarget = 1; s.loco = 'run';
       }
       const step = scrollSpeed(s.pace);
       s.scrollSpd = step;
       s.gaitF = heroGaitFrame(s);
       moving(step);
       beginTurn(s, 'side');
+      tickDance(s);
       if (!closest && !allMons(s).some(m => m && m.dead && m.dead <= 7)) { if (--s.spawn <= 0) spawn(); }
       else if (closest) {
         approachMons(step);
         const inRange = closest.x <= heroFront + engageDist(eq);
-        const ready = (s.pace || 0) <= 0.2 || closest.x <= heroFront + 8;
-        if (inRange && ready) {
+        if (inRange) {
           const kind = atkKind(eq);
           const ranged = kind === 'ranged' || kind === 'bolt';
+          plantStop(s);
           s.mode = 'fight'; s.atkT = TURN_N + 1; s.monT = 6; s.seq = null; s.pose = ''; s.fightXp = 0; s.fightLeveled = 0;
-          s.pace = 0; s.paceTarget = 0; s.scrollSpd = 0;
-          if (ranged && closest.x > heroFront + 40) { s.loco = 'walk'; beginTurn(s, 'side'); for (const m of live) beginMonTurn(m, 'side'); }
-          else { s.loco = 'idle'; beginTurn(s, 'front'); for (const m of live) beginMonTurn(m, 'front'); }
+          s.fightFace = (ranged && closest.x > heroFront + 40) ? 'side' : 'front';
+          beginTurn(s, 'side');
+          for (const m of live) beginMonTurn(m, s.fightFace === 'side' ? 'side' : 'side');
         }
       }
       tryFieldEvents(s);
@@ -2939,8 +3081,10 @@
       s.scrollSpd = 2;
       moving(2);
       beginTurn(s, 'side');
-      if (s.hopT >= life) goRun(s, true);
+      if (s.hopT >= life) goRun(s);
     } else if (s.mode === 'pull') {
+      if (tickSkid(s)) { moving(0); }
+      else {
       s.pullT++;
       const t = s.pullT;
       const bay = s.pullOf ? propScreenX(s.pullOf, s.scroll, 0, 0) + (s.pullKind === 'engine' ? 14 : 28) : s.heroX + 36;
@@ -2964,12 +3108,15 @@
           s.fx.push({ k: 'glint', x: bay, y: GROUND - 20, tx: s.heroX + 22, ty: HERO_Y + 8, t: 0, life: 8 });
         }
       } else {
-        s.pullCd = 70; goRun(s, true);
+        s.pullCd = 70; goRun(s);
       }
       s.gaitF = (s.gaitF || 0) + 1;
       beginTurn(s, 'side');
       moving(0);
+      }
     } else if (s.mode === 'dig') {
+      if (tickSkid(s)) { moving(0); }
+      else {
       s.digT++;
       s.loco = 'dig';
       s.gaitF = (s.gaitF || 0) + 1;
@@ -2986,8 +3133,11 @@
         addNum(s.heroX + 16, 10, 'SCRAP', '#ffe070');
         s.toast = { msg: 'SCRAP', t: 0 };
       }
-      if (s.digT >= 18) { s.digCd = 90; goRun(s, true); }
+      if (s.digT >= 18) { s.digCd = 90; goRun(s); }
+      }
     } else if (s.mode === 'vendor') {
+      if (tickSkid(s)) { moving(0); tickVendor(s); }
+      else {
       s.vendorT = (s.vendorT || 0) + 1;
       const t = s.vendorT, v = s.vendor;
       if (t <= 6) { s.loco = 'walk'; s.pullY = 0; }
@@ -3010,7 +3160,7 @@
       } else {
         s.loco = 'idle'; s.pullY = 0;
         if (v) v.nod = (t < 28) ? 1 : 0;
-        if (t >= 40) { if (v) v.mode = 'done'; goRun(s, true); }
+        if (t >= 40) { if (v) v.mode = 'done'; goRun(s); }
       }
       if (s.mode === 'vendor') {
         s.gaitF = heroGaitFrame(s);
@@ -3018,6 +3168,7 @@
         beginTurn(s, 'side');
         moving(0);
         tickVendor(s);
+      }
       }
     } else if (s.mode === 'greet') {
       s.loco = 'idle'; s.gaitF = heroGaitFrame(s);
@@ -3032,6 +3183,8 @@
       moving(0);
       tickDeath(s);
     } else if (s.mode === 'fight') {
+      if (tickSkid(s)) { moving(0); }
+      else {
       const kind = atkKind(eq);
       const ranged = kind === 'ranged' || kind === 'bolt';
       const m = closest || s.mon;
@@ -3048,7 +3201,8 @@
       }
       if (allMons(s).length && allMons(s).every(mon => mon.dead > 7)) {
         s.mon = null; s.mons = []; s.spawn = nextGap(); s.seq = null; s.pose = ''; s.leap = null;
-        if (s.hp < s.max * 0.16 || (s.hp < s.max * 0.32 && (s.healCd || 0) <= 0 && Math.random() < 0.4)) startHeal(); else goRun(s, true);
+        if (s.hp < s.max * 0.16 || (s.hp < s.max * 0.32 && (s.healCd || 0) <= 0 && Math.random() < 0.4)) startHeal();
+        else { maybeDance(s, true); goRun(s); }
         return;
       }
       if (!m || (m.dead && !living(s).length)) return;
@@ -3117,23 +3271,34 @@
         s.monT = striker.boss ? 9 : (living(s).length > 2 ? 8 : 10); striker.lunge = 2;
         if (applyHeroHit(s, heroHitDmg(s, striker), striker)) return;
       }
+      }
     } else if (s.mode === 'potion') {
+      if (tickSkid(s)) { moving(0); }
+      else {
       s.potion++; s.pose = '';
       if ((s.potion === 8 || s.potion === 13) && s.hp < s.max) { const h = Math.max(1, Math.ceil(s.max * 0.12)); s.hp = Math.min(s.max, s.hp + h); addNum(s.heroX + 14 + (s.potion % 4) * 2, 12, '+' + h, '#70ff70'); }
-      if (s.potion > 16) goRun(s, true);
+      if (s.potion > 16) goRun(s);
+      }
     } else if (s.mode === 'rest') {
+      if (tickSkid(s)) { moving(0); }
+      else {
       s.potion++; s.pose = '';
       if ((s.potion === 16 || s.potion === 32 || s.potion === 48) && s.hp < s.max) { const h = Math.max(1, Math.ceil(s.max * 0.08)); s.hp = Math.min(s.max, s.hp + h); addNum(s.heroX + 16, 18, '+' + h, '#70ff70'); }
-      if (s.potion > 56 || (s.hp >= s.max && s.potion > 30)) goRun(s, true);
+      if (s.potion > 56 || (s.hp >= s.max && s.potion > 30)) goRun(s);
+      }
     } else if (s.mode === 'band') {
+      if (tickSkid(s)) { moving(0); }
+      else {
       s.potion++; s.pose = 'band';
       if ((s.potion === 8 || s.potion === 14) && s.hp < s.max) { const h = Math.max(1, Math.ceil(s.max * 0.10)); s.hp = Math.min(s.max, s.hp + h); addNum(s.heroX + 16, 14, '+' + h, '#70ff70'); }
-      if (s.potion > 18) { goRun(s, true); s.pose = ''; }
+      if (s.potion > 18) { goRun(s); s.pose = ''; }
+      }
     }
   }
   let lastHeal = '';
   function startHeal(forced) {
-    st.potion = 0; st.seq = null; st.pose = ''; st.fire = null; st.loco = 'idle'; st.leap = null; st.hopY = 0; st.healCd = 240;
+    plantStop(st);
+    st.potion = 0; st.seq = null; st.pose = ''; st.fire = null; st.loco = 'skid'; st.leap = null; st.hopY = 0; st.healCd = 240;
     beginTurn(st, 'front');
     let r = forced;
     if (!r) {
@@ -3341,13 +3506,16 @@
     const x = o.getContext('2d'); x.imageSmoothingEnabled = false; x.drawImage(src, px, py);
     return o;
   }
-  function waveShift(src, phase, amp, freq) {
+  function waveShift(src, phase, amp, freq, lower) {
     const pad = Math.ceil(Math.abs(amp) + 2);
     const o = document.createElement('canvas'); o.width = src.width + pad * 2; o.height = src.height;
     const x = o.getContext('2d'); x.imageSmoothingEnabled = false;
     const w = src.width, h = src.height;
-    for (let y = 0; y < h; y++) {
-      const dx = Math.round(Math.sin(phase * 0.5 + y * freq) * amp);
+    const mid = lower ? Math.round(h * 0.45) : 0;
+    if (mid) x.drawImage(src, 0, 0, w, mid, pad, 0, w, mid);
+    for (let y = mid; y < h; y++) {
+      const k = mid ? (y - mid) / Math.max(1, h - mid) : 1;
+      const dx = Math.round(Math.sin(phase * 0.5 + y * freq) * amp * (0.35 + 0.65 * k));
       x.drawImage(src, 0, y, w, 1, pad + dx, y, w, 1);
     }
     return o;
@@ -3366,17 +3534,27 @@
   }
   function strideShift(src, phase, heavy, scurry) {
     const pad = 5;
-    const o = document.createElement('canvas'); o.width = src.width + pad * 2; o.height = src.height + pad;
+    const o = document.createElement('canvas'); o.width = src.width + pad * 2; o.height = src.height + pad * 2;
     const x = o.getContext('2d'); x.imageSmoothingEnabled = false;
-    const tau = phase * (heavy ? 0.35 : scurry ? 0.85 : 0.55);
+    const tau = phase * (heavy ? 0.35 : scurry ? 0.9 : 0.55);
+    if (scurry) {
+      // Keep a quadruped in one piece — bob and pitch the whole body, no mid-split.
+      const bob = Math.round(Math.abs(Math.sin(tau)) * 2);
+      const tilt = Math.sin(tau) * 0.12;
+      x.translate(pad + src.width / 2, pad + src.height / 2 - bob);
+      x.rotate(tilt);
+      x.drawImage(src, -src.width / 2, -src.height / 2);
+      return o;
+    }
     const bob = Math.round(Math.abs(Math.sin(tau)) * (heavy ? 2 : 1));
     const mid = (src.width / 2) | 0;
     const legY = Math.round(src.height * 0.55);
-    const lift0 = Math.max(0, Math.round(Math.sin(tau) * (heavy ? 3 : scurry ? 2 : 2)));
-    const lift1 = Math.max(0, Math.round(-Math.sin(tau) * (heavy ? 3 : scurry ? 2 : 2)));
-    const ox0 = Math.round(Math.cos(tau) * (heavy ? 1 : 2));
+    const overlap = 3;
+    const lift0 = Math.max(0, Math.round(Math.sin(tau) * (heavy ? 3 : 2)));
+    const lift1 = Math.max(0, Math.round(-Math.sin(tau) * (heavy ? 3 : 2)));
+    const ox0 = Math.round(Math.cos(tau) * (heavy ? 0.6 : 1));
     const ox1 = -ox0;
-    x.drawImage(src, 0, 0, src.width, legY, pad, pad - bob, src.width, legY);
+    x.drawImage(src, 0, 0, src.width, legY + overlap, pad, pad - bob, src.width, legY + overlap);
     x.drawImage(src, 0, legY, mid, src.height - legY, pad + ox0, pad + legY - bob - lift0, mid, src.height - legY);
     x.drawImage(src, mid, legY, src.width - mid, src.height - legY, pad + mid + ox1, pad + legY - bob - lift1, src.width - mid, src.height - legY);
     return o;
@@ -3424,7 +3602,7 @@
       } else if (gait === 'slither') {
         c = waveShift(src, phase, 2.4, 0.35);
       } else if (gait === 'scuttle') {
-        c = waveShift(src, phase * 1.4, 1.6, 0.7);
+        c = waveShift(src, phase * 1.4, 0.8, 0.45, true);
         dy = -((frame % 2) ? 1 : 0);
       } else if (gait === 'lumber' || gait === 'walk' || gait === 'scurry') {
         c = strideShift(src, phase, gait === 'lumber', gait === 'scurry');
@@ -3441,25 +3619,30 @@
     const scStep = scrollStep(s);
     const cam = camX(s.scroll, a, scStep);
     if (bgOn) drawBg();
-    else { const bgOf = (L) => { tiled(L.sky, 0, H - L.TH); tiled(L.far, cam * 0.2, H - L.TH); tiled(L.mid, cam * 0.55, H - L.TH); }; fadeDraw(bgOf, H); }
+    else {
+      const bgOf = (L) => { tiled(L.sky, 0, H - L.TH); tiled(L.far, cam * 0.2, H - L.TH); tiled(L.mid, cam * 0.55, H - L.TH); };
+      fadeDraw(bgOf, H);
+      // No scenebg: still paint mid buildings behind the grass strip.
+      drawProps(g, s.scroll, a, scStep, 'mid');
+    }
     fadeDraw(L => tiled(L.fl, cam, GROUND - 8), H);
-    drawProps(g, s.scroll, a, scStep, 'mid');
     drawProps(g, s.scroll, a, scStep, 'ground');
     if (s.fire) drawFire(s.fire.x, s.t);
     const loc = heroLoco(s);
-    const gaitFrame = (loc === 'run' || loc === 'walk' || loc === 'idle' || loc === 'stand') ? Math.floor(heroGaitFrame(s)) : Math.floor((s.gaitF || 0) + a * (loc === 'hop' ? 1.5 : loc === 'dig' || loc === 'climb' ? 1 : 0.4));
+    const gaitFrame = (loc === 'run' || loc === 'walk' || loc === 'idle' || loc === 'stand' || loc === 'skid') ? Math.floor(heroGaitFrame(s)) : Math.floor((s.gaitF || 0) + a * (loc === 'hop' ? 1.5 : loc === 'dig' || loc === 'climb' ? 1 : 0.4));
     const amt = faceAmt(s, a);
     const baseFront = heroSprite(s.pose);
     let frontImg = baseFront, hy = HERO_Y + Math.round((s.hopY || 0) + (s.dodgeY || 0) + ((s.mode === 'pull' || s.mode === 'vendor') ? (s.pullY || 0) : 0));
     if (s.mode === 'rest') frontImg = sitOf(baseFront);
     const eq = heroEq(), rar = rarity(eqNow());
     const sideLoco = (loc === 'idle' && s.mode !== 'dig' && s.mode !== 'hop') ? 'idle' : loc;
-    const sideImg = (P().heroCanvasSide) ? P().heroCanvasSide(eq, rar.best, rar.color, sideLoco, gaitFrame) : baseFront;
+    const flavor = (s.dance && s.mode === 'run') ? s.dance.kind : null;
+    const sideImg = (P().heroCanvasSide) ? P().heroCanvasSide(eq, rar.best, rar.color, sideLoco, gaitFrame, flavor) : baseFront;
     const healFront = s.mode === 'rest' || s.mode === 'potion' || s.mode === 'band';
     const useSide = amt < 0.5 && !healFront;
     let img = useSide ? sideImg : frontImg;
     img = degradeHero(img, hurtStage(s.hp, s.max));
-    const hx = s.heroX + (s.lunge ? 3 * Math.min(1, s.lunge - a * 0 + 0) / 3 : 0) + leapOff(s, a);
+    const hx = s.heroX + (s.lunge ? 3 * Math.min(1, s.lunge - a * 0 + 0) / 3 : 0) + leapOff(s, a) + (s.knock ? -2 : 0);
     const hx2 = s.heroX + (s.lunge ? 3 : 0) + leapOff(s, a);
     const ax = (useSide && img._ax != null) ? img._ax : (img.width / 2);
     const plant = hx2 + 24;
@@ -3473,11 +3656,9 @@
       g.translate(Math.round(plant), ground - 2);
       g.rotate((s.deathAng || 0) * Math.PI * 0.5);
       g.drawImage(img, -Math.round((ax / img.width) * dw), -img.height + 2 + Math.round(s.deathY || 0), dw, img.height);
-      if (s.flashH) { g.globalAlpha = 0.55 * Math.min(1, s.flashH / 2); g.drawImage(whiteOf(img), -Math.round((ax / img.width) * dw), -img.height + 2 + Math.round(s.deathY || 0), dw, img.height); g.globalAlpha = 1; }
       g.restore();
     } else {
       g.drawImage(img, dx, hy, dw, img.height);
-      if (s.flashH) { g.globalAlpha = 0.55 * Math.min(1, s.flashH / 2); g.drawImage(whiteOf(img), dx, hy, dw, img.height); g.globalAlpha = 1; }
     }
     if (s.mode === 'pull') drawPullGear(g, s, plant, hy, a);
     if (s.mode === 'greet' && s.npc && s.npc.mode === 'wave') drawWaveArm(g, plant, hy, (s.greetT || 0) + a);
@@ -3543,7 +3724,6 @@
         g.imageSmoothingEnabled = false;
         g.globalAlpha = m.dead ? Math.max(0, 1 - m.dead / 7) : 1;
         g.drawImage(posed.c, dxm, dym, dwm, ih);
-        if ((m.flash > 0) || (m.dead > 0)) { g.globalAlpha = m.dead ? 0.5 : 0.65; g.drawImage(posed.f, dxm, dym, dwm, ih); }
         g.globalAlpha = 1;
       }
       if (!m.dead && (s.mode === 'fight' || m.boss || m.elite || m.leader)) bar(mx + mw / 2 - 8, Math.max(2, dym - 5), 16, Math.max(0, m.hp / m.max), m.boss ? '#b070ff' : (m.elite || m.leader) ? '#ffc040' : '#d04030');
@@ -3607,12 +3787,26 @@
         g.fillStyle = 'rgba(40,30,24,' + fade + ')';
         for (let i = 0; i < 6; i++) g.fillRect(Math.round(f.x + Math.cos(i * 1.1) * r * 0.8), Math.round(f.y + Math.sin(i * 1.1) * r * 0.5 - ft), 2, 1);
         if (ft < 2) { g.fillStyle = '#fffbe8'; g.fillRect(f.x - 3, f.y - 3, 7, 7); }
-      } else if (f.k === 'blood') {
+      } else if (f.k === 'blood' || f.k === 'ichor' || f.k === 'bone' || f.k === 'ecto') {
         const x = ix(f, a), y = ix(f, a, 'y');
-        g.fillStyle = f.t < 2 ? '#6a1810' : '#4a0c0c';
         g.globalAlpha = Math.max(0, 1 - ft / f.life);
-        g.fillRect(Math.round(x), Math.round(y), 1, 1);
-        if (f.t < 3) g.fillRect(Math.round(x) + 1, Math.round(y), 1, 1);
+        if (f.k === 'ichor') {
+          g.fillStyle = f.t < 2 ? '#7ad830' : '#3a6a18';
+          g.fillRect(Math.round(x), Math.round(y), 2, 2);
+          if (f.t < 3) { g.fillStyle = '#d8ff70'; g.fillRect(Math.round(x) + 1, Math.round(y) - 1, 1, 1); }
+        } else if (f.k === 'bone') {
+          g.fillStyle = f.t < 2 ? '#efe6d0' : '#c8b898';
+          g.fillRect(Math.round(x), Math.round(y), 2, 1);
+          if (f.t < 4) g.fillRect(Math.round(x) + 1, Math.round(y) + 1, 1, 1);
+        } else if (f.k === 'ecto') {
+          g.fillStyle = f.t < 2 ? '#c8f0ff' : '#70c0e0';
+          g.fillRect(Math.round(x), Math.round(y), 2, 2);
+          if (f.t < 3) { g.fillStyle = '#ffffff'; g.fillRect(Math.round(x) - 1, Math.round(y), 1, 1); }
+        } else {
+          g.fillStyle = f.t < 2 ? '#6a1810' : '#4a0c0c';
+          g.fillRect(Math.round(x), Math.round(y), 1, 1);
+          if (f.t < 3) g.fillRect(Math.round(x) + 1, Math.round(y), 1, 1);
+        }
         g.globalAlpha = 1;
       } else if (f.k === 'bolt') {
         if (ft < 4) {
@@ -3848,7 +4042,7 @@
       st.npc = null;
       st.vendorCd = 0;
       st.forceVendor = true;
-      st.pace = 0.4; st.paceTarget = 0.4; st.loco = 'walk';
+      st.pace = 1; st.paceTarget = 1; st.loco = 'run';
       if (!st.vendor) spawnVendor(st, { wx: st.scroll + st.heroX + 70 });
       return st.vendor;
     },
@@ -3924,6 +4118,13 @@
       return out;
     },
     _forceLoco(l) { if (st) st.forceLoco = l || null; },
+    _forceDance(kind) {
+      if (!st) st = freshState();
+      if (st.mode !== 'run') goRun(st);
+      st.forceDance = kind || true;
+      st.danceCd = 0;
+      return startDance(st, kind) || st.dance;
+    },
     _cycleMoves() {
       stop();
       if (!st) st = freshState();
@@ -4099,17 +4300,17 @@
       const frames = [];
       let waved = false, left = false, line = n0 && n0.line, greetSeen = false, scrollAtGreet = null, scrollEndGreet = null;
       for (let i = 0; i < 80; i++) {
-        const wasGreet = st.mode === 'greet';
+        const wasWave = st.npc && st.npc.mode === 'wave';
         const sc = st.scroll;
         tick();
         try { draw(); } catch (e) { return { error: String(e), frames: frames.length }; }
         frames.push({ mode: st.mode, npc: st.npc && st.npc.mode });
-        if (st.mode === 'greet') greetSeen = true;
-        if (wasGreet && st.mode === 'greet') {
+        if (st.npc && st.npc.mode === 'wave') {
+          greetSeen = true;
+          waved = true;
           if (scrollAtGreet == null) scrollAtGreet = sc;
           scrollEndGreet = st.scroll;
         }
-        if (st.npc && st.npc.mode === 'wave') waved = true;
         if (st.npc && st.npc.mode === 'leave') left = true;
         if (!st.npc && waved) break;
       }
