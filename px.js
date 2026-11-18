@@ -1138,10 +1138,18 @@
   // Facing right. 56 x 64 so a long stride and trailing cape have room. Body plant at x=30, feet at y=61.
   const SIDE_W = 56, SIDE_CX = 30, SIDE_FEET = 61;
   function gaitPose(loco, frame) {
-    const walkish = (loco === 'run' || loco === 'walk');
+    const walkish = (loco === 'run' || loco === 'walk' || loco === 'dance');
     const n = walkish ? 16 : 8, p = ((frame % n) + n) % n, tau = (p / n) * Math.PI * 2;
     if (loco === 'skid') {
       return { rx: 3.4, lx: -2.6, rLift: 0, lLift: 0.4, rAng: 0.35, lAng: -0.15, bob: 1.2, head: 0.6, cape: -7, flutter: 2.2, lean: 1.5, armR: 3, armL: -2.4, armRY: 1, armLY: 0.4, run: false, skid: true };
+    }
+    if (loco === 'dance') {
+      const bob = Math.abs(Math.sin(tau * 2)) * 1.8;
+      return {
+        rx: 1.8, lx: -1.8, rLift: 0, lLift: 0, rAng: 0.08, lAng: -0.08,
+        bob, head: bob * 0.25, cape: -5, flutter: Math.sin(tau * 2) * 2.2,
+        lean: 0.4, armR: 1, armL: -1, armRY: 0, armLY: 0, run: false, dance: true
+      };
     }
     if (loco === 'idle' || loco === 'stand') {
       const breath = Math.sin(tau) * 0.5;
@@ -1405,15 +1413,25 @@
       const n = 16, p = ((frame % n) + n) % n, tau = (p / n) * Math.PI * 2;
       G.flavor = flavor;
       if (flavor === 'bang') {
-        G.head += Math.sin(tau * 2) * 3.4;
-        G.lean += Math.sin(tau * 2) * 1.6;
-        G.bob += Math.abs(Math.sin(tau * 2)) * 0.4;
+        const nod = Math.sin(tau * 2);
+        G.head += nod * 7.2;
+        G.lean += nod * 5.2;
+        G.bob += Math.abs(nod) * 2.4;
+        G.armL = -3; G.armLY = 2;
+        G.armR = 2; G.armRY = 2;
       } else if (flavor === 'horns') {
-        G.armL = -7; G.armLY = -13;
+        G.armL = -8; G.armLY = -16;
+        G.armR = 3; G.armRY = -12;
+        G.head += Math.sin(tau) * 1.4;
+        G.lean = 0.6;
+        G.bob += 0.6;
       } else if (flavor === 'guitar') {
-        G.armR = 2 + Math.sin(tau * 2) * 3.2;
-        G.armRY = 3 + Math.sin(tau * 2) * 2.2;
-        G.armL = 5; G.armLY = 2;
+        const strum = Math.sin(tau * 2);
+        G.armR = 3 + strum * 5.2;
+        G.armRY = 4 + strum * 3.6;
+        G.armL = 6; G.armLY = 3;
+        G.lean = 1.4 + strum * 1.6;
+        G.bob += Math.abs(strum) * 1.4;
       }
     }
     const bob = G.bob, lean = G.lean;
@@ -1442,10 +1460,10 @@
     drawPackSide(S, eq.pack, cls, shX - 7, shY + 4);
     // Rear (left) arm: swing is centered on the shoulder so it clearly comes forward opposite the back leg.
     if (G.flavor === 'horns') {
-      sideArm(S, shX - 2, shY + 2, shX - 4, shY - 8, M.body, M.skin, 1.6, true);
+      sideArm(S, shX - 2, shY + 2, shX - 5, shY - 11, M.body, M.skin, 1.6, true);
       S.P({ flat: true, nocs: true });
-      S.px(shX - 6, shY - 11, M.skin); S.px(shX - 5, shY - 12, M.skin);
-      S.px(shX - 3, shY - 11, M.skin); S.px(shX - 2, shY - 12, M.skin);
+      S.px(shX - 7, shY - 14, M.skin); S.px(shX - 6, shY - 15, M.skin);
+      S.px(shX - 4, shY - 14, M.skin); S.px(shX - 3, shY - 15, M.skin);
     } else {
       sideArm(S, shX - 2, shY + 2, shX + G.armL, shY + 15 + G.armLY, M.body, M.skin, 1.6, G.run);
     }
@@ -1472,8 +1490,14 @@
     S.P(); S.rect(chestX, chestY - 3, 3, 4, M.skin, -1);
     drawPaulSide(S, eq.pauldrons, cls, shX + 2, shY);
     drawHeadSide(S, eq, cls, headX, headY);
-    if (G.flavor === 'guitar' && cls === 'warrior') {
-      const hx = shX + 3, hy = shY - 10;
+    if (G.flavor === 'horns') {
+      const hx = shX + 5, hy = shY - 11;
+      sideArm(S, shX + 2, shY, hx, hy, M.body, M.skin, 1.9, true);
+      S.P({ flat: true, nocs: true });
+      S.px(hx + 2, hy - 3, M.skin); S.px(hx + 3, hy - 4, M.skin);
+      S.px(hx, hy - 3, M.skin); S.px(hx - 1, hy - 4, M.skin);
+    } else if (G.flavor === 'guitar' && cls === 'warrior') {
+      const hx = shX + 3, hy = shY - 12;
       sideArm(S, shX + 2, shY, hx, hy, M.body, M.skin, 1.9, true);
       drawWepSide(S, eq.weapon, cls, hx, hy, G);
     } else if (G.flavor === 'guitar') {

@@ -1382,6 +1382,7 @@
     const loc = heroLoco(s);
     const beats = beatTime();
     if (loc === 'skid') return 0;
+    if (loc === 'dance') return ((beats * 16) % 16 + 16) % 16; // 1 cycle / beat, bangs on 8ths
     if (loc === 'run') return ((beats * 16) % 16 + 16) % 16; // 1 cycle / beat, 2 steps / beat
     if (loc === 'walk') return ((beats * 8) % 16 + 16) % 16;  // 1 cycle / 2 beats, 1 step / beat
     return ((beats * 2) % 8 + 8) % 8;
@@ -1416,6 +1417,7 @@
   }
   function heroLoco(s) {
     if (s.forceLoco) return s.forceLoco;
+    if (s.dance && !s.dance.delay) return 'dance';
     return s.loco || 'run';
   }
   function goRun(s) {
@@ -1429,7 +1431,7 @@
   function plantStop(s) {
     s.pace = 0; s.paceTarget = 0; s.scrollSpd = 0;
     s.skid = 3; s.loco = 'skid';
-    s.dance = null;
+    endDance(s, true);
   }
   function tickSkid(s) {
     if (!(s.skid > 0)) return false;
@@ -1452,38 +1454,127 @@
     [119.98, 152.70],
     [153.30, 172.46]
   ];
-  function musicOn() { return !!(window.PLBgm && PLBgm.playing && PLBgm.playing()); }
-  function inChorus() {
-    if (!musicOn()) return false;
-    const t = PLBgm.time();
-    for (let i = 0; i < CHORUS_WIN.length; i++) if (t >= CHORUS_WIN[i][0] && t < CHORUS_WIN[i][1]) return true;
-    return false;
+  // 2 bars at 108 BPM, in ticks: 2 * 4 * (60/108) * 12 ≈ 53.3
+  const DANCE_LIFE = 54;
+  const DANCE_CD_MIN = 360, DANCE_CD_SPAN = 360; // 30–60s between verse moves
+  const DANCE_CD_CHORUS = 144, DANCE_CD_CHORUS_SPAN = 96; // 12–20s extras in a chorus
+  function musicPlaying() {
+    // Actual audio, not the music pref. Autoplay-blocked (element paused) stays off.
+    try { return !!(window.PLBgm && PLBgm.playing && PLBgm.playing()); } catch (e) { return false; }
   }
-  function startDance(s, kind) {
-    if (!s || s.skid) return null;
-    if (!musicOn() && !s.forceDance) return null;
+  function musicTime() {
+    if (!musicPlaying()) return -1;
+    try {
+      const t = PLBgm.time();
+      return (t >= 0) ? t : -1;
+    } catch (e) { return -1; }
+  }
+  function chorusId(t) {
+    if (!(t >= 0)) return 0;
+    for (let i = 0; i < CHORUS_WIN.length; i++) if (t >= CHORUS_WIN[i][0] && t < CHORUS_WIN[i][1]) return i + 1;
+    return 0;
+  }
+  function inChorus() { return chorusId(musicTime()) > 0; }
+  function dancePathClear(s) {
+    if (!s) return false;
+    const heroFront = s.heroX + 40;
+    for (const m of living(s)) if (m.x < heroFront + 120) return false;
+    for (const p of (s.props || [])) {
+      if (p.used || p.looted || p.hang) continue;
+      if ((p.par || 1) !== 1) continue;
+      if (!(isCarProp(p) || p.dig)) continue;
+      const sx = propScreenX(p, s.scroll, 0, 0);
+      if (sx - (s.heroX + 28) < 90) return false;
+    }
+    if (s.vendor && s.vendor.mode === 'wait' && ((s.vendor.wx - s.scroll) - (s.heroX + 36) < 90)) return false;
+    return true;
+  }
+  function resumeAfterDance(s) {
+    if (!s || s.mode !== 'run' || s.skid || s.forceLoco) return;
+    s.loco = 'run';
+    s.pace = 1; s.paceTarget = 1; s.scrollSpd = scrollSpeed(1);
+  }
+  function endDance(s, early) {
+    if (!s || !s.dance) return;
+    const started = !s.dance.delay && (s.dance.t || 0) >= 8;
+    s.dance = null;
+    if (early && !started) s.danceCd = Math.min(s.danceCd || 0, 36);
+    resumeAfterDance(s);
+  }
+  function beginDancePose(s) {
+    if (!s || !s.dance) return;
+    s.dance.delay = 0;
+    s.loco = 'dance';
+    s.pace = 0; s.paceTarget = 0; s.scrollSpd = 0;
+  }
+  function startDance(s, kind, opts) {
+    if (!s) return null;
+    opts = opts || {};
+    const force = !!(s.forceDance || opts.force);
+    if (s.skid && !force) return null;
+    if (!musicPlaying() && !force) return null;
+    if (s.mode !== 'run' && !force) return null;
+    if (s.forceLoco && !force) return null;
+    if (s.dance) return s.dance;
     kind = DANCE_KINDS.indexOf(kind) >= 0 ? kind : DANCE_KINDS[(Math.random() * DANCE_KINDS.length) | 0];
-    s.dance = { kind, t: 0, life: 48 };
-    s.danceCd = 720 + ((Math.random() * 720) | 0);
+    let delay = 0;
+    if (!force) {
+      const beats = beatTime();
+      const frac = ((beats % 1) + 1) % 1;
+      const ticksPerBeat = FPS * 60 / BGM_BPM;
+      delay = frac < 0.12 ? 0 : Math.round((1 - frac) * ticksPerBeat);
+    }
+    s.dance = { kind, t: 0, life: DANCE_LIFE, delay };
+    const cid = chorusId(musicTime());
+    if (cid) s.danceChorusSeen = cid;
+    s.danceCd = cid
+      ? (DANCE_CD_CHORUS + ((Math.random() * DANCE_CD_CHORUS_SPAN) | 0))
+      : (DANCE_CD_MIN + ((Math.random() * DANCE_CD_SPAN) | 0));
     s.forceDance = null;
+    if (!delay) beginDancePose(s);
     return s.dance;
   }
   function maybeDance(s, afterWin) {
-    if (!s || s.dance || (s.danceCd > 0 && !afterWin && !s.forceDance)) return null;
-    if (!musicOn()) return null;
+    if (!s || s.dance) return null;
+    if (!musicPlaying() && !s.forceDance) return null;
     if (!afterWin && s.mode !== 'run') return null;
-    const chorus = inChorus();
-    const p = afterWin ? (chorus ? 0.5 : 0.22) : (chorus ? 0.004 : 0.0009);
-    if (s.forceDance || Math.random() < p) return startDance(s, s.forceDance);
-    return null;
+    if (s.skid && !s.forceDance) return null;
+    if (s.forceLoco && !s.forceDance) return null;
+    if (s.forceDance) return startDance(s, s.forceDance, { force: true });
+    if (!afterWin && !dancePathClear(s)) return null;
+    const cid = chorusId(musicTime());
+    if (cid && s.danceChorusSeen !== cid) return startDance(s);
+    if ((s.danceCd || 0) > 0) return null;
+    return startDance(s);
   }
   function tickDance(s) {
-    if (s.danceCd > 0) s.danceCd--;
+    if (!s) return;
     if (s.dance) {
+      if (s.skid || (s.mode !== 'run' && !s.forceDance)) {
+        endDance(s, true);
+        return;
+      }
+      if (!musicPlaying() && !s.forceDance) {
+        s.dance.mute = (s.dance.mute || 0) + 1;
+        if (s.dance.mute > 8) endDance(s, true);
+        return;
+      }
+      s.dance.mute = 0;
+      if (s.dance.delay > 0) {
+        s.dance.delay--;
+        if (s.dance.delay === 0) beginDancePose(s);
+        return;
+      }
       s.dance.t++;
-      if (s.dance.t >= s.dance.life || s.mode !== 'run' || s.skid || !musicOn()) s.dance = null;
+      s.loco = s.forceLoco || 'dance';
+      s.pace = 0; s.paceTarget = 0; s.scrollSpd = 0;
+      if (s.dance.t >= s.dance.life) endDance(s, false);
       return;
     }
+    // Cooldown only burns while music is actually playing.
+    if (!musicPlaying()) return;
+    if (s.danceCd == null) s.danceCd = DANCE_CD_MIN + ((Math.random() * 240) | 0);
+    if (s.danceCd > 0) s.danceCd--;
     if (s.mode === 'run' && !s.skid && !s.forceLoco) maybeDance(s, false);
   }
 
@@ -3082,36 +3173,43 @@
     const live = living(s);
     const closest = live.length ? live.reduce((a, b) => a.x < b.x ? a : b) : null;
     if (s.mode === 'run') {
-      if (s.forceLoco) {
+      const dancing = !!(s.dance && !s.dance.delay);
+      if (dancing && !s.forceLoco) {
+        s.loco = 'dance';
+        s.pace = 0; s.paceTarget = 0;
+      } else if (s.forceLoco) {
         s.loco = s.forceLoco;
         s.pace = s.loco === 'run' ? 1 : (s.loco === 'walk' ? 0.4 : 0);
         s.paceTarget = s.pace;
       } else {
         s.pace = 1; s.paceTarget = 1; s.loco = 'run';
       }
-      const step = scrollSpeed(s.pace);
+      const step = dancing ? 0 : scrollSpeed(s.pace);
       s.scrollSpd = step;
       s.gaitF = heroGaitFrame(s);
       moving(step);
       beginTurn(s, 'side');
       tickDance(s);
-      if (!closest && !allMons(s).some(m => m && m.dead && m.dead <= 7)) { if (--s.spawn <= 0) spawn(); }
-      else if (closest) {
-        approachMons(step);
-        const inRange = closest.x <= heroFront + engageDist(eq);
-        if (inRange) {
-          const kind = atkKind(eq);
-          const ranged = kind === 'ranged' || kind === 'bolt';
-          plantStop(s);
-          s.mode = 'fight'; s.atkT = TURN_N + 1; s.monT = 6; s.seq = null; s.pose = ''; s.fightXp = 0; s.fightLeveled = 0;
-          s.fightFace = (ranged && closest.x > heroFront + 40) ? 'side' : 'front';
-          beginTurn(s, 'side');
-          for (const m of live) beginMonTurn(m, s.fightFace === 'side' ? 'side' : 'side');
+      const stillDance = !!(s.dance && !s.dance.delay);
+      if (!stillDance) {
+        if (!closest && !allMons(s).some(m => m && m.dead && m.dead <= 7)) { if (--s.spawn <= 0) spawn(); }
+        else if (closest) {
+          approachMons(step);
+          const inRange = closest.x <= heroFront + engageDist(eq);
+          if (inRange) {
+            const kind = atkKind(eq);
+            const ranged = kind === 'ranged' || kind === 'bolt';
+            plantStop(s);
+            s.mode = 'fight'; s.atkT = TURN_N + 1; s.monT = 6; s.seq = null; s.pose = ''; s.fightXp = 0; s.fightLeveled = 0;
+            s.fightFace = (ranged && closest.x > heroFront + 40) ? 'side' : 'front';
+            beginTurn(s, 'side');
+            for (const m of live) beginMonTurn(m, s.fightFace === 'side' ? 'side' : 'side');
+          }
         }
+        tryFieldEvents(s);
+        tickNpc(s);
+        tickVendor(s);
       }
-      tryFieldEvents(s);
-      tickNpc(s);
-      tickVendor(s);
     } else if (s.mode === 'hop') {
       s.hopT++;
       const life = 12;
@@ -3252,7 +3350,7 @@
       if (allMons(s).length && allMons(s).every(mon => mon.dead > 7)) {
         s.mon = null; s.mons = []; s.spawn = nextGap(); s.seq = null; s.pose = ''; s.leap = null;
         if (s.hp < s.max * 0.16 || (s.hp < s.max * 0.32 && (s.healCd || 0) <= 0 && Math.random() < 0.4)) startHeal();
-        else { maybeDance(s, true); goRun(s); }
+        else { goRun(s); maybeDance(s, true); }
         return;
       }
       if (!m || (m.dead && !living(s).length)) return;
@@ -3705,14 +3803,14 @@
     drawProps(g, s.scroll, a, scStep, 'ground');
     if (s.fire) drawFire(s.fire.x, s.t);
     const loc = heroLoco(s);
-    const gaitFrame = (loc === 'run' || loc === 'walk' || loc === 'idle' || loc === 'stand' || loc === 'skid') ? Math.floor(heroGaitFrame(s)) : Math.floor((s.gaitF || 0) + a * (loc === 'hop' ? 1.5 : loc === 'dig' || loc === 'climb' ? 1 : 0.4));
+    const gaitFrame = (loc === 'run' || loc === 'walk' || loc === 'idle' || loc === 'stand' || loc === 'skid' || loc === 'dance') ? Math.floor(heroGaitFrame(s)) : Math.floor((s.gaitF || 0) + a * (loc === 'hop' ? 1.5 : loc === 'dig' || loc === 'climb' ? 1 : 0.4));
     const amt = faceAmt(s, a);
     const baseFront = heroSprite(s.pose);
     let frontImg = baseFront, hy = HERO_Y + Math.round((s.hopY || 0) + (s.dodgeY || 0) + ((s.mode === 'pull' || s.mode === 'vendor') ? (s.pullY || 0) : 0));
     if (s.mode === 'rest') frontImg = sitOf(baseFront);
     const eq = heroEq(), rar = rarity(eqNow());
     const sideLoco = (loc === 'idle' && s.mode !== 'dig' && s.mode !== 'hop') ? 'idle' : loc;
-    const flavor = (s.dance && s.mode === 'run') ? s.dance.kind : null;
+    const flavor = (s.dance && !s.dance.delay) ? s.dance.kind : null;
     const sideImg = (P().heroCanvasSide) ? P().heroCanvasSide(eq, rar.best, rar.color, sideLoco, gaitFrame, flavor) : baseFront;
     const healFront = s.mode === 'rest' || s.mode === 'potion' || s.mode === 'band';
     const useSide = amt < 0.5 && !healFront;
@@ -4202,7 +4300,91 @@
       if (st.mode !== 'run') goRun(st);
       st.forceDance = kind || true;
       st.danceCd = 0;
-      return startDance(st, kind) || st.dance;
+      st.skid = 0;
+      st.forceLoco = null;
+      return startDance(st, kind, { force: true }) || st.dance;
+    },
+    _cycleDance() {
+      stop();
+      if (!cv) { try { size(); } catch (e) {} }
+      const prev = window.PLBgm;
+      let t = 0;
+      window.PLBgm = { playing() { return true; }, time() { return t; } };
+      st = freshState();
+      goRun(st);
+      st.noDeath = 1; st.awardXp = false;
+      st.mon = null; st.mons = []; st.npc = null; st.vendor = null;
+      st.props = []; st.nextProp = 1e9; st.spawn = 1e9; st.fire = null;
+      st.forceLoco = null; st.forceDance = null; st.dance = null;
+      st.danceCd = DANCE_CD_MIN;
+      st.danceChorusSeen = 0;
+      const events = [];
+      let cur = null;
+      // Autoplay-blocked prelude: pref is irrelevant; paused audio must not start a dance.
+      window.PLBgm = { playing() { return false; }, time() { return 40; } };
+      let blockedHits = 0;
+      for (let i = 0; i < FPS * 12; i++) {
+        tick();
+        st.mon = null; st.mons = []; st.npc = null; st.vendor = null;
+        st.props = []; st.nextProp = 1e9; st.spawn = 1e9;
+        if (st.dance) blockedHits++;
+      }
+      endDance(st, true);
+      st.dance = null; st.danceCd = DANCE_CD_MIN; st.danceChorusSeen = 0;
+      goRun(st);
+      window.PLBgm = { playing() { return true; }, time() { return t; } };
+      const seconds = 180;
+      const TICKS = FPS * seconds;
+      for (let i = 0; i < TICKS; i++) {
+        t = i / FPS;
+        tick();
+        // Keep the course clear so the clock itself is what we measure.
+        st.mon = null; st.mons = []; st.npc = null; st.vendor = null;
+        st.props = []; st.nextProp = 1e9; st.spawn = 1e9;
+        if (st.dance && !st.dance.delay && !cur) {
+          cur = {
+            kind: st.dance.kind,
+            start: +t.toFixed(3),
+            loco: heroLoco(st),
+            pace: st.pace,
+            scrollSpd: st.scrollSpd,
+            mode: st.mode,
+            chorus: chorusId(t)
+          };
+        }
+        if (cur && (!st.dance || st.dance.delay)) {
+          cur.end = +t.toFixed(3);
+          cur.life = +(cur.end - cur.start).toFixed(3);
+          cur.stopped = cur.pace === 0 && cur.loco === 'dance';
+          events.push(cur);
+          cur = null;
+        }
+      }
+      if (cur) {
+        cur.end = +t.toFixed(3);
+        cur.life = +(cur.end - cur.start).toFixed(3);
+        cur.stopped = cur.pace === 0 && cur.loco === 'dance';
+        events.push(cur);
+      }
+      window.PLBgm = prev;
+      const choruses = CHORUS_WIN.filter(w => w[0] < seconds);
+      const covered = choruses.map((w, i) => ({
+        i: i + 1, win: w,
+        hit: events.some(e => e.start >= w[0] && e.start < w[1])
+      }));
+      const gaps = [];
+      for (let i = 1; i < events.length; i++) gaps.push(+(events[i].start - events[i - 1].start).toFixed(2));
+      return {
+        blockedHits,
+        ticks: TICKS, seconds, events, count: events.length,
+        kinds: events.map(e => e.kind),
+        allStopped: events.length > 0 && events.every(e => e.stopped),
+        firstAt: events[0] && events[0].start,
+        gaps,
+        lifeAvg: events.length ? events.reduce((a, e) => a + e.life, 0) / events.length : 0,
+        chorusCovered: covered.length > 0 && covered.every(c => c.hit),
+        covered
+      };
     },
     _cycleMoves() {
       stop();
