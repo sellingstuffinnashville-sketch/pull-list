@@ -897,7 +897,7 @@
   let lyricData = null, lyricP = null, lyricLast = '', lyricTimer = 0;
   let st = null;
   function freshState() {
-    return { mode: 'run', t: 0, scroll: 0, hp: 1, max: 1, heroX: 22, mon: null, mons: [], spawn: 40, fx: [], nums: [], coins: [], fire: null, atkT: 0, monT: 0, pose: '', lunge: 0, flashH: 0, potion: 0, eqKey: '', biome: 0, bt: 0, seq: null, seqI: 0, move: '', forceMove: null, forceCls: null, forceLoco: null, forcePack: null, alpha: 0, loco: 'run', facing: 'side', turn: 0, turnTo: 'side', gaitF: 0, coolWalk: 0, props: [], nextProp: 30, digCd: 24, digT: 0, hopT: 0, hopY: 0, pullT: 0, pullCd: 0, leap: null, toast: null, npc: null, npcCd: 200, greetT: 0, deathCd: 0, healCd: 0, fightXp: 0, awardXp: undefined, noDeath: false, vendor: null, vendorCd: 900, vendorT: 0, partsHeld: 0, pace: 1, paceTarget: 1, scrollSpd: 2, weather: null, weatherCd: 540 + ((Math.random() * 1260) | 0) };
+    return { mode: 'run', t: 0, scroll: 0, hp: 1, max: 1, heroX: 22, mon: null, mons: [], spawn: 40, fx: [], nums: [], coins: [], fire: null, atkT: 0, monT: 0, pose: '', lunge: 0, flashH: 0, potion: 0, eqKey: '', biome: 0, bt: 0, seq: null, seqI: 0, move: '', forceMove: null, forceCls: null, forceLoco: null, forcePack: null, alpha: 0, loco: 'run', facing: 'side', turn: 0, turnTo: 'side', gaitF: 0, coolWalk: 0, props: [], nextProp: 30, digCd: 24, digT: 0, hopT: 0, hopY: 0, pullT: 0, pullCd: 0, leap: null, toast: null, npc: null, npcCd: 200, greetT: 0, deathCd: 0, healCd: 0, fightXp: 0, awardXp: undefined, noDeath: false, vendor: null, vendorCd: 900, vendorT: 0, partsHeld: [], pace: 1, paceTarget: 1, scrollSpd: 2, weather: null, weatherCd: 540 + ((Math.random() * 1260) | 0) };
   }
   function eqNow() { return (typeof xpState !== 'undefined' && xpState.equipped) || {}; }
   function lvl() { return (typeof xpState !== 'undefined' && xpState.level) || 1; }
@@ -1631,6 +1631,61 @@
     { id: 'sensor', name: 'SENSOR' }, { id: 'ecu', name: 'ECU' },
     { id: 'radio', name: 'RADIO' }, { id: 'actuator', name: 'ACTUATOR' }
   ];
+  function shortCarName(car) {
+    let rest = String(car || '').trim();
+    const ym = rest.match(/^(\d{4})\s+(.+)$/);
+    if (!ym) return rest;
+    rest = ym[2].replace(/\s+\d+\.\d+\s*$/, '');
+    rest = rest.replace(/^(Chevrolet|Chevy|Ford|Honda|Toyota|Nissan|Hyundai|Kia|Dodge|Ram|GMC|Buick|Cadillac|Chrysler|Jeep|Lincoln|Mercury|Mazda|Subaru|Volkswagen|VW|BMW|Mercedes|Audi|Volvo|Pontiac|Saturn|Oldsmobile|Mitsubishi|Lexus|Acura|Infiniti|Isuzu|Saab|Suzuki|Mini|Fiat|Jaguar)\s+/i, '');
+    return (ym[1] + ' ' + rest).trim();
+  }
+  function scanPartLabel(p) {
+    const name = String((p && (p.name || p.part)) || '').trim();
+    const car = shortCarName(p && p.car);
+    if (!name) return car || '';
+    if (car && name.toLowerCase().indexOf(car.toLowerCase()) < 0 && (name.length <= 18 || /^(ECM|ECU|PCM|TCM|BCM|ABS|MAP|MAF|TPS|IAC|radio|sensor|actuator|module|motor|switch|relay|solenoid|cluster)$/i.test(name)))
+      return car + ' ' + name;
+    return name;
+  }
+  function iconForPartName(name) {
+    const n = String(name || '').toLowerCase();
+    if (/ecu|ecm|pcm|tcm|bcm|module|computer/.test(n)) return 'ecu';
+    if (/radio|stereo|nav|screen|display|cluster/.test(n)) return 'radio';
+    if (/actuator|motor|blend|door|wiper|window/.test(n)) return 'actuator';
+    if (/sensor|switch|o2|maf|map|tps|cam|crank/.test(n)) return 'sensor';
+    return 'actuator';
+  }
+  function listScanParts() {
+    try {
+      if (window.PLPickList && typeof PLPickList.parts === 'function') return PLPickList.parts() || [];
+    } catch (e) {}
+    return [];
+  }
+  function pickScanPart() {
+    const all = listScanParts();
+    if (!all.length) return null;
+    const open = all.filter(p => !p.got);
+    const pool = open.length ? open : all;
+    let total = 0;
+    const wts = pool.map(p => { const w = 1 + Math.max(0, p.net || 0); total += w; return w; });
+    let r = Math.random() * total;
+    for (let i = 0; i < pool.length; i++) { r -= wts[i]; if (r <= 0) return pool[i]; }
+    return pool[pool.length - 1];
+  }
+  function rollPullPart() {
+    const p = pickScanPart();
+    if (!p) return PULL_PARTS[(Math.random() * PULL_PARTS.length) | 0];
+    const name = scanPartLabel(p) || p.name || 'PART';
+    return { id: iconForPartName(name), name, code: p.code, fromScan: 1 };
+  }
+  function heldParts(s) {
+    if (!Array.isArray(s.partsHeld)) {
+      const n = s.partsHeld | 0;
+      s.partsHeld = [];
+      for (let i = 0; i < n; i++) s.partsHeld.push({ name: 'PART', id: 'sensor' });
+    }
+    return s.partsHeld;
+  }
   function rollCar(type) {
     const styles = type === 'carbrush' ? ['sedan', 'hatch', 'coupe', 'suv'] : CAR_STYLES;
     const miss = [];
@@ -2171,7 +2226,7 @@
   function startPull(s, prop) {
     plantStop(s);
     s.mode = 'pull'; s.pullT = 0; s.pullOf = prop; s.pullY = 0; s.pose = ''; s.toast = null;
-    s.pullPart = PULL_PARTS[(Math.random() * PULL_PARTS.length) | 0];
+    s.pullPart = rollPullPart();
     s.pullKind = (prop && prop.car && prop.car.hood === 'up') ? 'engine' : 'dash';
     s.loco = 'skid';
     if (prop) prop.looted = 1;
@@ -2207,21 +2262,6 @@
   const GREETINGS = [
     'Good day to you.',
     'Nice day for a fallout.',
-    'Stay safe out there.',
-    'Watch the roads.',
-    'Seen any gas?',
-    'Don\'t drink the rust water.',
-    'War never ended, huh.',
-    'Keep that scrap close.',
-    'Bats\'re worse after dark.',
-    'You lookin for parts too?',
-    'Sky\'s a little too red today.',
-    'If you find ammo, share.',
-    'Town\'s gone. Keep walkin.',
-    'Nice hat, stranger.',
-    'May your tires hold.',
-    'Heard a lich up north.',
-    'Rad-free greetings, friend.',
     'Best Offer? In this economy?',
     'The Emperor protects. Free shipping does not.',
     'Heresy! Listed as \'untested\'!',
@@ -3101,11 +3141,14 @@
           const part = s.pullPart || PULL_PARTS[0];
           const gold = 1 + ((Math.random() * 2) | 0);
           bstats.gold += gold; saveStats();
-          addNum(s.heroX + 16, 10, '+' + part.name, '#ffe070');
-          s.toast = { msg: '+PART', t: 0 };
-          s.partsHeld = (s.partsHeld || 0) + 1;
+          heldParts(s).push({ name: part.name || 'PART', id: part.id, code: part.code });
           if (Math.random() < 0.55) awardBattleXp(s, null, 1);
           s.fx.push({ k: 'glint', x: bay, y: GROUND - 20, tx: s.heroX + 22, ty: HERO_Y + 8, t: 0, life: 8 });
+        }
+        if (t === 21) {
+          const part = s.pullPart || PULL_PARTS[0];
+          const label = (part && part.name) ? part.name : 'PART';
+          s.toast = { msg: '+ ' + label, t: 0, life: 28 };
         }
       } else {
         s.pullCd = 70; goRun(s);
@@ -3149,13 +3192,18 @@
         }
       } else if (t === 17) {
         s.loco = 'idle'; s.pullY = 0;
-        const parts = s.partsHeld | 0;
-        const gold = parts > 0 ? parts * (4 + ((Math.random() * 3) | 0)) + ((Math.random() * 3) | 0) : (1 + ((Math.random() * 2) | 0));
-        s.partsHeld = 0;
+        const bag = heldParts(s);
+        const n = bag.length;
+        const names = bag.map(p => (p && p.name) || 'PART');
+        const gold = n > 0 ? n * (4 + ((Math.random() * 3) | 0)) + ((Math.random() * 3) | 0) : (1 + ((Math.random() * 2) | 0));
+        s.partsHeld = [];
         bstats.gold += gold; saveStats();
-        if (v) { v.sold = 1; v.gold = gold; v.nod = 1; }
-        s.toast = { msg: 'SOLD! +' + gold + ' gold', t: 0, life: 36 };
-        addNum(s.heroX + 16, 10, '+' + gold + 'g', '#ffe070');
+        if (v) { v.sold = 1; v.gold = gold; v.nod = 1; v.soldNames = names.slice(); }
+        let msg = 'SOLD!';
+        if (n === 1) msg = 'SOLD! ' + names[0];
+        else if (n > 1 && n <= 3) msg = 'SOLD! ' + n + ': ' + names.join(', ');
+        else if (n > 3) msg = 'SOLD! ' + n + ' parts: ' + names[0] + ' + ' + (n - 1) + ' more';
+        s.toast = { msg, t: 0, life: n ? 42 : 28 };
         if (typeof playClink === 'function') playClink();
       } else {
         s.loco = 'idle'; s.pullY = 0;
@@ -3902,7 +3950,10 @@
     drawProps(g, s.scroll, a, scStep, 'fg');
     drawVendor(g, s, a);
     drawNpc(g, s, a);
-    if (s.toast) text(g, s.toast.msg, s.heroX + 8, 8, '#ffe070');
+    if (s.toast) {
+      const lines = wrapText(s.toast.msg, Math.max(72, W - (s.heroX + 16)));
+      lines.forEach((ln, i) => text(g, ln, s.heroX + 8, 8 + i * 7, '#ffe070'));
+    }
     drawWeather(g, s, a, false);
     drawLyrics();
   }

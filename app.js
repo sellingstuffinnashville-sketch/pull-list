@@ -612,6 +612,23 @@ function merge(srv, ops) { // server state overlaid with local ops, last writer 
 }
 function view() { return (VIEWS[date] = merge(serverState, localOps)); }
 const val = (st, k) => st[k] ? st[k].v : undefined;
+function pickListParts() {
+  if (!scan || !date || !scan.rows) return [];
+  const st = view();
+  const out = [];
+  for (const row of scan.rows) {
+    for (const car of (row.cars || [])) {
+      for (const p of (car.parts || [])) {
+        if (val(st, 'rm:' + p.code)) continue;
+        const name = String(p.part || '').trim();
+        if (!name) continue;
+        out.push({ code: p.code, name, car: car.car || '', net: partNet(p), got: !!val(st, 'got:' + p.code) });
+      }
+    }
+  }
+  return out;
+}
+window.PLPickList = { parts: pickListParts, loaded() { return !!(scan && scan.rows && scan.rows.length); } };
 const chiDay = (ts = Date.now()) => new Date(ts).toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }); // YYYY-MM-DD
 async function stateFor(d) {
   const srv = ((await tx('server', 'readonly', s => req(s.get(d)))) || {}).state || {};
