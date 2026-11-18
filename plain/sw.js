@@ -1,7 +1,7 @@
 // Plain Pull List (no RPG). Own cache name and scope so it does not clash with the game build at ../.
 // Shared app.js / style.css / config.js live one directory up. Scan data + photos live in the same IndexedDB.
-const V = 'pl-pages-plain-v6';
-const SHELL = ['./', 'index.html', 'manifest.webmanifest', '../style.css', '../fonts/cinzel.woff2', '../app.js', '../zip.js', '../config.js', '../icon-192.png', '../icon-512.png'];
+const V = 'pl-pages-plain-v7';
+const SHELL = ['./', 'index.html', 'manifest.webmanifest', '../style.css', '../fonts/cinzel.woff2', '../app.js', '../home_list.js', '../zip.js', '../config.js', '../icon-192.png', '../icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' }))))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('pl-pages-plain') && k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

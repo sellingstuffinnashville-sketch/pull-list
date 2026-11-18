@@ -876,38 +876,80 @@ function showSettings() {
 }
 // Scan list and scans open from the copy saved on this phone first, then refresh from the server when there is
 // signal. The newest scans are saved ahead of time so they open in the yard even if never opened before.
+let olderDaysOpen = false;
+function scanSetTitle(d, sc) {
+  if (!window.PLHomeList || !sc) return d;
+  const cars = PLHomeList.scanCars(sc);
+  return PLHomeList.setDateLabel(cars, d) || d;
+}
+async function homeRows(idx) {
+  const rows = [];
+  for (const s of idx || []) {
+    const sc = await kvGet('scan:' + s.date);
+    rows.push(PLHomeList.summarize(s, sc));
+  }
+  return PLHomeList.sortRows(rows);
+}
+function homeListHtml(rows) {
+  const { recent, older } = PLHomeList.splitDays(rows, 3);
+  const btn = r => {
+    const t = PLHomeList.rowText(r);
+    const cars = r.cars === 1 ? '1 car' : (r.cars || 0) + ' cars';
+    const parts = r.parts === 1 ? '1 part' : (r.parts || 0) + ' parts';
+    const est = PLHomeList.moneyInt(r.fourHour);
+    const mid = '(' + cars + ', ' + parts + ')';
+    const right = est ? '4-hr pull ≈ ' + est : '';
+    return `<button class="scanitem" data-d="${esc(r.date)}" aria-label="${esc(t)}"><b>${esc(r.setDate || r.date || '')}</b><span class="scanmeta">${esc(mid)}</span>${right ? `<span class="scanest">${esc(right)}</span>` : ''}</button>`;
+  };
+  let h = recent.map(btn).join('');
+  if (older.length) h += `<details class="olderdays"${olderDaysOpen ? ' open' : ''}><summary>Older days</summary>${older.map(btn).join('')}</details>`;
+  return h;
+}
 async function showHome() {
   date = null; scan = null; screen = 'home'; lastScan = null;
   $('#back').hidden = true; $('#back').textContent = '← Scans'; $('#title').textContent = 'Pull List · Scans';
   status();
-  const draw = idx => {
+  const draw = async idx => {
     if (screen !== 'home') return;
-    const rpgBits = RPG ? `<p class="xpstats">Level ${xpState.level} · ${xpState.xp} XP · ${xpState.pulled} parts pulled · est. net ${money(xpState.net)}</p>${window.PLLoot ? window.PLLoot.picker() : ''}` : '';
-    main.innerHTML = `<div class="tools"><button data-act="trip">Trip days</button><button data-act="ready">Ready to list</button></div>${rpgBits}<p class="small">Newest first. Tap a scan to open it.</p>` + (idx && idx.length ? idx.map(s =>
-      `<button class="scanitem" data-d="${esc(s.date)}"><b>${esc(s.date)}</b>${esc(s.label)}<br><span class="small">${s.cars} cars · ${s.parts} parts</span></button>`).join('')
-      : `<p>${navigator.onLine ? 'Loading scans…' : 'No scans saved on this phone yet. Open the app once with signal.'}</p>`)
+    const rows = await homeRows(idx);
+    if (screen !== 'home') return;
+    const list = (idx && idx.length) ? homeListHtml(rows) : `<p>${navigator.onLine ? 'Loading scans…' : 'No scans saved on this phone yet. Open the app once with signal.'}</p>`;
+    const rpgBits = RPG ? `<div class="rpghome"><p class="xpstats">Level ${xpState.level} · ${xpState.xp} XP · ${xpState.pulled} parts pulled · est. net ${money(xpState.net)}</p>${window.PLLoot ? window.PLLoot.picker() : ''}</div>` : '';
+    const y = scrollY;
+    main.innerHTML = `<div class="tools"><button data-act="trip">Trip days</button><button data-act="ready">Ready to list</button></div>`
+      + list + rpgBits
       + `<p class="small">This phone: ${esc(DEVNAME)} · <a href="#" class="chg">settings</a></p>`;
+    scrollTo(0, y);
     main.querySelectorAll('.scanitem').forEach(b => b.onclick = () => openScan(b.dataset.d));
+    const older = main.querySelector('.olderdays');
+    if (older) older.addEventListener('toggle', () => { olderDaysOpen = older.open; });
     if (RPG && window.PLLoot) window.PLLoot.wirePicker(main);
   };
   const cached = await kvGet('index') || [];
-  draw(cached);
+  await draw(cached);
   if (!navigator.onLine) return;
   try {
     const idx = (await api('listScans')).scans || [];
-    await kvSet('index', idx); draw(idx);
-    prefetchScans(idx.slice(0, 3));
+    await kvSet('index', idx);
+    await draw(idx);
+    await prefetchScans(idx);
+    if (screen === 'home') await draw(idx);
   } catch (e) { if (e.login) return showLogin(); }
 }
 async function prefetchScans(list) {
-  for (const s of list) {
-    try { const sc = (await api('getScan', s.date)).scan; if (sc) await kvSet('scan:' + s.date, sc); } catch (e) { if (e.login) return; }
-  }
+  let login = false;
+  await Promise.all((list || []).map(async s => {
+    if (login) return;
+    try { const sc = (await api('getScan', s.date)).scan; if (sc) await kvSet('scan:' + s.date, sc); }
+    catch (e) { if (e.login) login = true; }
+  }));
+  if (login) throw Object.assign(new Error('login'), { login: true });
 }
 async function openScan(d) {
   date = d; screen = 'scan'; lastScan = null;
-  $('#back').hidden = false; $('#back').textContent = '← Scans'; $('#title').textContent = d;
+  $('#back').hidden = false; $('#back').textContent = '← Scans';
   scan = await kvGet('scan:' + d);
+  $('#title').textContent = scanSetTitle(d, scan);
   serverState = ((await tx('server', 'readonly', s => req(s.get(d)))) || {}).state || {};
   localOps = (await tx('ops', 'readonly', s => req(s.getAll()))).filter(o => o.date === d);
   if (scan) { render(); sync(); playGong(); }
@@ -915,7 +957,7 @@ async function openScan(d) {
   if (!navigator.onLine) { if (!scan) main.innerHTML = '<p>This scan is not saved on this phone yet. Open it once with signal.</p>'; return; }
   try {
     const fresh = (await api('getScan', d)).scan;
-    if (fresh) { await kvSet('scan:' + d, fresh); if (date === d) { const first = !scan; scan = fresh; render(); if (first) { sync(); playGong(); } } }
+    if (fresh) { await kvSet('scan:' + d, fresh); if (date === d) { const first = !scan; scan = fresh; $('#title').textContent = scanSetTitle(d, scan); render(); if (first) { sync(); playGong(); } } }
   } catch (e) {
     if (e.login) return showLogin();
     if (!scan && date === d) main.innerHTML = '<p>This scan is not saved on this phone yet. Open it once with signal.</p>';
@@ -1310,5 +1352,7 @@ async function start() {
   }
 }
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-start();
+if (!window.PL_TEST) {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  start();
+}
