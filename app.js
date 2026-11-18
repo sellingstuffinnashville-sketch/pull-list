@@ -3,6 +3,7 @@
 // a time, retrying with backoff on weak signal; the queue survives closing the app.
 'use strict';
 const RPG = window.PL_RPG !== false;
+try { document.documentElement.classList.toggle('rpg', !!RPG); } catch (e) {}
 const $ = s => document.querySelector(s);
 const main = $('#main');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -211,6 +212,7 @@ function armBgmEnded(el) {
       bgmTrack = (bgmTrack + 1) % list.length;
       bgmElP = null;
       if (bgmEl) bgmEl._ready = false;
+      announceTrack();
       startBgm(true);
       prefetchBgm(bgmTrack + 1);
     }
@@ -243,7 +245,67 @@ function bgmPlaying() {
 function bgmTime() {
   return bgmPlaying() ? (bgmEl.currentTime || 0) : -1;
 }
-window.PLBgm = { playing: bgmPlaying, time: bgmTime, track: bgmTrackInfo, index() { return bgmTrack; }, tracks() { return window.PLBgmTracks; } };
+function announceTrack() {
+  const tr = bgmTrackInfo();
+  const title = (tr && (tr.title || tr.id)) || '';
+  showBgmTitle(title);
+  try {
+    window.dispatchEvent(new CustomEvent('pl-bgm-track', { detail: { title, index: bgmTrack, id: tr && tr.id, file: tr && tr.file } }));
+  } catch (e) {}
+}
+let bgmToastTimer = 0;
+function showBgmTitle(title) {
+  if (!window.PL_RPG || !title) return;
+  let el = document.getElementById('bgmtoast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'bgmtoast';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    document.body.appendChild(el);
+  }
+  el.textContent = title;
+  el.classList.add('on');
+  if (bgmToastTimer) clearTimeout(bgmToastTimer);
+  bgmToastTimer = setTimeout(() => { el.classList.remove('on'); }, 2600);
+}
+function skipBgm(dir) {
+  if (!window.PL_RPG) return;
+  const list = window.PLBgmTracks || [];
+  if (list.length < 2) return;
+  const n = list.length;
+  bgmTrack = (bgmTrack + (dir < 0 ? -1 : 1) + n) % n;
+  bgmElP = null;
+  bgmFileFailed = false;
+  if (bgmEl) {
+    bgmEl._ready = false;
+    try { bgmEl.pause(); } catch (e) {}
+  }
+  announceTrack();
+  if (BGM) startBgm(true);
+  prefetchBgm(bgmTrack);
+  prefetchBgm(bgmTrack + 1);
+}
+function mountBgmSkip() {
+  if (!window.PL_RPG) return;
+  const b = document.getElementById('bgm');
+  if (!b || (b.parentElement && b.parentElement.classList.contains('bgmcluster'))) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'bgmcluster';
+  const mk = (cls, label, glyph, dir) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sfxbtn bgmskip ' + cls;
+    btn.setAttribute('aria-label', label);
+    btn.title = label;
+    btn.textContent = glyph;
+    btn.addEventListener('click', ev => { ev.stopPropagation(); skipBgm(dir); });
+    return btn;
+  };
+  b.parentNode.insertBefore(wrap, b);
+  wrap.append(mk('prev', 'Previous song', '‹', -1), b, mk('next', 'Next song', '›', 1));
+}
+window.PLBgm = { playing: bgmPlaying, time: bgmTime, track: bgmTrackInfo, index() { return bgmTrack; }, tracks() { return window.PLBgmTracks; }, skip: skipBgm };
 function startBgm(force) {
   if (!window.PL_RPG) return;
   if (!BGM || !SFX || document.hidden) return;
@@ -1467,6 +1529,7 @@ if (sfxBtn) {
 const bgmBtn = $('#bgm');
 if (bgmBtn) {
   syncBgmBtn();
+  mountBgmSkip();
   bgmBtn.onclick = () => {
     BGM = !BGM;
     localStorage.setItem(BGM_KEY, BGM ? '1' : '0');

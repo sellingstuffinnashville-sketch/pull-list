@@ -87,6 +87,21 @@ header h1{text-shadow:0 1px 2px #000,0 0 8px #000}
 .big{text-shadow:0 1px 2px #000;box-shadow:0 0 12px #000 inset,0 0 0 1px #000}
 .sfxbtn{flex:0 0 auto;min-width:44px;min-height:44px;padding:0 8px;border:1px solid var(--gold);border-radius:8px;background:#0c0a08;color:var(--gold2);font:20px system-ui,sans-serif;line-height:1}
 .sfxbtn.off{opacity:.5}
+/* RPG song skip: compact cluster around the music toggle (used when the battle strip is off). */
+.bgmcluster{display:none;align-items:stretch;flex:0 0 auto;margin:0}
+html.rpg:not(.battle-on) .bgmcluster{display:flex}
+.bgmcluster .sfxbtn.bgmskip{min-width:40px;padding:0 2px;font-size:22px;border-radius:8px 0 0 8px}
+.bgmcluster #bgm{border-radius:0;border-left-color:transparent;border-right-color:transparent}
+.bgmcluster .sfxbtn.bgmskip.next{border-radius:0 8px 8px 0}
+/* On-strip skip buttons + brief title toast. */
+.battlestrip .bgmskip{position:absolute;bottom:calc(env(safe-area-inset-bottom,0px) + 2px);z-index:4;width:44px;height:44px;min-width:44px;padding:0;border:1px solid var(--gold);border-radius:8px;background:#0c0a08;color:var(--gold2);font:22px/1 system-ui,sans-serif;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.battlestrip .bgmskip.prev{left:6px}
+.battlestrip .bgmskip.next{right:6px}
+.battlestrip .bgmskip:active{background:#1c1814}
+#bgmtoast{position:fixed;left:50%;transform:translateX(-50%) translateY(4px);bottom:calc(var(--strip-h, 72px) + 6px);z-index:8;max-width:80%;padding:6px 12px;border:1px solid var(--gold);border-radius:8px;background:rgba(12,10,8,.92);color:#ffe9a0;font:800 13px/1.2 Cinzel,Georgia,serif;letter-spacing:.04em;text-align:center;text-shadow:0 1px 2px #000;pointer-events:none;opacity:0;transition:opacity .25s ease,transform .25s ease;box-shadow:0 0 0 1px #000,0 4px 16px #0008}
+#bgmtoast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+html.rpg:not(.battle-on) #bgmtoast{bottom:auto;top:calc(56px + env(safe-area-inset-top,0px))}
+
 .scanitem,.car,.trip,.login{background:var(--card);border:1px solid var(--line);color:var(--txt);box-shadow:0 0 0 1px #000,inset 0 0 20px rgba(0,0,0,.28);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .scanitem b{color:var(--gold2);font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:0;display:inline;font-size:14px}
 .scanitem .scanest{color:var(--gold2)}
@@ -194,7 +209,7 @@ header h1{text-shadow:0 1px 2px #000,0 0 8px #000}
 @media (prefers-reduced-motion:reduce){.herobtn .hero-svg,.herobtn::before,.cheststage .chest-px{animation:none!important}}
 
 .battlestrip{position:fixed;left:0;right:0;bottom:0;z-index:7;overflow:hidden;padding-bottom:env(safe-area-inset-bottom);background:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.battlelyrics{position:absolute;left:0;right:0;bottom:env(safe-area-inset-bottom,0px);z-index:2;height:var(--lyric-h,36px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;pointer-events:none;padding:0 10px 3px;font:800 13px/1.15 Cinzel,Georgia,serif;letter-spacing:.03em;text-align:center;color:#c8b894;text-shadow:0 1px 0 #000,0 -1px 0 #000,1px 0 0 #000,-1px 0 0 #000,0 0 6px #000,0 0 6px #e8c76a66,0 1px 2px #000}
+.battlelyrics{position:absolute;left:0;right:0;bottom:env(safe-area-inset-bottom,0px);z-index:2;height:var(--lyric-h,36px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;pointer-events:none;padding:0 52px 3px;font:800 13px/1.15 Cinzel,Georgia,serif;letter-spacing:.03em;text-align:center;color:#c8b894;text-shadow:0 1px 0 #000,0 -1px 0 #000,1px 0 0 #000,-1px 0 0 #000,0 0 6px #000,0 0 6px #e8c76a66,0 1px 2px #000}
 .battlelyrics .lyric-cur span{display:inline;margin:0 .11em;opacity:.7;color:#c8b894;transition:color .1s linear,opacity .1s linear,text-shadow .1s linear}
 .battlelyrics .lyric-cur span.on{color:#ffe9a0;opacity:1;text-shadow:0 0 8px #e8c76acc,0 0 2px #fff8,0 1px 2px #000}
 .battlelyrics .lyric-cur span.gone{opacity:.88;color:#d8c890}

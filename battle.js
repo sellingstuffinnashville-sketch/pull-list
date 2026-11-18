@@ -639,8 +639,11 @@
     const b = (w.he != null) ? w.he : w.e;
     return { a: Math.min(w.s, a), b: Math.max(w.e, b) };
   }
+  function lyricCalm() {
+    try { return isBalladTrack(); } catch (e) { return false; }
+  }
   function isLongHold(w) {
-    if (!w) return false;
+    if (!w || lyricCalm()) return false;
     const k = w.k || '';
     const hs = (w.hs != null) ? w.hs : w.s, he = (w.he != null) ? w.he : w.e;
     return (k === 'hold' || k === 'shout') && (he - hs) >= 0.7;
@@ -782,7 +785,27 @@
       : '';
     return 'transform:translate(0,' + y.toFixed(2) + 'px) scale(' + scale.toFixed(3) + ');letter-spacing:' + track.toFixed(2) + 'px;' + (shadow ? 'text-shadow:' + shadow + ';' : '');
   }
+  function balladStyle(w, t, env) {
+    // Love-song treatment: no stretch, bounce, or per-letter pop. Emphasis is a
+    // soft warm glow that follows her volume, with a gentle fade on holds.
+    const hs = (w.hs != null) ? w.hs : w.s, he = (w.he != null) ? w.he : w.e;
+    const k = w.k || '';
+    const i = (w.i != null) ? w.i : 0.4;
+    const held = (k === 'hold' || k === 'shout' || (he - hs) >= 0.7);
+    const samp = holdSample(w, t);
+    const loud = Math.max(0, Math.min(1, samp.vol));
+    if (t < hs - 0.06 || t > he + (held ? 0.40 : 0.16)) return '';
+    let fade = 1;
+    if (t < hs) fade = Math.max(0, 1 - (hs - t) / 0.08);
+    if (t > he) fade = Math.max(0, 1 - (t - he) / (held ? 0.40 : 0.16));
+    const glow = (held ? (7 + i * 6 + loud * 16) : (3.5 + env * 5 + loud * 6)) * fade;
+    if (glow <= 0.4) return '';
+    const a = Math.min(0.88, 0.20 + glow * 0.032).toFixed(2);
+    const a2 = Math.min(0.50, glow * 0.022).toFixed(2);
+    return 'text-shadow:0 0 ' + (5 + glow * 0.5).toFixed(1) + 'px rgba(232,199,106,' + a + '),0 0 ' + (8 + glow * 0.35).toFixed(1) + 'px rgba(255,224,160,' + a2 + '),0 1px 2px #000;';
+  }
   function wordStyle(w, t, env) {
+    if (lyricCalm()) return balladStyle(w, t, env);
     const i = (w.i != null) ? w.i : 0.4;
     const k = w.k || '';
     const hs = (w.hs != null) ? w.hs : w.s;
@@ -876,6 +899,7 @@
     }
     const rm = reduced();
     lyricEl.classList.toggle('rm', rm);
+    lyricEl.classList.toggle('calm', lyricCalm());
     const lineKey = cur.s + '|' + (next && next.s || '');
     if (lineKey !== lyricLast) {
       lyricLast = lineKey;
@@ -1761,6 +1785,9 @@
     }
     return still;
   }
+  // Hero dances (horns / headbang / air guitar) are fully implemented but off for now.
+  // Flip this to true to bring them back; vendor and home singing are separate and stay on.
+  const HERO_DANCE = false;
   const DANCE_KINDS = ['horns', 'bang', 'guitar'];
   const CHORUS_WIN = [
     [49.96, 65.60],
@@ -1831,6 +1858,7 @@
     if (!s) return null;
     opts = opts || {};
     const force = !!(s.forceDance || opts.force);
+    if (!HERO_DANCE && !force) return null;
     if (s.skid && !force) return null;
     if (!musicPlaying() && !force) return null;
     if (s.mode !== 'run' && !force) return null;
@@ -1857,6 +1885,7 @@
     return s.dance;
   }
   function maybeDance(s, afterWin) {
+    if (!HERO_DANCE) return null;
     if (!s || s.dance) return null;
     if (!musicPlaying() && !s.forceDance) return null;
     if (!afterWin && s.mode !== 'run') return null;
@@ -1872,6 +1901,10 @@
   }
   function tickDance(s) {
     if (!s) return;
+    if (!HERO_DANCE) {
+      if (s.dance && !s.forceDance) endDance(s, true);
+      if (!s.forceDance) return;
+    }
     if (s.dance) {
       if (s.skid || (s.mode !== 'run' && !s.forceDance)) {
         endDance(s, true);
@@ -2974,103 +3007,151 @@
   let vendorCache = {};
   function paintVendor(opts) {
     opts = opts || {};
-    const nod = !!opts.nod, mouth = !!opts.mouth, bob = (opts.bob | 0);
-    const key = [nod ? 'n' : 'i', mouth ? 'o' : 'c', bob].join('|');
+    const nod = !!opts.nod, mouth = !!opts.mouth;
+    const bob = (opts.bob | 0), parrot = (opts.parrot | 0);
+    const key = [nod ? 'n' : 'i', mouth ? 'o' : 'c', bob, parrot].join('|');
     if (vendorCache[key]) return vendorCache[key];
-    const c = mkc(110, 80), x = c.getContext('2d'), gnd = 79;
+    const c = mkc(128, 88), x = c.getContext('2d'), gnd = 87;
     const P = (xx, yy, col, w, h) => px(x, xx, yy, col, w || 1, h || 1);
     const wood = '#6a4a28', woodH = '#8a6a3a', woodL = '#3a2814';
     const bobY = bob + (nod ? 2 : 0);
-    // Post + hand-painted eBay sign (slightly crooked)
-    P(20, 6, woodL, 3, gnd - 22);
-    P(21, 6, wood, 2, gnd - 22);
-    P(8, 5, '#3a2810', 44, 18);
-    P(9, 6, '#6a4a22', 42, 16);
-    P(10, 7, '#4a3216', 40, 14);
-    P(11, 8, '#3a2410', 38, 12);
-    // uneven paint streaks
-    P(12, 9, '#5a3a18', 6, 2); P(28, 16, '#5a3a18', 8, 1);
-    text(x, 'eBay', 15, 10, '#f0d878');
-    P(16, 18, '#8a1c1c', 22, 1);
-    P(17, 19, '#6a1414', 8, 1);
+    // Post + hand-painted eBay sign
+    P(22, 8, woodL, 3, gnd - 26);
+    P(23, 8, wood, 2, gnd - 26);
+    P(8, 6, '#3a2810', 46, 20);
+    P(9, 7, '#6a4a22', 44, 18);
+    P(10, 8, '#4a3216', 42, 16);
+    P(11, 9, '#3a2410', 40, 14);
+    P(12, 10, '#5a3a18', 6, 2); P(30, 18, '#5a3a18', 8, 1);
+    text(x, 'eBay', 16, 11, '#f0d878');
+    P(17, 19, '#8a1c1c', 22, 1);
+    P(18, 20, '#6a1414', 8, 1);
+    // Jolly Roger on a short pole at the left of the table
+    const fx = 4, fy = gnd - 44;
+    P(fx + 1, fy, '#3a2a1a', 2, 28);
+    P(fx, fy, '#1a1008', 16, 12);
+    P(fx + 1, fy + 1, '#0a0a0a', 14, 10);
+    // skull and bones on the flag
+    P(fx + 6, fy + 2, '#e8e0c8', 4, 3);
+    P(fx + 6, fy + 2, '#0a0a0a'); P(fx + 9, fy + 2, '#0a0a0a');
+    P(fx + 7, fy + 4, '#e8e0c8', 2, 1);
+    P(fx + 3, fy + 6, '#e8e0c8', 5, 1);
+    P(fx + 8, fy + 6, '#e8e0c8', 5, 1);
+    P(fx + 4, fy + 7, '#e8e0c8'); P(fx + 11, fy + 7, '#e8e0c8');
+    P(fx + 7, fy + 6, '#e8e0c8');
     // Junk table
-    const tx = 4, tw = 60, ty = gnd - 16;
+    const tx = 8, tw = 58, ty = gnd - 16;
     P(tx, ty, woodL, tw, 3);
     P(tx, ty, woodH, tw, 1);
     P(tx + 1, ty + 1, wood, tw - 2, 1);
-    P(tx + 20, ty, woodL, 1, 3);
-    P(tx + 40, ty, woodL, 1, 3);
+    P(tx + 18, ty, woodL, 1, 3);
+    P(tx + 38, ty, woodL, 1, 3);
     P(tx + 4, ty + 3, woodL, 3, 13); P(tx + 5, ty + 3, wood, 2, 13);
     P(tx + tw - 8, ty + 3, woodL, 3, 13); P(tx + tw - 7, ty + 3, wood, 2, 13);
-    // parts on the table
-    P(tx + 6, ty - 1, '#5a1a1a', 18, 2);
-    P(tx + 6, ty + 2, '#3a1010', 3, 5);
+    P(tx + 6, ty - 1, '#5a1a1a', 16, 2);
     P(tx + 8, ty - 8, '#5a3a1c', 10, 8);
     P(tx + 9, ty - 7, '#7a5430', 8, 6);
-    P(tx + 8, ty - 8, '#3a2410', 10, 1);
     P(tx + 20, ty - 7, '#2a2a28', 11, 7);
-    P(tx + 21, ty - 6, '#3a3a38', 9, 4);
     P(tx + 22, ty - 5, '#4a8a4a', 2, 2);
     P(tx + 26, ty - 5, '#8a3a2a', 3, 2);
     P(tx + 34, ty - 10, '#2a4a3a', 4, 10);
     P(tx + 35, ty - 12, '#3a6a4a', 2, 3);
     P(tx + 35, ty - 8, '#8ad0a0', 2, 3);
-    P(tx + 40, ty - 6, '#4a4a30', 8, 6);
-    P(tx + 41, ty - 5, '#c8a040', 3, 3);
-    P(tx + 50, ty - 6, '#5a4030', 8, 6);
-    P(tx + 52, ty - 8, '#6a5040', 3, 3);
-    // Pirate trader
-    const ox = 64, nY = bobY;
-    const boot = '#1a100c', coat = '#3a1c18', coatH = '#6a3228', coatL = '#241210';
-    const sash = '#8a6a28', skin = '#c8a070', hat = '#1e1410', hatH = '#3a2a22', beard = '#3a2a22';
-    const legH = 11, bodyH = 13, torsoH = 15;
-    P(ox + 4, gnd - legH, boot, 5, legH);
-    P(ox + 12, gnd - legH, boot, 5, legH);
-    P(ox + 3, gnd - legH - bodyH, coat, 16, bodyH);
-    P(ox + 4, gnd - legH - bodyH, coatH, 3, bodyH);
-    P(ox + 2, gnd - legH - bodyH - torsoH + nY, coat, 17, torsoH);
-    P(ox + 3, gnd - legH - bodyH - torsoH + 1 + nY, coatH, 4, torsoH - 3);
-    P(ox + 4, gnd - legH - 4, sash, 14, 3);
-    P(ox + 5, gnd - legH - 3, '#c8a040', 3, 1);
+    P(tx + 42, ty - 6, '#c8a040', 4, 4);
+    P(tx + 50, ty - 7, '#5a4030', 8, 6);
+    // ===== Pirate trader =====
+    const ox = 70, nY = bobY;
+    const coat = '#3a1c18', coatH = '#6a3228', coatL = '#241210';
+    const sash = '#8a1c1c', sashH = '#c03030', skin = '#c8a070', hat = '#0a0a0a', hatH = '#1a1a1a';
+    const beard = '#3a2a22', beardH = '#5a4030', bone = '#e8e0c8';
+    const bodyH = 13, torsoH = 15;
+    // Peg leg (his right / viewer's left) + boot
+    P(ox + 4, gnd - 14, '#5a3a20', 3, 10);
+    P(ox + 4, gnd - 5, '#3a2414', 3, 4);
+    P(ox + 5, gnd - 15, '#8a6a3a', 1, 8);
+    P(ox + 3, gnd - 16, '#3a2414', 5, 2);
+    P(ox + 13, gnd - 12, '#1a100c', 5, 12); // boot
+    // coat body
+    P(ox + 3, gnd - 12 - bodyH, coat, 17, bodyH);
+    P(ox + 4, gnd - 12 - bodyH, coatH, 3, bodyH);
+    P(ox + 2, gnd - 12 - bodyH - torsoH + nY, coat, 18, torsoH);
+    P(ox + 3, gnd - 12 - bodyH - torsoH + 1 + nY, coatH, 4, torsoH - 3);
+    // red sash + gold buckle
+    P(ox + 4, gnd - 16, sash, 15, 3);
+    P(ox + 4, gnd - 16, sashH, 15, 1);
+    P(ox + 9, gnd - 15, '#e8c040', 4, 2);
     // coat tails
-    P(ox + 1, gnd - legH - 6, coatL, 3, 8);
-    P(ox + 16, gnd - legH - 6, coatL, 3, 9);
-    // cuff + waiting arm / or hip
-    P(ox + 14, gnd - legH - bodyH - 2 + nY, coat, 8, 7);
-    P(ox + 15, gnd - legH - bodyH - 1 + nY, '#7a5428', 6, 5);
-    P(ox + 1, gnd - legH - bodyH - 8 + nY, coat, 3, 8);
-    P(ox, gnd - legH - bodyH - 2 + nY, skin, 3, 3);
-    const hx = ox + 6, hy = gnd - legH - bodyH - torsoH - 8 + nY;
-    P(hx, hy, skin, 8, 8);
-    P(hx + 1, hy + 1, '#d8b080', 6, 5);
-    // eyes: eyepatch on the left, open eye on the right
-    P(hx, hy + 2, '#1a100c', 4, 3);
-    P(hx, hy + 3, '#2a1a12', 5, 1);
-    P(hx + 5, hy + 3, '#3a2010');
-    P(hx + 5, hy + 3, '#f0e0c0');
-    // beard
-    P(hx, hy + 5, beard, 8, 4);
-    P(hx + 1, hy + 6, '#4a3428', 6, 3);
-    P(hx - 1, hy + 6, beard, 2, 3);
-    P(hx + 7, hy + 6, beard, 2, 3);
+    P(ox + 1, gnd - 18, coatL, 3, 10);
+    P(ox + 17, gnd - 18, coatL, 3, 11);
+    // Hook hand (viewer's right)
+    P(ox + 17, gnd - 12 - bodyH - 3 + nY, coat, 6, 6);
+    P(ox + 21, gnd - 12 - bodyH - 1 + nY, '#8a8478', 5, 3);
+    P(ox + 24, gnd - 12 - bodyH + 1 + nY, '#c8c0b0', 4, 3);
+    P(ox + 26, gnd - 12 - bodyH + 2 + nY, '#e8e0d0', 3, 5);
+    P(ox + 27, gnd - 12 - bodyH + 6 + nY, '#c8c0b0', 2, 3);
+    P(ox + 25, gnd - 12 - bodyH + 8 + nY, '#8a8478', 3, 1);
+    // Other arm
+    P(ox + 1, gnd - 12 - bodyH - 7 + nY, coat, 3, 8);
+    P(ox, gnd - 12 - bodyH - 1 + nY, skin, 3, 3);
+    const hx = ox + 6, hy = gnd - 12 - bodyH - torsoH - 9 + nY;
+    P(hx, hy, skin, 9, 9);
+    P(hx + 1, hy + 1, '#d8b080', 7, 6);
+    // eyepatch
+    P(hx, hy + 2, '#0a0a0a', 5, 4);
+    P(hx - 1, hy + 3, '#0a0a0a', 7, 1);
+    P(hx + 6, hy + 3, '#3a2010');
+    P(hx + 6, hy + 3, '#f0e0c0', 2, 2);
+    // scruffy beard
+    P(hx - 1, hy + 5, beard, 11, 5);
+    P(hx, hy + 6, beardH, 9, 4);
+    P(hx - 2, hy + 6, beard, 2, 4);
+    P(hx + 9, hy + 6, beard, 2, 4);
+    P(hx + 1, hy + 9, beard, 2, 2);
+    P(hx + 6, hy + 9, beard, 2, 2);
     if (mouth) {
-      P(hx + 2, hy + 6, '#4a2018', 4, 2);
-      P(hx + 3, hy + 6, '#1a0a08', 2, 2);
+      P(hx + 2, hy + 6, '#4a2018', 5, 3);
+      P(hx + 3, hy + 7, '#1a0a08', 3, 2);
+      P(hx + 5, hy + 7, '#e8c040', 2, 2); // gold tooth
     } else {
-      P(hx + 2, hy + 6, '#5a3a28', 4, 1);
+      P(hx + 2, hy + 7, '#5a3a28', 5, 1);
     }
-    // tricorn hat
-    P(hx - 4, hy - 1, hat, 16, 2);
-    P(hx - 5, hy - 2, hat, 6, 3);
-    P(hx + 7, hy - 2, hat, 6, 3);
-    P(hx - 1, hy - 6, hat, 10, 5);
-    P(hx, hy - 7, hatH, 8, 3);
-    P(hx + 2, hy - 8, '#2a1c16', 5, 2);
-    P(hx + 3, hy - 5, '#8a6a28', 3, 1); // little gold pip
+    // gold earring
+    P(hx + 9, hy + 4, '#e8c040', 2, 2);
+    P(hx + 10, hy + 5, '#fff0a0');
+    // red bandana under the hat
+    P(hx - 1, hy - 2, sash, 11, 3);
+    P(hx + 8, hy - 1, sashH, 3, 4);
+    P(hx + 10, hy + 1, sash, 2, 3);
+    // BIG black tricorn + skull and crossbones
+    P(hx - 6, hy - 2, hat, 20, 3);
+    P(hx - 7, hy - 4, hat, 8, 4);
+    P(hx + 8, hy - 4, hat, 8, 4);
+    P(hx - 2, hy - 9, hat, 13, 7);
+    P(hx - 1, hy - 10, hatH, 11, 3);
+    P(hx + 2, hy - 11, hat, 7, 2);
+    // skull
+    P(hx + 3, hy - 8, bone, 5, 4);
+    P(hx + 3, hy - 7, '#0a0a0a'); P(hx + 6, hy - 7, '#0a0a0a');
+    P(hx + 4, hy - 5, bone, 3, 1);
+    P(hx + 1, hy - 4, bone, 4, 1);
+    P(hx + 6, hy - 4, bone, 4, 1);
+    // Parrot on the shoulder (bobs on its own)
+    const px0 = ox + 1, py0 = gnd - 12 - bodyH - torsoH - 2 + nY + parrot;
+    P(px0, py0 + 4, '#1a6a28', 4, 5); // belly
+    P(px0, py0 + 3, '#2a8a30', 5, 4);
+    P(px0 + 1, py0 + 2, '#c01818', 5, 5); // red head/wing
+    P(px0 + 2, py0 + 1, '#e03030', 4, 4);
+    P(px0 + 5, py0 + 3, '#f0c040', 3, 2); // beak
+    P(px0 + 6, py0 + 3, '#f8e070', 2, 1);
+    P(px0 + 3, py0 + 3, '#0a0a0a'); // eye
+    P(px0 + 1, py0 + 7, '#1a6a28', 2, 3);
+    P(px0 + 3, py0 + 8, '#c01818', 3, 2); // tail
+    P(px0 + 5, py0 + 8, '#f0c040', 2, 1);
     inkOutline(c);
     c._plant = 10;
     c._headY = hy;
-    c._tableX = 30;
+    c._headX = hx + 6;
+    c._tableX = 32;
     return (vendorCache[key] = c);
   }
   function spawnVendor(s, opts) {
@@ -3101,6 +3182,7 @@
       return;
     }
     const v = s.vendor;
+    v.t = (v.t || 0) + 1;
     const sx = v.wx - s.scroll;
     if (v.mode === 'wait') {
       if (sx <= s.heroX + 44 && s.mode === 'run' && !living(s).some(m => m.x < s.heroX + 150)) {
@@ -3134,16 +3216,18 @@
   function drawVendor(ctx, s, a) {
     if (!s.vendor) return;
     const v = s.vendor;
-    const singing = v.mode === 'deal' || v.sing;
-    const t = (s.vendorT || v.t || s.t || 0);
-    const bob = singing ? (Math.round(Math.sin(t * 0.45) * 2)) : (Math.round(Math.sin(t * 0.15)));
-    const mouth = singing && ((t % 6) < 3);
-    const c = paintVendor({ nod: v.nod, mouth, bob });
+    // Sing the whole time he's on screen — from scroll-in until he leaves.
+    const t = (v.t || s.t || 0);
+    const bob = Math.round(Math.sin(t * 0.45) * 2);
+    const parrot = Math.round(Math.sin(t * 0.55 + 1.2) * 2);
+    const mouth = ((t % 6) < 3);
+    const c = paintVendor({ nod: v.nod, mouth, bob, parrot });
     const sx = Math.round(v.wx - camX(s.scroll, a || 0, scrollStep(s)));
     const y = GROUND - c.height + 1;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(c, sx, y);
-    if (singing) drawMusicNotes(ctx, sx + 72, y + (c._headY || 16), t, 4);
+    const noteX = sx + (c._headX != null ? c._headX : 78);
+    drawMusicNotes(ctx, noteX, y + (c._headY || 16), t, 4);
     if (v.mode === 'deal' && v.sold && v.line) drawBubble(ctx, sx + 72, y + (c._headY || 16), v.line);
   }
   let homeCache = {};
@@ -3151,7 +3235,7 @@
     const mouth = !!(frame & 1), wave = !!(frame & 2), glow = (frame >> 2) & 3;
     const key = [mouth ? 'o' : 'c', wave ? 'w' : 's', glow].join('|');
     if (homeCache[key]) return homeCache[key];
-    const c = mkc(96, 72), x = c.getContext('2d'), gnd = 71;
+    const c = mkc(128, 104), x = c.getContext('2d'), gnd = 103;
     const P = (xx, yy, col, w, h) => px(x, xx, yy, col, w || 1, h || 1);
     const wall = '#6a4a30', wallH = '#8a6240', wallL = '#3a2818', roof = '#3a2420', roofH = '#5a3830';
     // Cottage
@@ -3187,40 +3271,134 @@
     P(cx + 18, gnd - 29, '#ffe070', 2, 2);
     // soft glow under the lamp
     P(cx + 15, gnd - 26, 'rgba(255,220,100,0.35)', 8, 3);
-    // Girl out front, lantern in one hand, waving the other
-    const ox = 62, skin = '#d8b090', dress = '#6a3a4a', dressH = '#8a5460', hair = '#3a2018';
-    const boot = '#2a1a12';
-    P(ox + 3, gnd - 8, boot, 3, 8);
-    P(ox + 8, gnd - 8, boot, 3, 8);
-    P(ox + 2, gnd - 20, dress, 11, 12);
-    P(ox + 3, gnd - 19, dressH, 3, 10);
-    P(ox + 3, gnd - 28, dress, 9, 9);
-    P(ox + 4, gnd - 27, dressH, 2, 7);
-    // lantern hand
-    P(ox + 12, gnd - 22, skin, 2, 4);
-    P(ox + 13, gnd - 26, '#3a2a18', 5, 7);
-    P(ox + 14, gnd - 25, '#f0c060', 3, 4);
-    P(ox + 15, gnd - 24, '#fff0a0', 1, 2);
-    // waving arm
+    // Heavy Metal (1981) heroine, modest: fur cloak + Viking dress, armor bits,
+    // long flowing red hair, warm and heroic. No nudity, no sexualized cut.
+    const ox = 70;
+    const skin = '#f0c8a4', skinH = '#fce0c0', skinS = '#d4a07c';
+    const hair = '#e03018', hairH = '#ff6840', hairL = '#8a100c', hairD = '#5a0808';
+    const dress = '#6a2438', dressH = '#8a3850', dressL = '#3a1420';
+    const fur = '#efe0c0', furH = '#fff6e0', furL = '#a09070';
+    const boot = '#2a1a12', metal = '#e0c878', leather = '#5a341c';
+    // Hair behind the body — a full, wind-swept mass down to mid-calf.
+    P(ox + 2, gnd - 54, hairL, 16, 10);
+    P(ox, gnd - 50, hair, 6, 22);
+    P(ox + 1, gnd - 48, hairH, 3, 14);
+    P(ox - 2, gnd - 40, hairL, 5, 20);
+    P(ox - 3, gnd - 28, hair, 5, 18);
+    P(ox - 4, gnd - 18, hairD, 4, 12);
+    P(ox + 12, gnd - 52, hair, 8, 24);
+    P(ox + 13, gnd - 50, hairH, 4, 16);
+    P(ox + 16, gnd - 42, hairL, 5, 22);
+    P(ox + 18, gnd - 30, hair, 5, 20);
+    P(ox + 19, gnd - 22, hairH, 3, 12);
+    P(ox + 20, gnd - 16, hairL, 3, 12);
+    P(ox + 21, gnd - 10, hairD, 2, 6);
+    // Soft S-curve in the right-hand fall
+    P(ox + 17, gnd - 36, hairH, 2, 8);
+    P(ox + 15, gnd - 14, hair, 4, 8);
+    // Boots under a long skirt (no bare legs)
+    P(ox + 5, gnd - 8, boot, 4, 8);
+    P(ox + 12, gnd - 8, boot, 4, 8);
+    P(ox + 6, gnd - 8, '#3a2818', 2, 1);
+    P(ox + 13, gnd - 8, '#3a2818', 2, 1);
+    // Long modest Viking dress, flared skirt, cinched waist (hourglass from clothing)
+    P(ox + 2, gnd - 18, dressL, 18, 10);
+    P(ox + 3, gnd - 17, dress, 16, 8);
+    P(ox + 4, gnd - 16, dressH, 4, 6);
+    P(ox + 3, gnd - 22, dress, 16, 6);
+    P(ox + 4, gnd - 26, dress, 14, 5);
+    P(ox + 6, gnd - 32, dress, 10, 7);           // waist
+    P(ox + 7, gnd - 31, dressH, 3, 5);
+    P(ox + 4, gnd - 42, dress, 14, 11);          // bodice, fully covered
+    P(ox + 5, gnd - 41, dressH, 5, 8);
+    P(ox + 5, gnd - 42, dressL, 12, 1);
+    // Fur hem on the skirt
+    P(ox + 2, gnd - 10, furL, 18, 3);
+    P(ox + 3, gnd - 9, fur, 16, 2);
+    P(ox + 4, gnd - 9, furH, 3, 1);
+    P(ox + 14, gnd - 9, furH, 3, 1);
+    // Belt + buckle
+    P(ox + 6, gnd - 28, '#2a1810', 10, 2);
+    P(ox + 9, gnd - 28, metal, 4, 2);
+    P(ox + 10, gnd - 27, '#f0e0a0', 2, 1);
+    // Fur cloak: collar, shoulders, hanging panels — modest wrap
+    P(ox + 3, gnd - 44, furL, 16, 4);
+    P(ox + 4, gnd - 43, fur, 14, 3);
+    P(ox + 5, gnd - 44, furH, 4, 2);
+    P(ox + 3, gnd - 45, fur, 3, 3);
+    P(ox + 16, gnd - 45, fur, 3, 3);
+    // cloak panels (stay below the shoulders so they read as a wrap, not stubs)
+    P(ox + 1, gnd - 38, furL, 4, 14);
+    P(ox + 2, gnd - 37, fur, 3, 12);
+    P(ox + 17, gnd - 38, furL, 4, 12);
+    P(ox + 18, gnd - 37, fur, 3, 10);
+    P(ox + 2, gnd - 26, furH, 2, 2);
+    P(ox + 18, gnd - 26, furH, 2, 2);
+    // cloak brooch
+    P(ox + 9, gnd - 44, metal, 4, 3);
+    P(ox + 10, gnd - 43, '#f0e0a0', 2, 2);
+    // lantern arm (her left / viewer's right) with bracer
+    P(ox + 16, gnd - 38, dress, 4, 4);
+    P(ox + 18, gnd - 36, leather, 4, 3);
+    P(ox + 18, gnd - 35, metal, 4, 1);
+    P(ox + 20, gnd - 34, skin, 3, 4);
+    P(ox + 21, gnd - 33, skinH, 2, 2);
+    P(ox + 21, gnd - 40, '#3a2a18', 6, 8);
+    P(ox + 22, gnd - 39, '#f0c060', 4, 5);
+    P(ox + 23, gnd - 38, '#fff0a0', 2, 3);
+    P(ox + 22, gnd - 32, '#2a1a10', 4, 1);
+    // waving arm with bracer
     if (wave) {
-      P(ox, gnd - 28, dress, 3, 3);
-      P(ox - 2, gnd - 32, skin, 3, 4);
-      P(ox - 3, gnd - 34, skin, 3, 3);
+      P(ox + 3, gnd - 41, dress, 3, 3);
+      P(ox + 1, gnd - 45, leather, 3, 4);
+      P(ox + 1, gnd - 44, metal, 3, 1);
+      P(ox - 1, gnd - 50, skin, 3, 5);
+      P(ox - 2, gnd - 54, skinH, 4, 4);
+      P(ox - 1, gnd - 55, skin, 2, 2);
     } else {
-      P(ox + 1, gnd - 24, dress, 3, 6);
-      P(ox, gnd - 19, skin, 3, 3);
+      P(ox + 3, gnd - 38, dress, 3, 6);
+      P(ox + 2, gnd - 33, leather, 3, 3);
+      P(ox + 2, gnd - 32, metal, 3, 1);
+      P(ox + 1, gnd - 30, skin, 3, 4);
     }
-    const hx = ox + 4, hy = gnd - 35;
-    P(hx, hy, skin, 7, 7);
-    P(hx + 1, hy + 1, '#e8c8a0', 5, 4);
-    P(hx + 1, hy + 3, '#3a2010'); P(hx + 4, hy + 3, '#3a2010');
-    if (mouth) { P(hx + 2, hy + 5, '#8a4038', 3, 2); P(hx + 3, hy + 5, '#4a2018', 1, 2); }
-    else P(hx + 2, hy + 5, '#8a5a48', 3, 1);
-    // hair
-    P(hx - 1, hy - 3, hair, 9, 4);
-    P(hx - 2, hy, hair, 3, 6);
-    P(hx + 6, hy, hair, 3, 7);
-    P(hx, hy - 4, '#5a3020', 7, 2);
+    const hx = ox + 6, hy = gnd - 54;
+    // Youthful, clearly feminine face — warm cheeks, larger eyes, soft chin
+    P(hx + 2, hy + 1, skinS, 7, 8);
+    P(hx + 2, hy, skin, 7, 8);
+    P(hx + 3, hy + 1, skinH, 5, 5);
+    P(hx + 3, hy + 7, skin, 5, 2);
+    P(hx + 4, hy + 8, skinS, 3, 1);
+    P(hx + 3, hy + 5, '#f0a090', 2, 2);  // blush
+    P(hx + 7, hy + 5, '#f0a090', 2, 2);
+    // eyes
+    P(hx + 3, hy + 3, '#3a2010', 2, 2);
+    P(hx + 7, hy + 3, '#3a2010', 2, 2);
+    P(hx + 4, hy + 3, '#f8f0e4');
+    P(hx + 8, hy + 3, '#f8f0e4');
+    P(hx + 3, hy + 2, hairL, 2, 1);
+    P(hx + 7, hy + 2, hairL, 2, 1);
+    P(hx + 5, hy + 5, skinS, 2, 1);
+    if (mouth) {
+      P(hx + 4, hy + 7, '#c06068', 4, 2);
+      P(hx + 5, hy + 7, '#8a3038', 2, 1);
+    } else {
+      P(hx + 4, hy + 7, '#d08078', 3, 1);
+    }
+    // gold circlet, visible above the brow
+    P(hx + 1, hy, metal, 8, 2);
+    P(hx + 4, hy - 1, '#f8e8a8', 3, 2);
+    P(hx + 5, hy - 2, metal, 1, 1);
+    // crown of hair + front locks framing the face
+    P(hx, hy - 4, hair, 10, 5);
+    P(hx + 1, hy - 5, hairH, 8, 3);
+    P(hx + 3, hy - 6, hair, 5, 2);
+    P(hx + 1, hy - 1, hairH, 2, 3);
+    P(hx, hy + 1, hair, 2, 6);
+    P(hx - 1, hy + 4, hairL, 3, 9);
+    P(hx + 8, hy - 1, hairH, 3, 5);
+    P(hx + 9, hy + 2, hair, 3, 9);
+    P(hx + 10, hy + 8, hairL, 2, 10);
+    P(hx + 2, hy - 3, hairH, 2, 2);
     inkOutline(c);
     c._plant = 20;
     c._headY = hy;
@@ -3268,14 +3446,16 @@
     const ground = (onBg && BH) ? BH - BAND : GROUND;
     const cam = camX(s.scroll, a || 0, scrollStep(s));
     const sx = Math.round(h.wx - cam * (h.par || 0.55));
-    const dw = Math.round(c.width * 0.92), dh = Math.round(c.height * 0.92);
+    const dw = c.width, dh = c.height;
     if (sx + dw < -8 || sx > W + 8) return;
-    const y = ground - dh - 10;
+    const y = ground - dh + 4;
     ctx.imageSmoothingEnabled = false;
     let img = c;
     if (onBg || (h.par || 0.55) < 0.9) img = hazeCanvas(c, s.biome);
     ctx.drawImage(img, sx, y, dw, dh);
-    drawMusicNotes(ctx, sx + Math.round(dw * 0.78), y + 16, h.t || 0, 3);
+    const nx = sx + (c._girlX || Math.round(dw * 0.62)) + 16;
+    const ny = y + (c._headY || 20) - 6;
+    drawMusicNotes(ctx, nx, ny, h.t || 0, 3);
   }
   function syncTrackWorld(s) {
     if (!s) return;
@@ -4780,12 +4960,32 @@
     cv = document.createElement('canvas'); cv.className = 'battlecv';
     killEl = document.createElement('span'); killEl.className = 'battlekills';
     lyricEl = document.createElement('div'); lyricEl.className = 'battlelyrics'; lyricEl.setAttribute('aria-hidden', 'true'); lyricEl.hidden = true;
-    wrap.append(cv, killEl, lyricEl);
+    const mkSkip = (cls, label, glyph, dir) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bgmskip ' + cls;
+      btn.setAttribute('aria-label', label);
+      btn.title = label;
+      btn.textContent = glyph;
+      btn.addEventListener('click', ev => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (window.PLBgm && typeof PLBgm.skip === 'function') PLBgm.skip(dir);
+      });
+      return btn;
+    };
+    wrap.append(cv, killEl, lyricEl, mkSkip('prev', 'Previous song', '‹', -1), mkSkip('next', 'Next song', '›', 1));
     loadLyrics();
     document.body.append(wrap);
     wrap.onclick = () => { if (typeof openArmory === 'function') openArmory(); };
     window.addEventListener('resize', () => size());
     window.addEventListener('pl-class', () => { if (st && g) draw(); });
+    window.addEventListener('pl-bgm-track', () => {
+      lyricData = null; lyricP = null; lyricLast = ''; lyricSrc = '';
+      if (lyricEl) { lyricEl.innerHTML = ''; lyricEl.hidden = true; }
+      if (st) syncTrackWorld(st);
+      loadLyrics();
+    });
   }
   function apply() {
     on = enabled() && !!window.PLPixel;
