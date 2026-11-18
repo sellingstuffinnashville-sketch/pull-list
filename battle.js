@@ -581,13 +581,22 @@
     for (let i = 0; i < 4; i++) raw = t - lyricLeadAt(raw);
     return raw;
   }
+  function currentLyricsFile() {
+    try {
+      const t = window.PLBgm && PLBgm.track && PLBgm.track();
+      if (t && t.lyrics) return t.lyrics;
+    } catch (e) {}
+    return 'lyrics.json';
+  }
   function loadLyrics() {
-    if (lyricData) return Promise.resolve(lyricData);
-    if (!lyricP) {
-      lyricP = fetch('lyrics.json').then(r => { if (!r.ok) throw new Error('lyrics'); return r.json(); })
-        .then(d => { lyricData = d; return d; })
-        .catch(() => { lyricP = null; return null; });
-    }
+    const src = currentLyricsFile();
+    if (lyricData && lyricSrc === src) return Promise.resolve(lyricData);
+    if (lyricP && lyricSrc === src) return lyricP;
+    lyricSrc = src;
+    lyricData = null;
+    lyricP = fetch(src).then(r => { if (!r.ok) throw new Error('lyrics'); return r.json(); })
+      .then(d => { lyricData = d; return d; })
+      .catch(() => { lyricP = null; return null; });
     return lyricP;
   }
   function escHtml(str) {
@@ -838,6 +847,11 @@
     if (!lyricEl) return;
     ensureKaraokeCss();
     const playing = window.PLBgm && PLBgm.playing && PLBgm.playing();
+    if (playing && currentLyricsFile() !== lyricSrc) {
+      lyricData = null; lyricP = null; lyricLast = '';
+      loadLyrics();
+      return;
+    }
     if (!playing) {
       if (lyricLast !== '') { lyricEl.hidden = true; lyricEl.innerHTML = ''; lyricLast = ''; }
       return;
@@ -1172,10 +1186,10 @@
 
   // ---------- state ----------
   let cv, g, wrap, killEl, lyricEl, on = false, timer = 0, raf = 0, acc = 0, lastTs = 0, W = 300, scale = 1;
-  let lyricData = null, lyricP = null, lyricLast = '', lyricTimer = 0;
+  let lyricData = null, lyricP = null, lyricLast = '', lyricTimer = 0, lyricSrc = '';
   let st = null;
   function freshState() {
-    return { mode: 'run', t: 0, scroll: 0, hp: 1, max: 1, heroX: 22, mon: null, mons: [], spawn: 40, fx: [], nums: [], coins: [], fire: null, atkT: 0, monT: 0, pose: '', lunge: 0, flashH: 0, potion: 0, eqKey: '', biome: 0, bt: 0, seq: null, seqI: 0, move: '', forceMove: null, forceCls: null, forceLoco: null, forcePack: null, alpha: 0, loco: 'run', facing: 'side', turn: 0, turnTo: 'side', gaitF: 0, coolWalk: 0, props: [], nextProp: 30, digCd: 24, digT: 0, hopT: 0, hopY: 0, pullT: 0, pullCd: 0, leap: null, toast: null, npc: null, npcCd: 200, greetT: 0, deathCd: 0, healCd: 0, fightXp: 0, awardXp: undefined, noDeath: false, vendor: null, vendorCd: 900, vendorT: 0, partsHeld: [], pace: 1, paceTarget: 1, scrollSpd: 2, weather: null, weatherCd: 540 + ((Math.random() * 1260) | 0) };
+    return { mode: 'run', t: 0, scroll: 0, hp: 1, max: 1, heroX: 22, mon: null, mons: [], spawn: 40, fx: [], nums: [], coins: [], fire: null, atkT: 0, monT: 0, pose: '', lunge: 0, flashH: 0, potion: 0, eqKey: '', biome: 0, bt: 0, seq: null, seqI: 0, move: '', forceMove: null, forceCls: null, forceLoco: null, forcePack: null, alpha: 0, loco: 'run', facing: 'side', turn: 0, turnTo: 'side', gaitF: 0, coolWalk: 0, props: [], nextProp: 30, digCd: 24, digT: 0, hopT: 0, hopY: 0, pullT: 0, pullCd: 0, leap: null, toast: null, npc: null, npcCd: 200, greetT: 0, deathCd: 0, healCd: 0, fightXp: 0, awardXp: undefined, noDeath: false, vendor: null, vendorCd: 900, vendorT: 0, partsHeld: [], home: null, homeSpawned: false, bgmId: '', pace: 1, paceTarget: 1, scrollSpd: 2, weather: null, weatherCd: 540 + ((Math.random() * 1260) | 0) };
   }
   function eqNow() { return (typeof xpState !== 'undefined' && xpState.equipped) || {}; }
   function lvl() { return (typeof xpState !== 'undefined' && xpState.level) || 1; }
@@ -1650,11 +1664,23 @@
   // Junkyard Hero tempo, measured offline from music.mp3 (onset flux autocorr 107.67, rounded).
   // Run footfalls land on half-beats; walk footfalls land on beats. Offset aligns the first 8ths.
   const BGM_BPM = 108, BGM_BEAT_OFF = 0.09;
+  function trackMeta() {
+    try {
+      const t = window.PLBgm && PLBgm.track && PLBgm.track();
+      if (t) return t;
+    } catch (e) {}
+    return { id: 'junkyard-hero', bpm: BGM_BPM, beatOff: BGM_BEAT_OFF, dance: 'full', choruses: null, lyrics: 'lyrics.json' };
+  }
+  function bgmBpm() { return (trackMeta().bpm || BGM_BPM); }
+  function bgmBeatOff() { const t = trackMeta(); return (t.beatOff != null) ? t.beatOff : BGM_BEAT_OFF; }
+  function chorusWins() { return trackMeta().choruses || CHORUS_WIN; }
+  function isBalladTrack() { return trackMeta().id === 'waiting-for-the-hero'; }
+  function isPirateTrack() { return trackMeta().id === 'bay-trader'; }
   function beatTime() {
     let t = -1;
     if (window.PLBgm && PLBgm.playing && PLBgm.playing()) t = PLBgm.time();
     if (!(t >= 0)) t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
-    return (t - BGM_BEAT_OFF) * BGM_BPM / 60;
+    return (t - bgmBeatOff()) * bgmBpm() / 60;
   }
   function heroGaitFrame(s) {
     const loc = heroLoco(s);
@@ -1759,7 +1785,8 @@
   }
   function chorusId(t) {
     if (!(t >= 0)) return 0;
-    for (let i = 0; i < CHORUS_WIN.length; i++) if (t >= CHORUS_WIN[i][0] && t < CHORUS_WIN[i][1]) return i + 1;
+    const wins = chorusWins();
+    for (let i = 0; i < wins.length; i++) if (t >= wins[i][0] && t < wins[i][1]) return i + 1;
     return 0;
   }
   function inChorus() { return chorusId(musicTime()) > 0; }
@@ -1814,15 +1841,17 @@
     if (!force) {
       const beats = beatTime();
       const frac = ((beats % 1) + 1) % 1;
-      const ticksPerBeat = FPS * 60 / BGM_BPM;
+      const ticksPerBeat = FPS * 60 / bgmBpm();
       delay = frac < 0.12 ? 0 : Math.round((1 - frac) * ticksPerBeat);
     }
-    s.dance = { kind, t: 0, life: DANCE_LIFE, delay };
+    const life = Math.max(36, Math.round(2 * 4 * (60 / bgmBpm()) * FPS));
+    s.dance = { kind, t: 0, life, delay };
     const cid = chorusId(musicTime());
     if (cid) s.danceChorusSeen = cid;
+    const gentle = trackMeta().dance === 'gentle';
     s.danceCd = cid
-      ? (DANCE_CD_CHORUS + ((Math.random() * DANCE_CD_CHORUS_SPAN) | 0))
-      : (DANCE_CD_MIN + ((Math.random() * DANCE_CD_SPAN) | 0));
+      ? ((gentle ? Math.round(DANCE_CD_CHORUS * 1.7) : DANCE_CD_CHORUS) + ((Math.random() * (gentle ? DANCE_CD_CHORUS_SPAN : DANCE_CD_CHORUS_SPAN)) | 0))
+      : ((gentle ? Math.round(DANCE_CD_MIN * 1.7) : DANCE_CD_MIN) + ((Math.random() * (gentle ? Math.round(DANCE_CD_SPAN * 1.4) : DANCE_CD_SPAN)) | 0));
     s.forceDance = null;
     if (!delay) beginDancePose(s);
     return s.dance;
@@ -1838,6 +1867,7 @@
     const cid = chorusId(musicTime());
     if (cid && s.danceChorusSeen !== cid) return startDance(s);
     if ((s.danceCd || 0) > 0) return null;
+    if (trackMeta().dance === 'gentle' && !cid && !afterWin) return null;
     return startDance(s);
   }
   function tickDance(s) {
@@ -2942,74 +2972,105 @@
     'Item received as described.'
   ];
   let vendorCache = {};
-  function paintVendor(nod) {
-    const key = nod ? 'nod' : 'idle';
+  function paintVendor(opts) {
+    opts = opts || {};
+    const nod = !!opts.nod, mouth = !!opts.mouth, bob = (opts.bob | 0);
+    const key = [nod ? 'n' : 'i', mouth ? 'o' : 'c', bob].join('|');
     if (vendorCache[key]) return vendorCache[key];
-    const c = mkc(90, 72), x = c.getContext('2d'), gnd = 71;
+    const c = mkc(110, 80), x = c.getContext('2d'), gnd = 79;
     const P = (xx, yy, col, w, h) => px(x, xx, yy, col, w || 1, h || 1);
     const wood = '#6a4a28', woodH = '#8a6a3a', woodL = '#3a2814';
-    P(18, 8, woodL, 3, gnd - 20);
-    P(19, 8, wood, 2, gnd - 20);
-    P(8, 6, '#4a3218', 42, 16);
-    P(9, 7, '#7a5a2c', 40, 14);
-    P(10, 8, '#5a3e1c', 38, 12);
-    P(11, 8, '#2a1a10'); P(45, 8, '#2a1a10');
-    text(x, 'eBay', 14, 10, '#f0d878');
-    P(14, 17, '#8a1c1c', 24, 1);
-    const tx = 4, tw = 56, ty = gnd - 15;
+    const bobY = bob + (nod ? 2 : 0);
+    // Post + hand-painted eBay sign (slightly crooked)
+    P(20, 6, woodL, 3, gnd - 22);
+    P(21, 6, wood, 2, gnd - 22);
+    P(8, 5, '#3a2810', 44, 18);
+    P(9, 6, '#6a4a22', 42, 16);
+    P(10, 7, '#4a3216', 40, 14);
+    P(11, 8, '#3a2410', 38, 12);
+    // uneven paint streaks
+    P(12, 9, '#5a3a18', 6, 2); P(28, 16, '#5a3a18', 8, 1);
+    text(x, 'eBay', 15, 10, '#f0d878');
+    P(16, 18, '#8a1c1c', 22, 1);
+    P(17, 19, '#6a1414', 8, 1);
+    // Junk table
+    const tx = 4, tw = 60, ty = gnd - 16;
     P(tx, ty, woodL, tw, 3);
     P(tx, ty, woodH, tw, 1);
     P(tx + 1, ty + 1, wood, tw - 2, 1);
-    P(tx + 18, ty, woodL, 1, 3);
-    P(tx + 36, ty, woodL, 1, 3);
-    P(tx + 4, ty + 3, woodL, 3, 12); P(tx + 5, ty + 3, wood, 2, 12);
-    P(tx + tw - 8, ty + 3, woodL, 3, 12); P(tx + tw - 7, ty + 3, wood, 2, 12);
-    P(tx + 8, ty - 1, '#5a1a1a', 22, 2);
-    P(tx + 8, ty + 2, '#3a1010', 3, 6);
-    P(tx + 6, ty - 8, '#5a3a1c', 10, 8);
-    P(tx + 7, ty - 7, '#7a5430', 8, 6);
-    P(tx + 6, ty - 8, '#3a2410', 10, 1);
-    P(tx + 18, ty - 7, '#2a2a28', 11, 7);
-    P(tx + 19, ty - 6, '#3a3a38', 9, 4);
-    P(tx + 20, ty - 5, '#4a8a4a', 2, 2);
-    P(tx + 24, ty - 5, '#8a3a2a', 3, 2);
-    P(tx + 21, ty - 9, '#2a2a28', 2, 2);
-    P(tx + 32, ty - 10, '#2a4a3a', 4, 10);
-    P(tx + 33, ty - 12, '#3a6a4a', 2, 3);
-    P(tx + 33, ty - 8, '#8ad0a0', 2, 3);
-    P(tx + 38, ty - 6, '#4a4a30', 8, 6);
-    P(tx + 39, ty - 5, '#c8a040', 3, 3);
-    P(tx + 44, ty - 5, '#2a2a20', 2, 2);
-    P(tx + 48, ty - 5, '#5a4030', 7, 5);
-    P(tx + 50, ty - 6, '#6a5040', 3, 2);
-    const ox = 58, nodY = nod ? 2 : 0;
-    const boot = '#2a1a12', coat = '#3a2a22', coatH = '#5a4030', skin = '#c8a070', hat = '#4a2018';
-    const legH = 11, bodyH = 12, torsoH = 13;
+    P(tx + 20, ty, woodL, 1, 3);
+    P(tx + 40, ty, woodL, 1, 3);
+    P(tx + 4, ty + 3, woodL, 3, 13); P(tx + 5, ty + 3, wood, 2, 13);
+    P(tx + tw - 8, ty + 3, woodL, 3, 13); P(tx + tw - 7, ty + 3, wood, 2, 13);
+    // parts on the table
+    P(tx + 6, ty - 1, '#5a1a1a', 18, 2);
+    P(tx + 6, ty + 2, '#3a1010', 3, 5);
+    P(tx + 8, ty - 8, '#5a3a1c', 10, 8);
+    P(tx + 9, ty - 7, '#7a5430', 8, 6);
+    P(tx + 8, ty - 8, '#3a2410', 10, 1);
+    P(tx + 20, ty - 7, '#2a2a28', 11, 7);
+    P(tx + 21, ty - 6, '#3a3a38', 9, 4);
+    P(tx + 22, ty - 5, '#4a8a4a', 2, 2);
+    P(tx + 26, ty - 5, '#8a3a2a', 3, 2);
+    P(tx + 34, ty - 10, '#2a4a3a', 4, 10);
+    P(tx + 35, ty - 12, '#3a6a4a', 2, 3);
+    P(tx + 35, ty - 8, '#8ad0a0', 2, 3);
+    P(tx + 40, ty - 6, '#4a4a30', 8, 6);
+    P(tx + 41, ty - 5, '#c8a040', 3, 3);
+    P(tx + 50, ty - 6, '#5a4030', 8, 6);
+    P(tx + 52, ty - 8, '#6a5040', 3, 3);
+    // Pirate trader
+    const ox = 64, nY = bobY;
+    const boot = '#1a100c', coat = '#3a1c18', coatH = '#6a3228', coatL = '#241210';
+    const sash = '#8a6a28', skin = '#c8a070', hat = '#1e1410', hatH = '#3a2a22', beard = '#3a2a22';
+    const legH = 11, bodyH = 13, torsoH = 15;
     P(ox + 4, gnd - legH, boot, 5, legH);
-    P(ox + 11, gnd - legH, boot, 5, legH);
-    P(ox + 3, gnd - legH - bodyH, coat, 14, bodyH);
+    P(ox + 12, gnd - legH, boot, 5, legH);
+    P(ox + 3, gnd - legH - bodyH, coat, 16, bodyH);
     P(ox + 4, gnd - legH - bodyH, coatH, 3, bodyH);
-    P(ox + 2, gnd - legH - bodyH - torsoH + nodY, coat, 15, torsoH);
-    P(ox + 3, gnd - legH - bodyH - torsoH + 1 + nodY, coatH, 4, torsoH - 3);
-    P(ox + 12, gnd - legH - bodyH - 2, '#5a3a18', 8, 8);
-    P(ox + 13, gnd - legH - bodyH - 1, '#7a5428', 6, 5);
-    P(ox + 1, gnd - legH - bodyH - 8 + nodY, coat, 3, 8);
-    P(ox, gnd - legH - bodyH - 2 + nodY, skin, 3, 3);
-    P(ox + 2, gnd - 22 + nodY, coat, 8, 3);
-    P(ox + 1, gnd - 21 + nodY, skin, 3, 3);
-    const hx = ox + 5, hy = gnd - legH - bodyH - torsoH - 7 + nodY;
-    P(hx, hy, skin, 7, 7);
-    P(hx + 1, hy + 1, '#d8b080', 5, 4);
-    P(hx + 1, hy + 3, '#3a2010'); P(hx + 3, hy + 3, '#3a2010');
-    P(hx + 1, hy + 5, '#8a5a38', 4, 1);
-    P(hx - 2, hy - 3, hat, 11, 3);
-    P(hx - 1, hy - 6, hat, 9, 4);
-    P(hx, hy - 7, '#3a1810', 7, 2);
-    P(hx, hy + 6, '#5a3a28', 6, 2);
+    P(ox + 2, gnd - legH - bodyH - torsoH + nY, coat, 17, torsoH);
+    P(ox + 3, gnd - legH - bodyH - torsoH + 1 + nY, coatH, 4, torsoH - 3);
+    P(ox + 4, gnd - legH - 4, sash, 14, 3);
+    P(ox + 5, gnd - legH - 3, '#c8a040', 3, 1);
+    // coat tails
+    P(ox + 1, gnd - legH - 6, coatL, 3, 8);
+    P(ox + 16, gnd - legH - 6, coatL, 3, 9);
+    // cuff + waiting arm / or hip
+    P(ox + 14, gnd - legH - bodyH - 2 + nY, coat, 8, 7);
+    P(ox + 15, gnd - legH - bodyH - 1 + nY, '#7a5428', 6, 5);
+    P(ox + 1, gnd - legH - bodyH - 8 + nY, coat, 3, 8);
+    P(ox, gnd - legH - bodyH - 2 + nY, skin, 3, 3);
+    const hx = ox + 6, hy = gnd - legH - bodyH - torsoH - 8 + nY;
+    P(hx, hy, skin, 8, 8);
+    P(hx + 1, hy + 1, '#d8b080', 6, 5);
+    // eyes: eyepatch on the left, open eye on the right
+    P(hx, hy + 2, '#1a100c', 4, 3);
+    P(hx, hy + 3, '#2a1a12', 5, 1);
+    P(hx + 5, hy + 3, '#3a2010');
+    P(hx + 5, hy + 3, '#f0e0c0');
+    // beard
+    P(hx, hy + 5, beard, 8, 4);
+    P(hx + 1, hy + 6, '#4a3428', 6, 3);
+    P(hx - 1, hy + 6, beard, 2, 3);
+    P(hx + 7, hy + 6, beard, 2, 3);
+    if (mouth) {
+      P(hx + 2, hy + 6, '#4a2018', 4, 2);
+      P(hx + 3, hy + 6, '#1a0a08', 2, 2);
+    } else {
+      P(hx + 2, hy + 6, '#5a3a28', 4, 1);
+    }
+    // tricorn hat
+    P(hx - 4, hy - 1, hat, 16, 2);
+    P(hx - 5, hy - 2, hat, 6, 3);
+    P(hx + 7, hy - 2, hat, 6, 3);
+    P(hx - 1, hy - 6, hat, 10, 5);
+    P(hx, hy - 7, hatH, 8, 3);
+    P(hx + 2, hy - 8, '#2a1c16', 5, 2);
+    P(hx + 3, hy - 5, '#8a6a28', 3, 1); // little gold pip
     inkOutline(c);
-    c._plant = 8;
+    c._plant = 10;
     c._headY = hy;
-    c._tableX = 28;
+    c._tableX = 30;
     return (vendorCache[key] = c);
   }
   function spawnVendor(s, opts) {
@@ -3028,10 +3089,11 @@
   }
   function tickVendor(s) {
     if (!s.vendor) {
-      if (s.vendorCd > 0) s.vendorCd--;
+      if (s.vendorCd > 0) s.vendorCd -= isPirateTrack() ? 3 : 1;
+      const chance = isPirateTrack() ? 0.08 : 0.01;
       if (s.mode === 'run' && s.vendorCd <= 0 && !s.forceLoco && !s.noDeath && !s.npc) {
         const clear = !living(s).some(m => m.x < s.heroX + 200);
-        if (clear && (s.forceVendor || Math.random() < 0.01)) {
+        if (clear && (s.forceVendor || Math.random() < chance)) {
           spawnVendor(s);
           s.forceVendor = false;
         }
@@ -3042,7 +3104,7 @@
     const sx = v.wx - s.scroll;
     if (v.mode === 'wait') {
       if (sx <= s.heroX + 44 && s.mode === 'run' && !living(s).some(m => m.x < s.heroX + 150)) {
-        v.mode = 'deal'; v.t = 0; s.vendorT = 0;
+        v.mode = 'deal'; v.t = 0; s.vendorT = 0; v.sing = 1;
         plantStop(s);
         s.mode = 'vendor'; s.pose = '';
         s.forceVendor = false;
@@ -3055,16 +3117,180 @@
       s.forceVendor = false;
     }
   }
+  function drawMusicNotes(ctx, x, y, t, n) {
+    n = n || 3;
+    for (let i = 0; i < n; i++) {
+      const ph = t * 0.22 + i * 1.7;
+      const nx = Math.round(x + Math.sin(ph) * 6 + i * 5);
+      const ny = Math.round(y - 6 - ((t * 0.7 + i * 5) % 14));
+      ctx.fillStyle = '#0c0705';
+      ctx.fillRect(nx - 1, ny - 1, 5, 8);
+      ctx.fillStyle = (i % 2) ? '#f0d878' : '#fff0b8';
+      ctx.fillRect(nx, ny, 3, 2);
+      ctx.fillRect(nx + 2, ny + 1, 1, 5);
+      ctx.fillRect(nx, ny + 5, 2, 2);
+    }
+  }
   function drawVendor(ctx, s, a) {
     if (!s.vendor) return;
     const v = s.vendor;
-    const c = paintVendor(v.nod);
+    const singing = v.mode === 'deal' || v.sing;
+    const t = (s.vendorT || v.t || s.t || 0);
+    const bob = singing ? (Math.round(Math.sin(t * 0.45) * 2)) : (Math.round(Math.sin(t * 0.15)));
+    const mouth = singing && ((t % 6) < 3);
+    const c = paintVendor({ nod: v.nod, mouth, bob });
     const sx = Math.round(v.wx - camX(s.scroll, a || 0, scrollStep(s)));
     const y = GROUND - c.height + 1;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(c, sx, y);
-    if (v.mode === 'deal' && v.sold && v.line) drawBubble(ctx, sx + 64, y + (c._headY || 16), v.line);
+    if (singing) drawMusicNotes(ctx, sx + 72, y + (c._headY || 16), t, 4);
+    if (v.mode === 'deal' && v.sold && v.line) drawBubble(ctx, sx + 72, y + (c._headY || 16), v.line);
   }
+  let homeCache = {};
+  function paintHome(frame) {
+    const mouth = !!(frame & 1), wave = !!(frame & 2), glow = (frame >> 2) & 3;
+    const key = [mouth ? 'o' : 'c', wave ? 'w' : 's', glow].join('|');
+    if (homeCache[key]) return homeCache[key];
+    const c = mkc(96, 72), x = c.getContext('2d'), gnd = 71;
+    const P = (xx, yy, col, w, h) => px(x, xx, yy, col, w || 1, h || 1);
+    const wall = '#6a4a30', wallH = '#8a6240', wallL = '#3a2818', roof = '#3a2420', roofH = '#5a3830';
+    // Cottage
+    const cx = 8, cw = 50, ch = 28, cy = gnd - 18 - ch;
+    P(cx, cy, wallL, cw, ch);
+    P(cx + 1, cy + 1, wall, cw - 2, ch - 2);
+    P(cx + 2, cy + 2, wallH, 3, ch - 4);
+    // roof
+    for (let i = 0; i < 16; i++) {
+      const w = cw + 10 - i * 2;
+      if (w < 8) break;
+      P(cx - 5 + i, cy - 2 - i, i < 2 ? roofH : roof, w, 1);
+    }
+    P(cx + 22, cy - 16, wallL, 5, 10);
+    P(cx + 23, cy - 17, '#4a3028', 3, 2);
+    // door + porch
+    P(cx + 6, cy + 12, '#2a1a10', 8, 16);
+    P(cx + 7, cy + 13, '#4a3020', 6, 14);
+    P(cx + 11, cy + 18, '#c8a040');
+    // lit window + porch light
+    const wx = cx + 28, wy = cy + 8;
+    P(wx, wy, '#1a1008', 12, 10);
+    const lit = ['#f0c060', '#ffd878', '#ffe8a0', '#f0c060'][glow];
+    P(wx + 1, wy + 1, lit, 10, 8);
+    P(wx + 5, wy, '#3a2410', 1, 10);
+    P(wx, wy + 5, '#3a2410', 12, 1);
+    // porch slab + post + hanging lamp
+    P(cx - 2, gnd - 18, '#5a4030', 28, 3);
+    P(cx - 2, gnd - 18, '#7a5a40', 28, 1);
+    P(cx + 18, gnd - 32, '#3a2818', 2, 14);
+    P(cx + 16, gnd - 34, '#2a1a10', 6, 2);
+    P(cx + 17, gnd - 30, '#c8a040', 4, 4);
+    P(cx + 18, gnd - 29, '#ffe070', 2, 2);
+    // soft glow under the lamp
+    P(cx + 15, gnd - 26, 'rgba(255,220,100,0.35)', 8, 3);
+    // Girl out front, lantern in one hand, waving the other
+    const ox = 62, skin = '#d8b090', dress = '#6a3a4a', dressH = '#8a5460', hair = '#3a2018';
+    const boot = '#2a1a12';
+    P(ox + 3, gnd - 8, boot, 3, 8);
+    P(ox + 8, gnd - 8, boot, 3, 8);
+    P(ox + 2, gnd - 20, dress, 11, 12);
+    P(ox + 3, gnd - 19, dressH, 3, 10);
+    P(ox + 3, gnd - 28, dress, 9, 9);
+    P(ox + 4, gnd - 27, dressH, 2, 7);
+    // lantern hand
+    P(ox + 12, gnd - 22, skin, 2, 4);
+    P(ox + 13, gnd - 26, '#3a2a18', 5, 7);
+    P(ox + 14, gnd - 25, '#f0c060', 3, 4);
+    P(ox + 15, gnd - 24, '#fff0a0', 1, 2);
+    // waving arm
+    if (wave) {
+      P(ox, gnd - 28, dress, 3, 3);
+      P(ox - 2, gnd - 32, skin, 3, 4);
+      P(ox - 3, gnd - 34, skin, 3, 3);
+    } else {
+      P(ox + 1, gnd - 24, dress, 3, 6);
+      P(ox, gnd - 19, skin, 3, 3);
+    }
+    const hx = ox + 4, hy = gnd - 35;
+    P(hx, hy, skin, 7, 7);
+    P(hx + 1, hy + 1, '#e8c8a0', 5, 4);
+    P(hx + 1, hy + 3, '#3a2010'); P(hx + 4, hy + 3, '#3a2010');
+    if (mouth) { P(hx + 2, hy + 5, '#8a4038', 3, 2); P(hx + 3, hy + 5, '#4a2018', 1, 2); }
+    else P(hx + 2, hy + 5, '#8a5a48', 3, 1);
+    // hair
+    P(hx - 1, hy - 3, hair, 9, 4);
+    P(hx - 2, hy, hair, 3, 6);
+    P(hx + 6, hy, hair, 3, 7);
+    P(hx, hy - 4, '#5a3020', 7, 2);
+    inkOutline(c);
+    c._plant = 20;
+    c._headY = hy;
+    c._girlX = ox;
+    return (homeCache[key] = c);
+  }
+  function spawnHome(s, opts) {
+    opts = opts || {};
+    const par = 0.55;
+    const cam = s.scroll || 0;
+    const screenX = opts.x != null ? opts.x : (W + 28);
+    const wx = opts.wx != null ? opts.wx : (cam * par + screenX);
+    s.home = { wx, par, t: opts.t || 0, force: !!opts.force };
+    s.homeSpawned = true;
+    return s.home;
+  }
+  function tickHome(s) {
+    syncTrackWorld(s);
+    if (s.home) {
+      s.home.t = (s.home.t || 0) + 1;
+      const sx = s.home.wx - (s.scroll || 0) * (s.home.par || 0.55);
+      if (!s.home.force && sx < -140) s.home = null;
+      return;
+    }
+    if (!isBalladTrack() || s.homeSpawned || s.mode !== 'run' || s.noDeath) return;
+    if (!musicPlaying()) return;
+    const t = musicTime();
+    if (!(t >= 0)) return;
+    const wins = chorusWins();
+    for (let i = 0; i < wins.length; i++) {
+      if (t >= wins[i][0] - 8 && t < wins[i][1]) {
+        spawnHome(s);
+        return;
+      }
+    }
+  }
+  function drawHome(ctx, s, a, onBg) {
+    if (!s || !s.home) return;
+    const h = s.home;
+    const frame = ((h.t || 0) >> 1);
+    const mouth = (frame % 2);
+    const wave = ((frame >> 2) % 2);
+    const glow = frame % 4;
+    const c = paintHome((mouth ? 1 : 0) | (wave ? 2 : 0) | (glow << 2));
+    const ground = (onBg && BH) ? BH - BAND : GROUND;
+    const cam = camX(s.scroll, a || 0, scrollStep(s));
+    const sx = Math.round(h.wx - cam * (h.par || 0.55));
+    const dw = Math.round(c.width * 0.92), dh = Math.round(c.height * 0.92);
+    if (sx + dw < -8 || sx > W + 8) return;
+    const y = ground - dh - 10;
+    ctx.imageSmoothingEnabled = false;
+    let img = c;
+    if (onBg || (h.par || 0.55) < 0.9) img = hazeCanvas(c, s.biome);
+    ctx.drawImage(img, sx, y, dw, dh);
+    drawMusicNotes(ctx, sx + Math.round(dw * 0.78), y + 16, h.t || 0, 3);
+  }
+  function syncTrackWorld(s) {
+    if (!s) return;
+    const id = trackMeta().id || '';
+    if (s.bgmId === id) return;
+    s.bgmId = id;
+    s.homeSpawned = false;
+    if (!isBalladTrack() && s.home && !s.home.force) {
+      // leave the cottage to scroll off this play
+    }
+    if (isPirateTrack() && !s.vendor) {
+      s.vendorCd = Math.min(s.vendorCd || 900, 160 + ((Math.random() * 160) | 0));
+    }
+  }
+
   function drawWaveArm(ctx, plant, hy, t) {
     const up = Math.round(Math.sin(t * 0.8) * 2);
     const x = Math.round(plant + 8), y = Math.round(hy + 16 + up);
@@ -3444,6 +3670,8 @@
     s.coins = s.coins.filter(c => c.t < 12);
     for (const m of allMons(s)) { if (m.hurt) m.hurt--; if (m.flash) m.flash = Math.max(0, (m.flash | 0) - 1); if (m.lunge) m.lunge--; tickTurn(m); }
     tickTurn(s);
+    syncTrackWorld(s);
+    tickHome(s);
     tickWeather(s);
     const stepFor = loco => loco === 'walk' || loco === 'dig' || loco === 'climb' ? 1 : (loco === 'idle' ? 0 : 2);
     const moving = (step) => {
@@ -3504,6 +3732,7 @@
         tryFieldEvents(s);
         tickNpc(s);
         tickVendor(s);
+        tickHome(s);
       }
     } else if (s.mode === 'hop') {
       s.hopT++;
@@ -3876,7 +4105,10 @@
     // Weather stays on the strip canvas, not this full-page backdrop.
     // ground under everything, for when the strip is switched off
     if (!on) fadeDraw(L => tiled(L.fl, cam, BH - 9, bg), BH, bg);
-    else drawProps(bg, s.scroll, a, scStep, 'mid');
+    else {
+      drawProps(bg, s.scroll, a, scStep, 'mid');
+      drawHome(bg, s, a, true);
+    }
   }
   function advanceScene(n, dscroll) {
     const s = st;
@@ -4190,6 +4422,7 @@
       fadeDraw(bgOf, H);
       // No scenebg: still paint mid buildings behind the grass strip.
       drawProps(g, s.scroll, a, scStep, 'mid');
+      drawHome(g, s, a, false);
     }
     fadeDraw(L => tiled(L.fl, cam, GROUND - 8), H);
     drawProps(g, s.scroll, a, scStep, 'ground');
@@ -4628,6 +4861,17 @@
       st.pace = 1; st.paceTarget = 1; st.loco = 'run';
       if (!st.vendor) spawnVendor(st, { wx: st.scroll + st.heroX + 70 });
       return st.vendor;
+    },
+    _forceHome(opts) {
+      if (!st) st = freshState();
+      opts = opts || {};
+      if (st.mode === 'fight' || st.mode === 'greet' || st.mode === 'vendor') st.mode = 'run';
+      st.mon = null; st.mons = [];
+      st.npc = null;
+      const par = 0.55;
+      const x = opts.x != null ? opts.x : Math.round(W * 0.35);
+      spawnHome(st, { wx: (st.scroll || 0) * par + x, force: true, t: opts.t || 8 });
+      return st.home;
     },
     _forcePull() {
       if (!st) st = freshState();

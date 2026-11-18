@@ -2,9 +2,9 @@
 // never cached. Same-origin files are network-first with a short timeout, so weak yard signal falls back to the
 // cached copy fast instead of hanging. Reference thumbs (i.ebayimg.com, yard photos) are cached once seen.
 // The /plain/ app has its own service worker; this one must not intercept or fallback-serve that path.
-const V = 'pl-pages-v42';
-// music.mp3 is lazy-loaded and cached on first play so the track does not block first open.
-const SHELL = ['./', 'index.html', 'style.css', 'fonts/cinzel.woff2', 'app.js', 'home_list.js', 'px.js', 'loot.js', 'battle.js', 'zip.js', 'config.js', 'lyrics.json', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const V = 'pl-pages-v43';
+// music.mp3, music2.mp3 and music3.mp3 are lazy-loaded and cached on first play so tracks do not block first open.
+const SHELL = ['./', 'index.html', 'style.css', 'fonts/cinzel.woff2', 'app.js', 'home_list.js', 'px.js', 'loot.js', 'battle.js', 'zip.js', 'config.js', 'lyrics.json', 'lyrics2.json', 'lyrics3.json', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 const rootPath = new URL('./', self.registration.scope).pathname;
 const isPlain = u => { const p = u.pathname; return p === rootPath + 'plain' || p.startsWith(rootPath + 'plain/'); };
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' }))))); self.skipWaiting(); });

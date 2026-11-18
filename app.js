@@ -145,27 +145,96 @@ function stopBgm() {
   bgmGain = bgmBus = bgmFilter = bgmComp = null;
   if (bgmEl) { try { bgmEl.pause(); } catch (e) {} }
 }
-// Brian's Junkyard Hero theme (music.mp3). Plain restart at the end — no crossfade, so vocals stay intact.
-// Lazy-loaded on first play. The procedural tavern loop below is only a fallback if it can't load.
-const BGM_FILE = 'music.mp3', BGM_FILE_GAIN = 0.4;
-let bgmEl = null, bgmElP = null, bgmFileFailed = false;
-function loadBgmFile() {
-  if (!window.PL_RPG) return Promise.reject(new Error('no rpg'));
-  if (bgmEl && bgmEl._ready) return Promise.resolve(bgmEl);
-  if (!bgmElP) {
-    const el = bgmEl || new Audio();
-    bgmEl = el;
-    el.loop = true;
-    el.preload = 'auto';
-    el.volume = BGM_FILE_GAIN;
-    bgmElP = new Promise((res, rej) => {
-      const ok = () => { el._ready = true; res(el); };
-      el.addEventListener('canplaythrough', ok, { once: true });
-      el.addEventListener('error', () => { bgmFileFailed = true; bgmElP = null; rej(new Error('music')); }, { once: true });
-      el.src = BGM_FILE;
-      el.load();
-    });
+// RPG music is a track list (song 1, ballad, pirate, then repeat). Add an entry to
+// window.PLBgmTracks to drop in another song — lyrics, bpm, choruses and dance style go with it.
+// Tracks are lazy-loaded and cached by the service worker on first play (and prefetched for the next).
+// Plain restart at the end of each file — no crossfade, so vocals stay intact.
+// The procedural tavern loop below is only a fallback if a file can't load.
+const BGM_FILE_GAIN = 0.4;
+window.PLBgmTracks = [
+  {
+    id: 'junkyard-hero',
+    file: 'music.mp3',
+    lyrics: 'lyrics.json',
+    title: 'Junkyard Hero',
+    bpm: 108,
+    beatOff: 0.09,
+    gain: BGM_FILE_GAIN,
+    dance: 'full',
+    choruses: [[49.96, 65.60], [102.12, 119.46], [119.98, 152.70], [153.30, 172.46]]
+  },
+  {
+    id: 'waiting-for-the-hero',
+    file: 'music2.mp3',
+    lyrics: 'lyrics2.json',
+    title: 'Waiting for the Hero',
+    bpm: 74,
+    beatOff: 0.04,
+    gain: BGM_FILE_GAIN,
+    dance: 'gentle',
+    choruses: [[49.74, 77.08], [119.40, 141.44], [175.98, 201.60]]
+  },
+  {
+    id: 'bay-trader',
+    file: 'music3.mp3',
+    lyrics: 'lyrics3.json',
+    title: "The Bay Trader's Bargain",
+    bpm: 116,
+    beatOff: 0.03,
+    gain: BGM_FILE_GAIN,
+    dance: 'full',
+    choruses: [[21.64, 32.04], [48.72, 59.40], [78.86, 98.40], [105.28, 116.96]]
   }
+];
+let bgmTrack = 0, bgmEl = null, bgmElP = null, bgmFileFailed = false, bgmPlayToken = 0;
+function bgmTrackInfo() {
+  const list = window.PLBgmTracks || [];
+  if (!list.length) return { file: 'music.mp3', lyrics: 'lyrics.json', bpm: 108, beatOff: 0.09, gain: BGM_FILE_GAIN, dance: 'full', choruses: [] };
+  if (bgmTrack < 0 || bgmTrack >= list.length) bgmTrack = ((bgmTrack % list.length) + list.length) % list.length;
+  return list[bgmTrack];
+}
+function prefetchBgm(i) {
+  const list = window.PLBgmTracks || [];
+  if (!list.length) return;
+  const t = list[((i % list.length) + list.length) % list.length];
+  if (!t) return;
+  try { fetch(t.file).catch(() => {}); } catch (e) {}
+  try { if (t.lyrics) fetch(t.lyrics).catch(() => {}); } catch (e) {}
+}
+function armBgmEnded(el) {
+  if (el._endedArmed) return;
+  el._endedArmed = true;
+  el.addEventListener('ended', () => {
+    if (!BGM || !window.PL_RPG) return;
+    const list = window.PLBgmTracks || [];
+    if (list.length > 1) {
+      bgmTrack = (bgmTrack + 1) % list.length;
+      bgmElP = null;
+      if (bgmEl) bgmEl._ready = false;
+      startBgm(true);
+      prefetchBgm(bgmTrack + 1);
+    }
+  });
+}
+function loadBgmFile(force) {
+  if (!window.PL_RPG) return Promise.reject(new Error('no rpg'));
+  const tr = bgmTrackInfo();
+  if (!force && bgmEl && bgmEl._ready && bgmEl._file === tr.file) return Promise.resolve(bgmEl);
+  const token = ++bgmPlayToken;
+  const el = bgmEl || new Audio();
+  bgmEl = el;
+  el.loop = false;
+  el.preload = 'auto';
+  el.volume = (tr.gain != null) ? tr.gain : BGM_FILE_GAIN;
+  armBgmEnded(el);
+  bgmElP = new Promise((res, rej) => {
+    const ok = () => { if (token !== bgmPlayToken) return; el._ready = true; el._file = tr.file; res(el); };
+    el.addEventListener('canplaythrough', ok, { once: true });
+    el.addEventListener('error', () => { if (token !== bgmPlayToken) return; bgmFileFailed = true; bgmElP = null; rej(new Error('music')); }, { once: true });
+    try { el.pause(); } catch (e) {}
+    el.src = tr.file;
+    el.load();
+  });
   return bgmElP;
 }
 function bgmPlaying() {
@@ -174,11 +243,11 @@ function bgmPlaying() {
 function bgmTime() {
   return bgmPlaying() ? (bgmEl.currentTime || 0) : -1;
 }
-window.PLBgm = { playing: bgmPlaying, time: bgmTime };
-function startBgm() {
+window.PLBgm = { playing: bgmPlaying, time: bgmTime, track: bgmTrackInfo, index() { return bgmTrack; }, tracks() { return window.PLBgmTracks; } };
+function startBgm(force) {
   if (!window.PL_RPG) return;
   if (!BGM || !SFX || document.hidden) return;
-  if (bgmEl && !bgmEl.paused) return;
+  if (!force && bgmEl && !bgmEl.paused) return;
   if (bgmGain) return;
   if (bgmFileFailed) {
     if (!actx) return;
@@ -186,10 +255,12 @@ function startBgm() {
     return startProcBgm();
   }
   const gen = ++bgmGen;
-  loadBgmFile().then(el => {
+  loadBgmFile(!!force).then(el => {
     if (gen !== bgmGen || !BGM || document.hidden) return;
+    if (force) { try { el.currentTime = 0; } catch (e) {} }
     const p = el.play();
     if (p && p.catch) p.catch(() => {});
+    prefetchBgm(bgmTrack + 1);
   }).catch(() => {
     if (gen !== bgmGen) return;
     if (!actx) return;
