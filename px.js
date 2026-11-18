@@ -1135,7 +1135,7 @@
   // Facing right. 56 x 64 so a long stride and trailing cape have room. Body plant at x=30, feet at y=61.
   const SIDE_W = 56, SIDE_CX = 30, SIDE_FEET = 61;
   function gaitPose(loco, frame) {
-    const walkish = (loco === 'run' || loco === 'walk' || loco === 'dance');
+    const walkish = (loco === 'run' || loco === 'walk' || loco === 'dance' || loco === 'sit');
     const n = walkish ? 16 : 8, p = ((frame % n) + n) % n, tau = (p / n) * Math.PI * 2;
     if (loco === 'skid') {
       return { rx: 3.4, lx: -2.6, rLift: 0, lLift: 0.4, rAng: 0.35, lAng: -0.15, bob: 1.2, head: 0.6, cape: -7, flutter: 2.2, lean: 1.5, armR: 3, armL: -2.4, armRY: 1, armLY: 0.4, run: false, skid: true };
@@ -1146,6 +1146,15 @@
         rx: 1.8, lx: -1.8, rLift: 0, lLift: 0, rAng: 0.08, lAng: -0.08,
         bob, head: bob * 0.25, cape: -5, flutter: Math.sin(tau * 2) * 2.2,
         lean: 0.4, armR: 1, armL: -1, armRY: 0, armLY: 0, run: false, dance: true
+      };
+    }
+    if (loco === 'sit') {
+      const breath = Math.sin(tau) * 0.4;
+      return {
+        rx: 12, lx: 2, rLift: 0, lLift: 0, rAng: 0.15, lAng: 0,
+        rKneeX: 6, rKneeY: 3, lKneeX: 3, lKneeY: 2,
+        bob: breath, head: 0.6 + breath * 0.3, cape: -8, flutter: 0.4,
+        lean: 1.1, armR: 9, armL: 4, armRY: 8, armLY: 6, run: false, sit: true
       };
     }
     if (loco === 'idle' || loco === 'stand') {
@@ -1233,7 +1242,7 @@
   }
   function drawCapeSide(S, id, shX, shY, G) {
     const mat = capeMatOf(id); if (!mat) return;
-    const tail = shX + (G.cape || -4), flutter = G.flutter || 0, hem = SIDE_FEET - 4;
+    const tail = shX + (G.cape || -4), flutter = G.flutter || 0, hem = G.sit ? SIDE_FEET - 1 : SIDE_FEET - 4;
     S.P({ round: true });
     S.poly([[shX - 1, shY], [shX + 4, shY + 2], [tail + 6, shY + 16], [tail + flutter, hem], [tail - 3, hem - 2 + Math.abs(flutter) * 0.3], [tail + 2, shY + 14]], mat);
     S.tone(tail + 2, shY + 20, -1);
@@ -1433,6 +1442,18 @@
     }
     const bob = G.bob, lean = G.lean;
     let hipX, hipY, chestX, chestY, headX, headY, shX, shY;
+    if (G.sit) {
+      // Seated on the ground, looking right into the campfire.
+      // Hips drop almost to the heels; thighs run forward, torso stays fairly upright.
+      hipY = 57.5 + bob;
+      hipX = SIDE_CX - 2;
+      chestY = 39 + bob;
+      chestX = SIDE_CX + 1.5 + lean * 0.25;
+      shY = 37 + bob;
+      shX = chestX + 0.4;
+      headX = chestX + 3.5;
+      headY = 27 + G.head;
+    } else {
     hipY = 44 + bob;
     if (G.run) {
       // Whole body leans forward from the ankles as one unit so hips and torso stay connected.
@@ -1450,16 +1471,19 @@
       headX = chestX + 2; headY = 11 + G.head;
       shX = chestX + 0.5; shY = 20 + bob;
     }
-    const waistX = G.run ? hipX : chestX;
+    } // !G.sit
+    const waistX = G.run ? hipX : (G.sit ? (chestX + hipX) * 0.5 : chestX);
     if (cls !== 'mage') sideLeg(S, hipX - 1, hipY, G.lx, G.lLift, M.pants, M.boot, 2, G.lAng, G.lKneeX, G.lKneeY);
     drawCapeSide(S, eq.cape, shX - 3, shY, G);
-    drawPackSide(S, eq.pack, cls, shX - 7, shY + 4);
+    drawPackSide(S, eq.pack, cls, shX - 7, shY + (G.sit ? 1 : 4));
     // Rear (left) arm: swing is centered on the shoulder so it clearly comes forward opposite the back leg.
     if (G.flavor === 'horns') {
       sideArm(S, shX - 2, shY + 2, shX - 5, shY - 11, M.body, M.skin, 1.6, true);
       S.P({ flat: true, nocs: true });
       S.px(shX - 7, shY - 14, M.skin); S.px(shX - 6, shY - 15, M.skin);
       S.px(shX - 4, shY - 14, M.skin); S.px(shX - 3, shY - 15, M.skin);
+    } else if (G.sit) {
+      sideArm(S, shX - 2, shY + 2, hipX + G.lx + 1, hipY + 2, M.body, M.skin, 1.6, true);
     } else {
       sideArm(S, shX - 2, shY + 2, shX + G.armL, shY + 15 + G.armLY, M.body, M.skin, 1.6, G.run);
     }
@@ -1472,8 +1496,12 @@
       };
       mageBoot(G.lx, G.lLift, G.lAng);
       S.P({ round: true, shine: true });
+      if (G.sit) {
+        S.poly([[chestX - 3, chestY], [chestX + 6, chestY], [waistX + 8, hipY], [waistX + 11, SIDE_FEET - 1], [waistX - 7, SIDE_FEET - 1], [waistX - 5, hipY]], M.body);
+      } else {
       S.poly([[chestX - 3, chestY], [chestX + 5, chestY], [waistX + 6, hipY], [waistX + 6 + G.flutter * 0.25, SIDE_FEET - 5], [waistX - 3 + G.cape * 0.15, SIDE_FEET - 5], [waistX - 4, hipY]], M.body);
-      if (M.trim && M.trim !== 'iron') { S.P({ flat: true, nocs: true }); S.line(waistX - 3, SIDE_FEET - 6, waistX + 6, SIDE_FEET - 6, M.trim, 2); }
+      }
+      if (M.trim && M.trim !== 'iron') { S.P({ flat: true, nocs: true }); S.line(waistX - 3, G.sit ? SIDE_FEET - 2 : SIDE_FEET - 6, waistX + 6, G.sit ? SIDE_FEET - 2 : SIDE_FEET - 6, M.trim, 2); }
       mageBoot(G.rx, G.rLift, G.rAng);
       if (M.runes) { S.P({ flat: true, nocs: true }); S.px(waistX + 1, hipY, M.runes); S.glow(waistX + 1, hipY - 4, 5, M.runes, 0.25); }
       if (M.stars) { S.P({ flat: true, nocs: true }); S.px(waistX, hipY - 6, 'white'); S.px(waistX + 3, hipY + 4, 'white'); }
@@ -1500,6 +1528,13 @@
       const hx = shX + 6 + (G.armR || 0) * 0.2, hy = shY + 11 + (G.armRY || 0) * 0.3;
       sideArm(S, shX + 2, shY, hx, hy, M.body, cls === 'shooter' ? 'leather' : M.skin, 1.8, true);
       drawWepSide(S, eq.weapon, cls, hx, hy, G);
+    } else if (G.sit) {
+      // Hands rest on the forward knee; weapon stays close so it does not read as a crate.
+      const rHandX = hipX + 10, rHandY = hipY + 0.5;
+      sideArm(S, shX + 2, shY, rHandX, rHandY, M.body, cls === 'shooter' ? 'leather' : M.skin, 1.8, true);
+      if (cls === 'shooter') drawWepSide(S, eq.weapon, cls, hipX + 7, hipY - 1, G);
+      else if (cls === 'mage') drawWepSide(S, eq.weapon, cls, shX - 5, SIDE_FEET - 4, G);
+      // Warrior sets the blade down behind him — a mid-torso sword reads as a crate.
     } else if (cls === 'shooter') {
       const hx = shX + 8, hy = shY + 9 + G.armRY * 0.25;
       sideArm(S, shX + 2, shY, hx, hy, M.body, 'leather', 1.8, G.run);
@@ -1535,6 +1570,190 @@
     }
     return u;
   }
+  function danceMats(eq, cls) {
+    eq = eq || {};
+    if (cls === 'shooter') {
+      const a = SH_ARMOR[eq.armor];
+      return { plate: (a && (a.plate || a.vest)) || 'drab', trim: (a && a.trim) || 'leather', sleeve: (a && a.vest) || 'cloth', skin: 'skin', hand: a ? 'leather' : 'skin' };
+    }
+    if (cls === 'mage') {
+      const r = MG_ROBE[eq.armor];
+      return { plate: (r && r.robe) || 'cloth', trim: (r && r.trim) || 'iron', sleeve: (r && r.robe) || 'cloth', skin: 'skin', hand: 'skin' };
+    }
+    const a = ARMOR[eq.armor];
+    return { plate: a ? a[0] : 'cloth', trim: a ? a[1] : 'leather', sleeve: a ? a[0] : 'cloth', skin: 'skin', hand: a ? 'iron' : 'skin' };
+  }
+  function drawDanceBodyFront(S, eq, cls, rank, color) {
+    eq = eq || {};
+    const sh = cls === 'shooter', mg = cls === 'mage';
+    if (!sh && !mg) {
+      const armored = !!ARMOR[eq.armor];
+      const sy = armored ? 18 : 21;
+      drawAura(S, eq, rank, color);
+      drawCape(S, eq.cape, armored ? 17 : 19);
+      drawPack(S, eq.pack, sy);
+      drawLegs(S, eq);
+      drawTorso(S, eq);
+      drawPauldrons(S, eq.pauldrons, armored);
+      drawFamiliar(S, eq.pack);
+      return;
+    }
+    if (sh) {
+      const a = SH_ARMOR[eq.armor];
+      drawAura(S, eq, rank, color);
+      shCape(S, eq.cape);
+      shPack(S, eq.pack, 19);
+      shLegs(S, a);
+      shTorso(S, a, eq);
+      shPauldrons(S, eq.pauldrons);
+      shFamiliar(S, eq.pack);
+      return;
+    }
+    const r = MG_ROBE[eq.armor];
+    drawAura(S, eq, rank, color);
+    mgCape(S, eq.cape);
+    mgPack(S, eq.pack, 19);
+    mgBody(S, r);
+    mgMantle(S, eq.pauldrons);
+    mgFamiliar(S, eq.pack);
+  }
+  function drawDanceHeadFront(S, eq, cls) {
+    if (cls === 'shooter') shHead(S, eq);
+    else if (cls === 'mage') mgHead(S, eq);
+    else drawHead(S, eq);
+  }
+  function drawHornsHand(S, cx, cy, sc, mat) {
+    sc = sc || 1;
+    S.P({ shine: true, round: true });
+    S.ell(cx, cy, 1.7 * sc, 1.55 * sc, mat);
+    // Index + pinky clearly stuck out at the camera; middle/ring tucked.
+    const up = 5.6 * sc, spread = 2.2 * sc;
+    S.P({ shine: true, round: true });
+    S.ell(cx - spread, cy - up * 0.4, 0.7 * sc, 1.9 * sc, mat);
+    S.ell(cx + spread, cy - up * 0.4, 0.7 * sc, 1.9 * sc, mat);
+    S.P({ flat: true, nocs: true });
+    S.px(Math.round(cx - spread), Math.round(cy - up), mat);
+    S.px(Math.round(cx - spread), Math.round(cy - up - 1), mat);
+    S.px(Math.round(cx - spread), Math.round(cy - up - 2), mat);
+    S.px(Math.round(cx + spread), Math.round(cy - up), mat);
+    S.px(Math.round(cx + spread), Math.round(cy - up - 1), mat);
+    S.px(Math.round(cx + spread), Math.round(cy - up - 2), mat);
+    S.px(Math.round(cx + spread * 1.2), Math.round(cy - 0.2 * sc), mat);
+  }
+  function drawDanceArm(S, x0, y0, x1, y1, sleeve, hand, thick) {
+    thick = thick || 2.2;
+    S.P({ shine: true, round: true });
+    S.line(x0, y0, x1, y1, sleeve, thick);
+    S.P({ shine: true });
+    S.ell(x1, y1, 1.8, 1.6, hand);
+  }
+  function drawFrontGuitar(S, cls, eq, hx, hy, nx, ny, M) {
+    // Body at the hip, long neck aimed up-left so it reads at phone size.
+    if (cls === 'warrior') {
+      S.P({ shine: true, round: true });
+      S.ell(hx, hy, 5.2, 4.2, 'iron');
+      S.P(); S.rect(hx - 3, hy - 1, 6, 2, 'leather');
+      S.P({ shine: true, round: true });
+      S.line(hx - 1, hy - 2, nx, ny, 'steel', 3);
+      S.P({ shine: true });
+      S.poly([[nx - 1, ny + 2], [nx + 3, ny - 1], [nx + 1, ny - 5], [nx - 2, ny - 2]], 'steel');
+    } else if (cls === 'shooter') {
+      S.P({ shine: true, round: true });
+      S.ell(hx, hy, 5.0, 3.8, 'wood');
+      S.P(); S.rect(hx - 3, hy - 1, 5, 2, 'iron');
+      S.P({ shine: true });
+      S.line(hx - 1, hy - 2, nx, ny, 'iron', 2);
+      S.P({ shine: true });
+      S.rect(nx - 2, ny - 3, 5, 3, 'steel');
+    } else {
+      S.P({ shine: true, round: true });
+      S.ell(hx, hy, 4.8, 3.8, 'wood');
+      S.P(); S.line(hx - 1, hy - 2, nx, ny, 'wood', 2);
+      S.P({ shine: true });
+      S.ell(nx, ny - 1, 2.4, 2.4, 'crystal');
+      S.glow(nx, ny - 1, 5, 'glowP', 0.45);
+    }
+  }
+  function drawDanceFrontOverlay(S, eq, cls, flavor, frame) {
+    const M = danceMats(eq, cls);
+    const n = 16, p = ((frame % n) + n) % n, tau = (p / n) * Math.PI * 2;
+    const shL = 14, shR = 34, shY = 21;
+    if (flavor === 'horns') {
+      // Hands stay beside the head and thrust at the camera; never cover the face.
+      const thr = Math.pow(Math.max(0, Math.sin(tau * 2)), 0.65);
+      const sc = 0.92 + thr * 0.38;
+      const out = 16 - thr * 2;
+      const y = 9 + thr * 3;
+      drawDanceArm(S, shL, shY, 24 - out, y + 3, M.sleeve, M.hand, 2.2);
+      drawDanceArm(S, shR, shY, 24 + out, y + 3, M.sleeve, M.hand, 2.2);
+      drawHornsHand(S, 24 - out, y, sc, M.hand);
+      drawHornsHand(S, 24 + out, y, sc, M.hand);
+      return;
+    }
+    if (flavor === 'guitar') {
+      const strum = Math.sin(tau * 2);
+      const hx = 26, hy = 42, nx = 8, ny = 7;
+      drawFrontGuitar(S, cls, eq, hx, hy, nx, ny, M);
+      // Fret hand on the neck, strum hand on the body.
+      drawDanceArm(S, shL, shY, 14, 20, M.sleeve, M.hand, 2.2);
+      S.P({ shine: true }); S.ell(14, 20, 2.0, 1.7, M.hand);
+      const sx = hx + 1 + strum * 4.2, sy = hy - 1 + Math.abs(strum) * 1.2;
+      drawDanceArm(S, shR, shY, sx, sy, M.sleeve, M.hand, 2.3);
+      S.P({ shine: true }); S.ell(sx, sy, 2.2, 1.8, M.hand);
+      return;
+    }
+    // Headbang: arms pump at the sides while the head (stamped later) whips.
+    const pump = Math.sin(tau * 2);
+    drawDanceArm(S, shL, shY, 10, 38 + pump * 3, M.sleeve, M.hand, 2.2);
+    drawDanceArm(S, shR, shY, 38, 38 - pump * 3, M.sleeve, M.hand, 2.2);
+  }
+  function bangHeadOffset(frame) {
+    // Sharp down on each half-beat, slower whip back up.
+    const u = (((frame % 8) + 8) % 8) / 8;
+    const down = u < 0.32 ? (u / 0.32) : (1 - (u - 0.32) / 0.68);
+    return { y: Math.round(down * 11), squash: 1 - down * 0.16, whip: (u < 0.32 ? 1 : -1) * (1 + down * 3) };
+  }
+  function heroCanvasFrontDance(eq, rank, color, flavor, frame) {
+    eq = eq || {};
+    const cls = eq._cls || 'warrior';
+    flavor = flavor || 'horns';
+    frame = frame | 0;
+    const n = 16, p = ((frame % n) + n) % n, tau = (p / n) * Math.PI * 2;
+    const bob = flavor === 'bang' ? Math.abs(Math.sin(tau * 2)) * 0.6 : Math.abs(Math.sin(tau * 2)) * 0.8;
+    const body = new Spr(48, 64);
+    drawDanceBodyFront(body, eq, cls, rank, color);
+    const bodyC = toCanvas(body);
+    const head = new Spr(48, 64);
+    drawDanceHeadFront(head, eq, cls);
+    const headC = toCanvas(head);
+    const arms = new Spr(48, 64);
+    drawDanceFrontOverlay(arms, eq, cls, flavor, frame);
+    const armsC = toCanvas(arms);
+    const cv = document.createElement('canvas');
+    cv.width = 48; cv.height = 64;
+    const g = cv.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    const by = Math.round(bob);
+    g.drawImage(bodyC, 0, by);
+    let hx = 0, hy = by;
+    if (flavor === 'bang') {
+      const b = bangHeadOffset(frame);
+      hy = by + b.y;
+      const srcH = 24, destH = Math.max(16, Math.round(srcH * b.squash));
+      // Hair / helm crest trail only, so it reads as a whip, not a second face.
+      g.save();
+      g.globalAlpha = 0.28;
+      const trailY = hy - Math.round(6 + Math.max(0, b.y) * 0.4);
+      g.drawImage(headC, 0, 0, 48, 11, hx, trailY, 48, 11);
+      g.restore();
+      g.drawImage(headC, 0, 0, 48, srcH, hx, hy, 48, destH);
+    } else {
+      g.drawImage(headC, hx, hy);
+    }
+    g.drawImage(armsC, 0, by);
+    return cv;
+  }
+
   window.PLPixel = {
     hero(eq, rank, color, only) {
       return url('h|' + JSON.stringify(eq) + '|' + rank + '|' + color + '|' + (only || ''), () => heroSprite(eq, rank, color, only), only ? 'auto' : null);
@@ -1553,6 +1772,16 @@
       if (!c) {
         c = toCanvas(heroSpriteSide(eq, rank, color, loco, frame, flavor));
         c._ax = SIDE_CX;
+        if (scache.size > 220) scache.clear();
+        scache.set(k, c);
+      }
+      return c;
+    },
+    heroCanvasFront(eq, rank, color, flavor, frame) {
+      const k = 'hf|' + JSON.stringify(eq) + '|' + rank + '|' + color + '|' + (flavor || '') + '|' + (frame | 0);
+      let c = scache.get(k);
+      if (!c) {
+        c = heroCanvasFrontDance(eq, rank, color, flavor, frame);
         if (scache.size > 220) scache.clear();
         scache.set(k, c);
       }

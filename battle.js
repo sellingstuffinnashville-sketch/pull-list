@@ -592,7 +592,7 @@
     const el = document.createElement('style');
     el.id = 'pl-karaoke-css';
     el.textContent = [
-      '.battlelyrics .lyric-cur span{display:inline-block;transform-origin:50% 85%;margin:0 .08em;vertical-align:baseline}',
+      '.battlelyrics .lyric-cur span{display:inline-block;transform-origin:50% 85%;margin:0 .14em;vertical-align:baseline}',
       '.battlelyrics.rm .lyric-cur span{display:inline;transform:none!important;letter-spacing:inherit!important;filter:none!important}'
     ].join('');
     document.head.appendChild(el);
@@ -619,6 +619,16 @@
     const he = (w.he != null) ? w.he : w.e;
     let scale = 1 + env * 0.05 * (0.45 + i * 0.55);
     let track = 0, glow = env * (3 + i * 5), shakeX = 0, shakeY = 0;
+    // Juicy overshoot on word entry. Windows (s / hs / he) stay unchanged.
+    const enterAt = Math.min(w.s, hs);
+    const enter = t - enterAt;
+    if (enter >= -0.02 && enter < 0.22) {
+      const p = Math.max(0, Math.min(1, (enter + 0.02) / 0.24));
+      const over = Math.sin(p * Math.PI) * (1.15 + (1 - p) * 0.45);
+      const peak = 0.18 + i * 0.10 + (k === 'shout' ? 0.08 : (k === 'hold' ? 0.05 : 0));
+      scale *= 1 + peak * over;
+      shakeY -= Math.sin(p * Math.PI) * (2.8 + i * 1.6 + (k === 'shout' ? 1.2 : 0));
+    }
     if (k === 'hold' && t >= hs - 0.04 && t <= he + 0.06) {
       const dur = Math.max(0.12, he - hs);
       const p = Math.max(0, Math.min(1, (t - hs) / dur));
@@ -626,28 +636,28 @@
       const release = p > 0.88 ? (1 - p) / 0.12 : 1;
       const sustain = Math.max(0.25, Math.min(attack, release));
       const pulse = 0.5 + 0.5 * Math.sin((t - hs) * Math.PI * 2 * 2.2);
-      const stretch = (0.5 + i * 0.55) * sustain * Math.min(1.15, 0.55 + dur * 0.18);
-      scale *= 1 + 0.08 + stretch * 0.16 + pulse * 0.035 * sustain;
-      track = (0.02 + i * 0.05 + Math.min(0.08, dur * 0.02)) * stretch * 16; // px
-      glow += 7 + i * 9 + pulse * 3;
+      const stretch = (0.55 + i * 0.6) * sustain * Math.min(1.25, 0.6 + dur * 0.2);
+      scale *= 1 + 0.12 + stretch * 0.24 + pulse * 0.05 * sustain;
+      track = Math.min(3.2, (0.03 + i * 0.07 + Math.min(0.11, dur * 0.025)) * stretch * 16);
+      glow += 9 + i * 11 + pulse * 4;
     }
     if (k === 'shout' && t >= hs - 0.06 && t <= Math.max(he, hs + 0.55) + 0.04) {
       const p = Math.max(0, t - hs);
-      const pop = p < 0.07 ? p / 0.07 : Math.max(0, 1 - (p - 0.07) / 0.42);
-      scale *= 1 + 0.30 * pop * (0.7 + i * 0.4);
-      const shake = pop * 1.7;
-      shakeX = Math.sin(t * 68) * shake;
-      shakeY = Math.cos(t * 52) * shake * 0.55;
-      glow += 14 * pop;
+      const pop = p < 0.05 ? p / 0.05 : Math.max(0, 1 - (p - 0.05) / 0.4);
+      scale *= 1 + 0.42 * pop * (0.7 + i * 0.45);
+      const shake = pop * 2.4;
+      shakeX += Math.sin(t * 72) * shake;
+      shakeY += Math.cos(t * 54) * shake * 0.6;
+      glow += 18 * pop;
       // Long shouted holds (fight!) stay slightly large after the pop.
       if (he - hs > 0.8 && t <= he + 0.04) {
         const holdP = Math.max(0, Math.min(1, (he - t) / Math.max(0.12, he - hs)));
-        scale *= 1 + 0.10 * Math.max(holdP, pop * 0.3);
-        glow += 5 * Math.max(holdP, pop * 0.3);
+        scale *= 1 + 0.12 * Math.max(holdP, pop * 0.3);
+        glow += 6 * Math.max(holdP, pop * 0.3);
       }
     }
     const shadow = glow > 0.4
-      ? ('0 0 ' + (6 + glow * 0.35).toFixed(1) + 'px rgba(232,199,106,' + Math.min(0.85, 0.25 + glow * 0.03).toFixed(2) + '),0 1px 2px #000')
+      ? ('0 0 ' + (6 + glow * 0.4).toFixed(1) + 'px rgba(232,199,106,' + Math.min(0.9, 0.28 + glow * 0.03).toFixed(2) + '),0 1px 2px #000')
       : '';
     return 'transform:translate(' + shakeX.toFixed(2) + 'px,' + shakeY.toFixed(2) + 'px) scale(' + scale.toFixed(3) + ');letter-spacing:' + track.toFixed(2) + 'px;' + (shadow ? 'text-shadow:' + shadow + ';' : '');
   }
@@ -991,7 +1001,7 @@
     for (const k in eq) { const it = ITEM_BY_ID[eq[k]]; if (it && RR[it.rarity] > best) { best = RR[it.rarity]; color = RARITY[it.rarity].color; } }
     return { best, color };
   }
-  function heroEq() { const e = Object.assign({ _cls: clsNow() }, eqNow()); delete e.base; return e; }
+  function heroEq() { const e = Object.assign({ _cls: clsNow() }, (st && st.forceEq) || eqNow()); delete e.base; return e; }
 
   function isRangedMon(m) {
     const t = (m && typeof m === 'object') ? m.type : m;
@@ -1470,6 +1480,7 @@
     if (loc === 'dance') return ((beats * 16) % 16 + 16) % 16; // 1 cycle / beat, bangs on 8ths
     if (loc === 'run') return ((beats * 16) % 16 + 16) % 16; // 1 cycle / beat, 2 steps / beat
     if (loc === 'walk') return ((beats * 8) % 16 + 16) % 16;  // 1 cycle / 2 beats, 1 step / beat
+    if (loc === 'sit') return ((beats * 4) % 16 + 16) % 16;   // slow breath while watching the fire
     return ((beats * 2) % 8 + 8) % 8;
   }
   function scrollSpeed(pace) {
@@ -1500,13 +1511,22 @@
     if (s.vendor && s.vendor.mode === 'wait') ahead((s.vendor.wx - s.scroll) - (s.heroX + 36));
     return d;
   }
+  function restSitAmt(s) {
+    if (!s || s.mode !== 'rest') return 0;
+    if ((s.skid || 0) > 0) return 0;
+    const t = s.potion || 0;
+    if (t < 6) return t / 6;
+    if (t > 50) return Math.max(0, (56 - t) / 6);
+    return 1;
+  }
   function heroLoco(s) {
     if (s.forceLoco) return s.forceLoco;
+    if (s.mode === 'rest' && restSitAmt(s) > 0.4) return 'sit';
     if (s.dance && !s.dance.delay) return 'dance';
     return s.loco || 'run';
   }
   function goRun(s) {
-    s.mode = 'run'; s.potion = 0; s.pose = ''; s.leap = null; s.hopT = 0; s.hopY = 0; s.digT = 0; s.pullT = 0; s.pullOf = null; s.pullPart = null; s.pullY = 0;
+    s.mode = 'run'; s.potion = 0; s.pose = ''; s.leap = null; s.hopT = 0; s.hopY = 0; s.digT = 0; s.pullT = 0; s.pullOf = null; s.pullPart = null; s.pullY = 0; s.fire = null;
     s.coolWalk = 0; s.skid = 0;
     s.loco = 'run';
     s.pace = 1; s.paceTarget = 1;
@@ -1578,6 +1598,7 @@
     if (!s || s.mode !== 'run' || s.skid || s.forceLoco) return;
     s.loco = 'run';
     s.pace = 1; s.paceTarget = 1; s.scrollSpd = scrollSpeed(1);
+    beginTurn(s, 'side');
   }
   function endDance(s, early) {
     if (!s || !s.dance) return;
@@ -1586,11 +1607,15 @@
     if (early && !started) s.danceCd = Math.min(s.danceCd || 0, 36);
     resumeAfterDance(s);
   }
+  function danceTurningBack(s) {
+    return !!(s && s.dance && !s.dance.delay && s.dance.t >= s.dance.life - TURN_N);
+  }
   function beginDancePose(s) {
     if (!s || !s.dance) return;
     s.dance.delay = 0;
     s.loco = 'dance';
     s.pace = 0; s.paceTarget = 0; s.scrollSpd = 0;
+    beginTurn(s, 'front');
   }
   function startDance(s, kind, opts) {
     if (!s) return null;
@@ -1653,6 +1678,7 @@
       s.dance.t++;
       s.loco = s.forceLoco || 'dance';
       s.pace = 0; s.paceTarget = 0; s.scrollSpd = 0;
+      if (s.dance.t === s.dance.life - TURN_N) beginTurn(s, 'side');
       if (s.dance.t >= s.dance.life) endDance(s, false);
       return;
     }
@@ -3273,7 +3299,8 @@
       s.scrollSpd = step;
       s.gaitF = heroGaitFrame(s);
       moving(step);
-      beginTurn(s, 'side');
+      if (dancing && !danceTurningBack(s)) beginTurn(s, 'front');
+      else beginTurn(s, 'side');
       tickDance(s);
       const stillDance = !!(s.dance && !s.dance.delay);
       if (!stillDance) {
@@ -3532,16 +3559,15 @@
   function startHeal(forced) {
     plantStop(st);
     st.potion = 0; st.seq = null; st.pose = ''; st.fire = null; st.loco = 'skid'; st.leap = null; st.hopY = 0; st.healCd = 240;
-    beginTurn(st, 'front');
     let r = forced;
     if (!r) {
       const opts = ['potion', 'rest', 'band'].filter(k => k !== lastHeal);
       r = opts[(Math.random() * opts.length) | 0] || 'potion';
     }
     lastHeal = r;
-    if (r === 'potion') st.mode = 'potion';
-    else if (r === 'rest') { st.mode = 'rest'; st.fire = { x: st.heroX + 46 }; }
-    else st.mode = 'band';
+    if (r === 'potion') { st.mode = 'potion'; beginTurn(st, 'front'); }
+    else if (r === 'rest') { st.mode = 'rest'; st.fire = { x: st.heroX + 60, sparks: [] }; beginTurn(st, 'side'); }
+    else { st.mode = 'band'; beginTurn(st, 'front'); }
   }
 
   // ---------- drawing ----------
@@ -3703,27 +3729,125 @@
     x.drawImage(c, 0, 0, c.width, 47, 0, 10, c.width, 47);
     return (c._sit = o);
   }
-  const FIRE = [
-    ['..y..', '.yoy.', 'yoOoy', 'oOWOo', 'rOWOr', '.rOr.'],
-    ['.y...', '..yy.', '.yoOy', 'yOWOo', 'rOWOr', '.rOr.'],
-    ['...y.', '.yy..', 'yOoy.', 'oOWOy', 'rOWOr', '.rOr.']
-  ];
-  const FC = { y: '#ffcf5a', o: '#ff8a2a', O: '#ff6018', W: '#fff2b0', r: '#c02a10' };
-  function drawFire(fx, t) {
-    const x = Math.round(fx), y = GROUND - 1;
-    const gr = g.createRadialGradient(x, y - 4, 1, x, y - 4, 26);
-    gr.addColorStop(0, 'rgba(255,140,50,' + (0.3 + 0.06 * (t % 2)) + ')'); gr.addColorStop(1, 'rgba(255,140,50,0)');
-    g.fillStyle = gr; g.fillRect(x - 26, y - 30, 52, 36);
-    // stones and crossed logs
-    g.fillStyle = '#4a3a2c'; [[-7, 0], [-5, -1], [5, -1], [7, 0], [-1, 1], [2, 1]].forEach(([dx, dy]) => g.fillRect(x + dx - 1, y + dy - 1, 2, 2));
-    g.fillStyle = '#5a3a20'; for (let i = -5; i <= 5; i++) g.fillRect(x + i, y - 1 - Math.round(Math.abs(i) * 0.2), 1, 2);
-    g.fillStyle = '#2a1a0e'; g.fillRect(x - 5, y, 11, 1);
-    const f = FIRE[t % 3];
-    for (let j = 0; j < f.length; j++) for (let i = 0; i < 5; i++) {
-      const c = FC[f[j][i]]; if (!c) continue;
-      g.fillStyle = c; g.fillRect(x - 2 + i, y - 8 + j, 1, 1);
+  function woodLine(x0, y0, x1, y1, thick, col, edge) {
+    const n = Math.max(1, Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)));
+    for (let i = 0; i <= n; i++) {
+      const px = Math.round(x0 + (x1 - x0) * i / n);
+      const py = Math.round(y0 + (y1 - y0) * i / n);
+      g.fillStyle = col;
+      g.fillRect(px, py - (thick >> 1), thick, thick - 1);
+      if (edge) { g.fillStyle = edge; g.fillRect(px, py - (thick >> 1), 1, thick - 1); }
     }
-    if (t % 4 === 0) { g.fillStyle = '#ffb040'; g.fillRect(x + (t % 8 ? 1 : -2), y - 11 - (t % 3), 1, 1); }
+  }
+  function flameTongue(cx, baseY, width, height, cols, t, phase) {
+    for (let i = 0; i < height; i++) {
+      const p = i / Math.max(1, height);
+      const wob = Math.sin(t * 1.15 + i * 0.28 + phase) * (0.6 + p * 3.2)
+        + Math.sin(t * 2.1 + i * 0.17 + phase * 0.7) * (0.3 + p * 1.4)
+        + Math.sin(t * 3.3 + i * 0.9 + phase) * p * 0.8;
+      const pulse = 0.80 + 0.20 * Math.sin(t * 1.4 + phase + i * 0.1);
+      // Jagged edges so the tongue reads as fire, not a smooth teardrop.
+      const jag = ((Math.sin(i * 1.7 + phase * 3 + t) > 0.45) ? 1 : 0) - ((Math.sin(i * 2.3 + t * 1.2) > 0.6) ? 1 : 0);
+      const w = Math.max(1, Math.round(width * (1 - p * p) * pulse) + jag);
+      const col = p < 0.22 ? cols[2] : p < 0.55 ? cols[1] : cols[0];
+      g.fillStyle = col;
+      g.fillRect(Math.round(cx + wob - w / 2), Math.round(baseY - i), w, 1);
+    }
+  }
+  function tickSparks(fire, t, x, y) {
+    let sparks = fire.sparks;
+    if (!sparks) sparks = fire.sparks = [];
+    if (sparks.length < 10 && (t % 2 === 0 || sparks.length < 5)) {
+      const side = (Math.random() * 14) - 7;
+      sparks.push({
+        x: x + side, y: y - 8 - Math.random() * 6,
+        vx: (Math.random() - 0.5) * 0.9, vy: -0.7 - Math.random() * 0.7,
+        life: 14 + ((Math.random() * 16) | 0), age: 0,
+        col: Math.random() < 0.35 ? '#fff2a0' : (Math.random() < 0.5 ? '#ffb040' : '#ff7020')
+      });
+    }
+    const keep = [];
+    for (let i = 0; i < sparks.length; i++) {
+      const sp = sparks[i];
+      sp.age++;
+      sp.x += sp.vx;
+      sp.y += sp.vy;
+      sp.vy -= 0.03;
+      if (sp.age < sp.life && sp.y > y - 50) keep.push(sp);
+    }
+    fire.sparks = keep;
+    return keep;
+  }
+  function drawFire(fx, t, layer) {
+    const x = Math.round(fx), y = GROUND - 1;
+    const flick = Math.sin(t * 0.7) * 2.2 + Math.sin(t * 1.6) * 1.3;
+    if (layer !== 'flame') {
+      const pulse = 0.48 + 0.10 * Math.sin(t * 0.55);
+      const gr = g.createRadialGradient(x, y - 2, 2, x, y - 2, 62);
+      gr.addColorStop(0, 'rgba(255,150,40,' + pulse + ')');
+      gr.addColorStop(0.38, 'rgba(255,110,28,' + (pulse * 0.38) + ')');
+      gr.addColorStop(1, 'rgba(255,70,10,0)');
+      g.fillStyle = gr;
+      g.fillRect(x - 62, y - 18, 124, 32);
+      const hot = g.createRadialGradient(x, y - 4, 1, x, y - 4, 20);
+      hot.addColorStop(0, 'rgba(255,210,90,0.62)');
+      hot.addColorStop(1, 'rgba(255,120,30,0)');
+      g.fillStyle = hot;
+      g.fillRect(x - 20, y - 16, 40, 22);
+      // Ring of irregular stones.
+      const stones = [
+        [-15, 0, 6, 3, '#5a5348'], [-11, 2, 5, 3, '#3e382f'], [-5, 3, 6, 3, '#6a5a48'],
+        [1, 3, 5, 3, '#4a443c'], [7, 3, 6, 3, '#5a5040'], [13, 1, 5, 3, '#3a342c'],
+        [15, -1, 5, 3, '#62584c'], [10, -3, 5, 3, '#4a4036'],
+        [-14, -2, 5, 3, '#52483e'], [-8, -3, 5, 2, '#3e382f'], [4, -3, 4, 2, '#585044']
+      ];
+      for (let i = 0; i < stones.length; i++) {
+        const [dx, dy, w, h, c] = stones[i];
+        const sx = x + dx - (w >> 1), sy = y + dy - (h >> 1);
+        g.fillStyle = c; g.fillRect(sx, sy, w, h);
+        g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(sx, sy + h - 1, w, 1);
+        g.fillStyle = 'rgba(255,210,150,0.22)'; g.fillRect(sx + 1, sy, Math.max(1, w - 2), 1);
+      }
+      // Stacked / crossed logs with charred ends and a glowing core.
+      woodLine(x - 13, y - 2, x + 13, y - 5, 3, '#4a2e16', '#2a180c');
+      woodLine(x - 12, y - 4, x + 12, y - 1, 3, '#3a2410', '#1e1208');
+      woodLine(x - 7, y - 6, x + 8, y - 3, 3, '#5a3818', '#2e1c0c');
+      woodLine(x - 4, y - 3, x + 5, y - 7, 2, '#2a160a', '#1a0e06');
+      g.fillStyle = '#1a0c06'; g.fillRect(x - 13, y - 3, 2, 3); g.fillRect(x + 12, y - 6, 2, 3);
+      g.fillStyle = '#1a0c06'; g.fillRect(x - 12, y - 5, 2, 3); g.fillRect(x + 11, y - 2, 2, 3);
+      g.fillStyle = 'rgba(255,90,20,0.55)'; g.fillRect(x - 3, y - 5, 7, 2);
+      g.fillStyle = 'rgba(255,180,50,0.45)'; g.fillRect(x - 1, y - 6, 3, 2);
+      // A couple of stones in front of the logs so the ring reads as a circle.
+      const front = [[-8, 2, 6, 3, '#4e483e'], [0, 3, 6, 3, '#6a5e4e'], [8, 2, 5, 3, '#3c362e']];
+      for (let i = 0; i < front.length; i++) {
+        const [dx, dy, w, h, c] = front[i];
+        const sx = x + dx - (w >> 1), sy = y + dy - (h >> 1);
+        g.fillStyle = c; g.fillRect(sx, sy, w, h);
+        g.fillStyle = 'rgba(255,210,150,0.2)'; g.fillRect(sx + 1, sy, Math.max(1, w - 2), 1);
+        g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(sx, sy + h - 1, w, 1);
+      }
+    }
+    if (layer !== 'base') {
+      // Tall layered flickering tongues — reads as a campfire, not a candle.
+      const h1 = Math.round(36 + flick);
+      const h2 = Math.round(28 + Math.sin(t * 1.1 + 1) * 3);
+      const h3 = Math.round(22 + Math.sin(t * 1.8 + 2) * 2.4);
+      const h4 = Math.round(16 + Math.sin(t * 2.2) * 2);
+      flameTongue(x - 3, y - 6, 15, h1, ['#9a1408', '#e03010', '#ff6818'], t, 0.2);
+      flameTongue(x + 5, y - 6, 12, h2, ['#b01808', '#f04014', '#ff7a20'], t, 1.7);
+      flameTongue(x + 1, y - 7, 11, h3, ['#ff4a10', '#ff8a22', '#ffc44a'], t, 0.9);
+      flameTongue(x - 1, y - 7, 7, h4, ['#ff9a28', '#ffd060', '#fff6c8'], t, 2.4);
+      // Rising embers / sparks.
+      const fire = (st && st.fire) || { x: fx };
+      const sparks = tickSparks(fire, t, x, y);
+      for (let i = 0; i < sparks.length; i++) {
+        const sp = sparks[i], fade = 1 - sp.age / sp.life;
+        g.globalAlpha = Math.max(0.2, fade);
+        g.fillStyle = sp.col;
+        g.fillRect(Math.round(sp.x), Math.round(sp.y), fade > 0.45 ? 2 : 1, fade > 0.3 ? 2 : 1);
+        g.globalAlpha = 1;
+      }
+    }
   }
   function bar(x, y, w, frac, col) {
     x = Math.round(x); y = Math.round(y);
@@ -3886,18 +4010,18 @@
     }
     fadeDraw(L => tiled(L.fl, cam, GROUND - 8), H);
     drawProps(g, s.scroll, a, scStep, 'ground');
-    if (s.fire) drawFire(s.fire.x, s.t);
+    if (s.fire) drawFire(s.fire.x, s.t, 'base');
     const loc = heroLoco(s);
-    const gaitFrame = (loc === 'run' || loc === 'walk' || loc === 'idle' || loc === 'stand' || loc === 'skid' || loc === 'dance') ? Math.floor(heroGaitFrame(s)) : Math.floor((s.gaitF || 0) + a * (loc === 'hop' ? 1.5 : loc === 'dig' || loc === 'climb' ? 1 : 0.4));
+    const gaitFrame = (loc === 'run' || loc === 'walk' || loc === 'idle' || loc === 'stand' || loc === 'skid' || loc === 'dance' || loc === 'sit') ? Math.floor(heroGaitFrame(s)) : Math.floor((s.gaitF || 0) + a * (loc === 'hop' ? 1.5 : loc === 'dig' || loc === 'climb' ? 1 : 0.4));
     const amt = faceAmt(s, a);
     const baseFront = heroSprite(s.pose);
     let frontImg = baseFront, hy = HERO_Y + Math.round((s.hopY || 0) + (s.dodgeY || 0) + ((s.mode === 'pull' || s.mode === 'vendor') ? (s.pullY || 0) : 0));
-    if (s.mode === 'rest') frontImg = sitOf(baseFront);
     const eq = heroEq(), rar = rarity(eqNow());
     const sideLoco = (loc === 'idle' && s.mode !== 'dig' && s.mode !== 'hop') ? 'idle' : loc;
     const flavor = (s.dance && !s.dance.delay) ? s.dance.kind : null;
+    if (flavor && P().heroCanvasFront) frontImg = P().heroCanvasFront(eq, rar.best, rar.color, flavor, gaitFrame);
     const sideImg = (P().heroCanvasSide) ? P().heroCanvasSide(eq, rar.best, rar.color, sideLoco, gaitFrame, flavor) : baseFront;
-    const healFront = s.mode === 'rest' || s.mode === 'potion' || s.mode === 'band';
+    const healFront = s.mode === 'potion' || s.mode === 'band';
     const useSide = amt < 0.5 && !healFront;
     let img = useSide ? sideImg : frontImg;
     img = degradeHero(img, hurtStage(s.hp, s.max));
@@ -3919,6 +4043,19 @@
     } else {
       g.drawImage(img, dx, hy, dw, img.height);
     }
+    if (s.mode === 'rest' && s.fire) {
+      const fx = s.fire.x, fy = GROUND - 10;
+      const glow = g.createRadialGradient(fx, fy, 6, fx, fy, 54);
+      glow.addColorStop(0, 'rgba(255,170,60,0.28)');
+      glow.addColorStop(0.45, 'rgba(255,110,30,0.12)');
+      glow.addColorStop(1, 'rgba(255,80,20,0)');
+      g.save();
+      g.globalCompositeOperation = 'lighter';
+      g.fillStyle = glow;
+      g.fillRect(Math.round(fx - 54), Math.round(fy - 40), 108, 62);
+      g.restore();
+    }
+    if (s.fire) drawFire(s.fire.x, s.t, 'flame');
     if (s.mode === 'pull') drawPullGear(g, s, plant, hy, a);
     if (s.mode === 'greet' && s.npc && s.npc.mode === 'wave') drawWaveArm(g, plant, hy, (s.greetT || 0) + a);
     if (s.mode === 'death' && (s.deathPhase === 'spirit' || s.deathPhase === 'speak' || s.deathPhase === 'raise') && (s.spiritA || 0) > 0) {
@@ -4276,6 +4413,7 @@
     _stop() { stop(); },
     _moves() { return { warrior: MOVES.warrior.slice(), mage: MOVES.mage.slice(), shooter: MOVES.shooter.slice(), heals: ['potion', 'rest', 'band'] }; },
     _forceCls(c) { if (st) st.forceCls = c || null; },
+    _forceEq(eq) { if (st) st.forceEq = eq || null; },
     _forceMove(m) { if (st) st.forceMove = m || null; },
     _forceHeal(mode) { if (st) startHeal(mode); },
     _hurtHero(frac) { if (st) { const S = stats(eqNow(), lvl()); st.max = S.hp; st.hp = Math.max(1, Math.round(S.hp * frac)); } },
