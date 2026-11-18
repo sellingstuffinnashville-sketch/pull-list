@@ -1138,37 +1138,43 @@
   // Facing right. 56 x 64 so a long stride and trailing cape have room. Body plant at x=30, feet at y=61.
   const SIDE_W = 56, SIDE_CX = 30, SIDE_FEET = 61;
   function gaitPose(loco, frame) {
-    const n = 8, p = ((frame % n) + n) % n, tau = (p / n) * Math.PI * 2;
+    const walkish = (loco === 'run' || loco === 'walk');
+    const n = walkish ? 16 : 8, p = ((frame % n) + n) % n, tau = (p / n) * Math.PI * 2;
     if (loco === 'idle' || loco === 'stand') {
       const breath = Math.sin(tau) * 0.5;
-      return { rx: 1.2, lx: -1.2, rLift: 0, lLift: 0, bob: breath, head: breath * 0.4, cape: -3, flutter: Math.sin(tau * 0.5) * 0.8, lean: 0, armR: 0.5, armL: -0.5, armRY: 0, armLY: 0, run: false };
+      return { rx: 1.2, lx: -1.2, rLift: 0, lLift: 0, rAng: 0, lAng: 0, bob: breath, head: breath * 0.4, cape: -3, flutter: Math.sin(tau * 0.5) * 0.8, lean: 0, armR: 0.5, armL: -0.5, armRY: 0, armLY: 0, run: false };
     }
     if (loco === 'dig') {
       const scoop = Math.sin(tau * 2);
-      return { rx: 2.2, lx: -1.6, rLift: 0, lLift: 1, bob: 7, head: 4, cape: -2, flutter: scoop * 0.6, lean: 4, armR: 3 + scoop * 4, armL: 1 - scoop * 4, armRY: 10 + scoop * 3, armLY: 10 - scoop * 3, run: false, crouch: 7 };
+      return { rx: 2.2, lx: -1.6, rLift: 0, lLift: 1, rAng: 0, lAng: 0, bob: 7, head: 4, cape: -2, flutter: scoop * 0.6, lean: 4, armR: 3 + scoop * 4, armL: 1 - scoop * 4, armRY: 10 + scoop * 3, armLY: 10 - scoop * 3, run: false, crouch: 7 };
     }
     if (loco === 'hop' || loco === 'climb') {
       const up = loco === 'climb' ? 3 : 0;
-      return { rx: 3.2, lx: -2.2, rLift: 5 + up, lLift: 2 + up, bob: -2, head: -1, cape: -6, flutter: 2, lean: 3, armR: 3, armL: -4, armRY: -2, armLY: 2, run: false };
+      return { rx: 3.2, lx: -2.2, rLift: 5 + up, lLift: 2 + up, rAng: 0, lAng: 0, bob: -2, head: -1, cape: -6, flutter: 2, lean: 3, armR: 3, armL: -4, armRY: -2, armLY: 2, run: false };
     }
     const run = loco === 'run';
-    // Compact two-leg stride. One foot plants; a brief mid-stride flight only when running.
-    const stride = run ? 5 : 4, lift = run ? 3.6 : 2.6;
-    const flight = run ? Math.max(0, Math.sin(tau * 2) - 0.35) * 1.2 : 0;
+    // 16-frame stride. Stance foot stays planted and slides back; swing foot lifts and passes.
+    // Arms opposite the legs. Run: longer stride, forward lean, arm pump. Walk: smaller bob, heel-toe.
+    const stride = run ? 7.2 : 3.6, lift = run ? 4.2 : 2.2;
+    const flight = run ? Math.max(0, Math.sin(tau * 2) - 0.55) * 0.8 : 0;
+    // COM is highest at mid-stance (single support), dips at the double-support plants.
+    const bob = -Math.abs(Math.sin(tau)) * (run ? 0.9 : 0.45) + (run ? 0.15 : 0);
     return {
       rx: Math.cos(tau) * stride,
       rLift: Math.max(0, -Math.sin(tau)) * lift + flight,
+      rAng: Math.cos(tau) * (run ? 0.7 : 1.05),
       lx: -Math.cos(tau) * stride,
       lLift: Math.max(0, Math.sin(tau)) * lift + flight,
-      bob: -Math.abs(Math.cos(tau)) * (run ? 1.5 : 1.1) + (run ? 0.3 : 0),
-      head: -Math.abs(Math.cos(tau - 0.45)) * (run ? 1.1 : 0.8) + (run ? 0.2 : 0),
-      cape: -4 - Math.sin(tau - 0.8) * (run ? 3 : 2) - (run ? 2 : 0),
-      flutter: Math.sin(tau - 0.8) * (run ? 2.6 : 1.6),
-      lean: run ? 2.4 : 1.1,
-      armR: -Math.cos(tau) * (run ? 5 : 3.5),
-      armL: Math.cos(tau) * (run ? 5 : 3.5),
-      armRY: Math.sin(tau) * (run ? 1.6 : 1.1),
-      armLY: -Math.sin(tau) * (run ? 1.6 : 1.1),
+      lAng: -Math.cos(tau) * (run ? 0.7 : 1.05),
+      bob,
+      head: bob * 0.55 + (run ? 0.15 : 0),
+      cape: -4 - Math.sin(tau - 0.8) * (run ? 3.4 : 1.4) - (run ? 3 : 0),
+      flutter: Math.sin(tau - 0.8) * (run ? 3 : 1.2),
+      lean: run ? 5.2 : 0.6,
+      armR: -Math.cos(tau) * (run ? 7.2 : 2.8),
+      armL: Math.cos(tau) * (run ? 7.2 : 2.8),
+      armRY: Math.sin(tau) * (run ? 2.2 : 0.8),
+      armLY: -Math.sin(tau) * (run ? 2.2 : 0.8),
       run
     };
   }
@@ -1194,11 +1200,12 @@
     const a = ARMOR[eq.armor];
     return { body: a ? a[0] : 'cloth', trim: a ? (a[1] === 'white' ? 'gold' : a[1]) : 'leather', boot: a ? 'iron' : 'rag', pants: a ? (a[0] === 'gold' ? 'gold' : 'iron') : 'skin', skin: 'skin', armored: !!a };
   }
-  function sideLeg(S, hipX, hipY, footX, lift, mat, boot, thick) {
+  function sideLeg(S, hipX, hipY, footX, lift, mat, boot, thick, footAng) {
     const fy = SIDE_FEET - lift, fx = hipX + footX, mx = hipX + footX * 0.5, my = (hipY + fy) * 0.5, t = thick || 2.2;
+    const toeUp = Math.max(0, footAng || 0), heelUp = Math.max(0, -(footAng || 0));
     S.P({ shine: true }); S.poly([[hipX - t, hipY], [hipX + t, hipY], [mx + t, my], [mx - t, my]], mat);
-    S.P({ shine: true }); S.poly([[mx - t, my], [mx + t, my], [fx + t, fy - 3], [fx - t * 0.8, fy - 3]], mat);
-    S.P(); S.poly([[fx - 3, fy - 3], [fx + 5, fy - 3], [fx + 6, fy], [fx - 2, fy]], boot);
+    S.P({ shine: true }); S.poly([[mx - t, my], [mx + t, my], [fx + t, fy - 3 - toeUp], [fx - t * 0.8, fy - 3 - heelUp]], mat);
+    S.P(); S.poly([[fx - 3, fy - 3 - heelUp], [fx + 5, fy - 3 - toeUp], [fx + 6, fy - toeUp], [fx - 2, fy - heelUp]], boot);
   }
   function sideArm(S, shX, shY, handX, handY, mat, skin, thick) {
     const mx = (shX + handX) * 0.5, my = (shY + handY) * 0.5 + 1, t = thick || 1.8;
@@ -1370,28 +1377,29 @@
     const headX = chestX + 2, headY = 11 + G.head;
     const shX = chestX + 0.5, shY = 20 + bob;
     S.P({ flat: true }); S.ell(SIDE_CX + (G.rx + G.lx) * 0.15, SIDE_FEET + 0.5, 12, 2.2, 'shadow');
-    if (cls !== 'mage') sideLeg(S, hipX - 1, hipY, G.lx, G.lLift, M.pants, M.boot, 2);
+    if (cls !== 'mage') sideLeg(S, hipX - 1, hipY, G.lx, G.lLift, M.pants, M.boot, 2, G.lAng);
     drawCapeSide(S, eq.cape, shX - 3, shY, G);
     drawPackSide(S, eq.pack, cls, shX - 7, shY + 4);
     sideArm(S, shX - 2, shY + 2, shX - 2 + G.armL - 1, shY + 16 + G.armLY, M.body, M.skin, 1.6);
     if (cls === 'mage') {
       // Both boots peek from a raised hem so the walk reads forward (same gait as the other classes).
-      const mageBoot = (footX, lift) => {
+      const mageBoot = (footX, lift, footAng) => {
         const fy = SIDE_FEET - lift, fx = hipX + footX;
-        S.P(); S.poly([[fx - 2, fy - 4], [fx + 4, fy - 4], [fx + 5, fy], [fx - 1, fy]], M.boot || 'leather');
+        const toeUp = Math.max(0, footAng || 0), heelUp = Math.max(0, -(footAng || 0));
+        S.P(); S.poly([[fx - 2, fy - 4 - heelUp], [fx + 4, fy - 4 - toeUp], [fx + 5, fy - toeUp], [fx - 1, fy - heelUp]], M.boot || 'leather');
       };
-      mageBoot(G.lx, G.lLift);
+      mageBoot(G.lx, G.lLift, G.lAng);
       S.P({ round: true, shine: true });
       S.poly([[chestX - 3, chestY], [chestX + 5, chestY], [chestX + 6, hipY], [chestX + 6 + G.flutter * 0.25, SIDE_FEET - 5], [chestX - 3 + G.cape * 0.15, SIDE_FEET - 5], [chestX - 4, hipY]], M.body);
       if (M.trim && M.trim !== 'iron') { S.P({ flat: true, nocs: true }); S.line(chestX - 3, SIDE_FEET - 6, chestX + 6, SIDE_FEET - 6, M.trim, 2); }
-      mageBoot(G.rx, G.rLift);
+      mageBoot(G.rx, G.rLift, G.rAng);
       if (M.runes) { S.P({ flat: true, nocs: true }); S.px(chestX + 1, hipY, M.runes); S.glow(chestX + 1, hipY - 4, 5, M.runes, 0.25); }
       if (M.stars) { S.P({ flat: true, nocs: true }); S.px(chestX, hipY - 6, 'white'); S.px(chestX + 3, hipY + 4, 'white'); }
     } else {
       S.P({ shine: true, round: true });
       S.poly([[chestX - 3, chestY], [chestX + 6, chestY + 1], [chestX + 5, hipY + 2], [chestX - 3, hipY + 3]], M.body);
       if (M.trim) { S.P({ nocs: true }); S.rect(chestX - 2, hipY - 2, 8, 2, M.trim === 'white' ? 'gold' : M.trim); }
-      sideLeg(S, hipX + 1, hipY, G.rx, G.rLift, M.pants, M.boot, 2.3);
+      sideLeg(S, hipX + 1, hipY, G.rx, G.rLift, M.pants, M.boot, 2.3, G.rAng);
     }
     S.P(); S.rect(chestX, chestY - 3, 3, 4, M.skin, -1);
     drawPaulSide(S, eq.pauldrons, cls, shX + 2, shY);
@@ -1444,7 +1452,7 @@
       if (!c) {
         c = toCanvas(heroSpriteSide(eq, rank, color, loco, frame));
         c._ax = SIDE_CX;
-        if (scache.size > 120) scache.clear();
+        if (scache.size > 220) scache.clear();
         scache.set(k, c);
       }
       return c;

@@ -558,6 +558,9 @@
   }
 
   // ---------- synced lyrics (shown on the ground under the hero) ----------
+  // Seconds to show lyrics ahead of audio.currentTime. Covers typical output latency,
+  // rAF/currentTime granularity, and whisper onset lag. Easy to tweak.
+  const LYRIC_LEAD = 0.35;
   function loadLyrics() {
     if (lyricData) return Promise.resolve(lyricData);
     if (!lyricP) {
@@ -575,7 +578,7 @@
     if (!lines || t < 0) return null;
     for (let i = 0; i < lines.length; i++) {
       const L = lines[i];
-      if (t >= L.s - 0.08 && t < L.e + 0.2) return { cur: L, next: lines[i + 1] || null };
+      if (t >= L.s && t < L.e + 0.2) return { cur: L, next: lines[i + 1] || null };
       if (t < L.s) return null;
     }
     return null;
@@ -588,7 +591,12 @@
       return;
     }
     if (!lyricData) { loadLyrics(); return; }
-    const t = PLBgm.time();
+    const raw = PLBgm.time();
+    if (raw < 0) {
+      if (lyricLast !== '') { lyricEl.hidden = true; lyricEl.innerHTML = ''; lyricLast = ''; }
+      return;
+    }
+    const t = raw + LYRIC_LEAD;
     const hit = lyricAt(t);
     if (!hit) {
       if (lyricLast !== '') { lyricEl.hidden = true; lyricEl.innerHTML = ''; lyricLast = ''; }
@@ -728,7 +736,8 @@
     const skyC = mkc(TW, TH), f0 = skyC.getContext('2d');
     const farW = mkc(TW + PAD, TH), f = farW.getContext('2d');
     const midW = mkc(TW + PAD, TH), m = midW.getContext('2d');
-    const fl = mkc(TW, 9), g2 = fl.getContext('2d');
+    const FL_H = 8 + BAND;
+    const fl = mkc(TW, FL_H), g2 = fl.getContext('2d');
     const r = rng(name.length * 97 + 13);
     let tw = [], kind = name;
     f.translate(0, Y0); m.translate(0, Y0); // strip-space coordinates from here (y < 0 is above the strip)
@@ -785,8 +794,8 @@
       }
       for (let k = 0; k < 6; k++) { const x = (r() * TW) | 0, y = GROUND - 1; px(m, x, y - 3, '#d8b4e8', 3); px(m, x - 1, y - 2, '#9a6ab0', 5); px(m, x + 1, y - 1, '#c8b8a0', 1, 2); }
       for (let k = 0; k < 3; k++) { const x = (r() * TW) | 0; px(m, x, GROUND - 1, '#d6caae', 3, 2); px(m, x, GROUND - 1, '#0a0605'); px(m, x + 2, GROUND - 1, '#0a0605'); }
-      px(g2, 0, 0, '#2a1f16', TW, 9); px(g2, 0, 0, '#4a3624', TW, 1);
-      for (let k = 0; k < 170; k++) px(g2, r() * TW, 1 + r() * 8, ['#3a2a1c', '#1c140e', '#5a4430', '#241a12'][(r() * 4) | 0], 1 + ((r() * 2) | 0));
+      px(g2, 0, 0, '#2a1f16', TW, FL_H); px(g2, 0, 0, '#4a3624', TW, 1);
+      for (let k = 0; k < Math.round(170 * FL_H / 9); k++) px(g2, r() * TW, 1 + r() * (FL_H - 1), ['#3a2a1c', '#1c140e', '#5a4430', '#241a12'][(r() * 4) | 0], 1 + ((r() * 2) | 0));
     } else if (name === 'plains') {
       skyGrad(f0, TH, [[0, '#03030a'], [Y0 - 260, '#05061a'], [Y0 - 150, '#0c0b28'], [Y0 - 70, '#1c1238'], [Y0 - 20, '#30163e'], [Y0, '#3e1c40'], [Y0 + H * 0.4, '#5a2a40'], [Y0 + H * 0.62, '#a4503a'], [Y0 + H * 0.78, '#d88a48'], [TH, '#e0a050']]);
       tw = stars(f0, r, 4, Y0 + 14, Math.round(TH * 0.32), 1);
@@ -805,9 +814,9 @@
       for (let k = 0; k < 4; k++) { const x = (r() * TW) | 0; px(m, x, GROUND - 6, '#3a2a1c', 2, 6); px(m, x + 9, GROUND - 6, '#3a2a1c', 2, 6); px(m, x - 1, GROUND - 4, '#4a3624', 13, 1); }
       silTower(f, 40, GROUND, '#1a1014'); silHouse(f, 110, GROUND, '#1a1014', 18, 16); silPole(f, 160, GROUND, '#140e10');
       silHouse(m, 24, GROUND, '#1e1a14', 20, 18); silPole(m, 80, GROUND, '#1a140e'); silTower(m, 140, GROUND, '#1a140e');
-      px(g2, 0, 0, '#3a2a1a', TW, 9); px(g2, 0, 0, '#5a6a2a', TW, 2); px(g2, 0, 2, '#3a4a1e', TW, 1);
+      px(g2, 0, 0, '#3a2a1a', TW, FL_H); px(g2, 0, 0, '#5a6a2a', TW, 2); px(g2, 0, 2, '#3a4a1e', TW, 1);
       for (let k = 0; k < 120; k++) { const x = r() * TW; px(g2, x, 0, '#7a8a3a'); if (k % 3 === 0) px(g2, x + 1, 0, '#90a048'); }
-      for (let k = 0; k < 90; k++) px(g2, r() * TW, 3 + r() * 6, ['#4a3622', '#2a1e12', '#5a4630'][(r() * 3) | 0], 1 + ((r() * 2) | 0));
+      for (let k = 0; k < Math.round(90 * FL_H / 9); k++) px(g2, r() * TW, 3 + r() * (FL_H - 3), ['#4a3622', '#2a1e12', '#5a4630'][(r() * 3) | 0], 1 + ((r() * 2) | 0));
       for (let k = 0; k < 40; k++) { const x = (r() * TW) | 0; px(m, x, GROUND - 2, '#5a6a2a'); px(m, x + 1, GROUND - 3, '#7a8a3a'); px(m, x + 2, GROUND - 2, '#4a5a22'); }
     } else if (name === 'forest') {
       skyGrad(f0, TH, [[0, '#030408'], [Y0 - 200, '#04060c'], [Y0 - 90, '#070c12'], [Y0, '#0c1416'], [Y0 + H * 0.7, '#18241e'], [TH, '#22301e']]);
@@ -838,9 +847,9 @@
       silHouse(m, 48, GROUND, '#1a140e', 18, 14); silPole(m, 130, GROUND, '#16100c');
       { const x = 22; px(m, x, GROUND - 8, '#3a2a1a', 2, 8); px(m, x - 3, GROUND - 10, '#4a3a28', 8, 6); px(m, x + 5, GROUND - 9, '#7a2020', 2, 3); }
       { const x = 160; px(m, x, GROUND, '#5a4030', 6, 3); px(m, x + 8, GROUND + 1, '#3a2a1a', 8, 2); }
-      px(g2, 0, 0, '#1e2414', TW, 9); px(g2, 0, 0, '#2e4a1e', TW, 1);
-      for (let k = 0; k < 150; k++) px(g2, r() * TW, 1 + r() * 8, ['#26341a', '#14180e', '#3a2a1a', '#1a2212'][(r() * 4) | 0], 1 + ((r() * 2) | 0));
-      for (let k = 0; k < 8; k++) { const x = (r() * TW) | 0; px(g2, x, 2, '#3a2416', 6, 1); px(g2, x + 5, 3, '#3a2416', 3, 1); }
+      px(g2, 0, 0, '#1e2414', TW, FL_H); px(g2, 0, 0, '#2e4a1e', TW, 1);
+      for (let k = 0; k < Math.round(150 * FL_H / 9); k++) px(g2, r() * TW, 1 + r() * (FL_H - 1), ['#26341a', '#14180e', '#3a2a1a', '#1a2212'][(r() * 4) | 0], 1 + ((r() * 2) | 0));
+      for (let k = 0; k < 8; k++) { const x = (r() * TW) | 0; px(g2, x, 2 + ((r() * (FL_H - 6)) | 0), '#3a2416', 6, 1); px(g2, x + 5, 3 + ((r() * (FL_H - 6)) | 0), '#3a2416', 3, 1); }
       for (let k = 0; k < 10; k++) { const x = (r() * TW) | 0; px(g2, x, 0, '#1a2a14', 1, 2 + ((r() * 2) | 0)); }
     } else {
       skyGrad(f0, TH, [[0, '#030202'], [Y0 - 220, '#060303'], [Y0 - 110, '#120605'], [Y0 - 30, '#260c08'], [Y0, '#2e100c'], [Y0 + H * 0.45, '#3e1610'], [Y0 + H * 0.72, '#7a2c14'], [TH, '#b04a1a']]);
@@ -866,9 +875,15 @@
         if (k % 2) { px(m, x + 8, GROUND - 4, '#d6caae', 3, 2); px(m, x + 8, GROUND - 4, '#0a0605'); px(m, x + 10, GROUND - 4, '#0a0605'); }
       }
       silHospital(f, 20, GROUND, '#140a08'); silTower(f, 150, GROUND, '#140a08'); silPole(m, 16, GROUND, '#2a1a14'); silPole(m, 170, GROUND, '#2a1a14'); silHouse(m, 90, GROUND, '#2a1c18', 22, 16);
-      px(g2, 0, 0, '#2a2420', TW, 9); px(g2, 0, 0, '#4a403a', TW, 1);
-      for (let x = 0; x < TW; x += 12) { px(g2, x, 1, '#16120e', 1, 8); px(g2, x + 6, 5, '#16120e', 6, 1); px(g2, x + 1, 1, '#3a322c', 5, 1); }
-      for (let k = 0; k < 60; k++) px(g2, r() * TW, 2 + r() * 7, ['#3a2a20', '#1a1410', '#5a2a18'][(r() * 3) | 0]);
+      px(g2, 0, 0, '#2a2420', TW, FL_H); px(g2, 0, 0, '#4a403a', TW, 1);
+      for (let y = 1; y < FL_H; y += 8) {
+        for (let x = 0; x < TW; x += 12) {
+          px(g2, x, y, '#16120e', 1, Math.min(8, FL_H - y));
+          if (y + 4 < FL_H) px(g2, x + 6, y + 4, '#16120e', 6, 1);
+          px(g2, x + 1, y, '#3a322c', 5, 1);
+        }
+      }
+      for (let k = 0; k < Math.round(60 * FL_H / 9); k++) px(g2, r() * TW, 2 + r() * (FL_H - 2), ['#3a2a20', '#1a1410', '#5a2a18'][(r() * 3) | 0]);
     }
     return (layerCache[key] = { sky: skyC, far: fold(farW), mid: fold(midW), fl, tw, kind, TH });
   }
@@ -878,7 +893,7 @@
   let lyricData = null, lyricP = null, lyricLast = '', lyricTimer = 0;
   let st = null;
   function freshState() {
-    return { mode: 'run', t: 0, scroll: 0, hp: 1, max: 1, heroX: 22, mon: null, mons: [], spawn: 40, fx: [], nums: [], coins: [], fire: null, atkT: 0, monT: 0, pose: '', lunge: 0, flashH: 0, potion: 0, eqKey: '', biome: 0, bt: 0, seq: null, seqI: 0, move: '', forceMove: null, forceCls: null, forceLoco: null, forcePack: null, alpha: 0, loco: 'run', facing: 'side', turn: 0, turnTo: 'side', gaitF: 0, coolWalk: 0, props: [], nextProp: 30, digCd: 24, digT: 0, hopT: 0, hopY: 0, pullT: 0, pullCd: 0, leap: null, toast: null, npc: null, npcCd: 200, greetT: 0, deathCd: 0, healCd: 0, fightXp: 0, awardXp: undefined, noDeath: false };
+    return { mode: 'run', t: 0, scroll: 0, hp: 1, max: 1, heroX: 22, mon: null, mons: [], spawn: 40, fx: [], nums: [], coins: [], fire: null, atkT: 0, monT: 0, pose: '', lunge: 0, flashH: 0, potion: 0, eqKey: '', biome: 0, bt: 0, seq: null, seqI: 0, move: '', forceMove: null, forceCls: null, forceLoco: null, forcePack: null, alpha: 0, loco: 'run', facing: 'side', turn: 0, turnTo: 'side', gaitF: 0, coolWalk: 0, props: [], nextProp: 30, digCd: 24, digT: 0, hopT: 0, hopY: 0, pullT: 0, pullCd: 0, leap: null, toast: null, npc: null, npcCd: 200, greetT: 0, deathCd: 0, healCd: 0, fightXp: 0, awardXp: undefined, noDeath: false, vendor: null, vendorCd: 900, vendorT: 0, partsHeld: 0, pace: 1, paceTarget: 1, scrollSpd: 2 };
   }
   function eqNow() { return (typeof xpState !== 'undefined' && xpState.equipped) || {}; }
   function lvl() { return (typeof xpState !== 'undefined' && xpState.level) || 1; }
@@ -1332,13 +1347,63 @@
     const p = Math.max(0, Math.min(1, (TURN_N - o.turn + a) / TURN_N));
     return o.turnTo === 'front' ? p : 1 - p;
   }
+  // Junkyard Hero tempo, measured offline from music.mp3 (onset flux autocorr 107.67, rounded).
+  // Run footfalls land on half-beats; walk footfalls land on beats. Offset aligns the first 8ths.
+  const BGM_BPM = 108, BGM_BEAT_OFF = 0.09;
+  function beatTime() {
+    let t = -1;
+    if (window.PLBgm && PLBgm.playing && PLBgm.playing()) t = PLBgm.time();
+    if (!(t >= 0)) t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+    return (t - BGM_BEAT_OFF) * BGM_BPM / 60;
+  }
+  function heroGaitFrame(s) {
+    const loc = heroLoco(s);
+    const beats = beatTime();
+    if (loc === 'run') return ((beats * 16) % 16 + 16) % 16; // 1 cycle / beat, 2 steps / beat
+    if (loc === 'walk') return ((beats * 8) % 16 + 16) % 16;  // 1 cycle / 2 beats, 1 step / beat
+    return ((beats * 2) % 8 + 8) % 8;
+  }
+  function scrollSpeed(pace) {
+    pace = Math.max(0, Math.min(1, pace || 0));
+    if (pace < 0.5) return (pace / 0.5) * 1;
+    return 1 + ((pace - 0.5) / 0.5) * 2; // walk 1 … run 3
+  }
+  function paceForDist(d) {
+    if (!(d < 1e8)) return 1;
+    if (d > 160) return 1;
+    if (d > 90) return 0.48 + (d - 90) / 70 * 0.52;
+    if (d > 16) return 0.28 + (d - 16) / 74 * 0.20;
+    return 0.16; // creep the last few pixels; the encounter zeros pace
+  }
+  function encounterDist(s, eq, heroFront) {
+    let d = Infinity;
+    const plant = s.heroX + 28;
+    const ed = typeof engageDist === 'function' ? engageDist(eq) : 20;
+    for (const m of living(s)) d = Math.min(d, m.x - heroFront - ed);
+    for (const p of (s.props || [])) {
+      if (p.used || p.looted || p.hang) continue;
+      if ((p.par || 1) < 0.9 || (p.par || 1) > 1.05) continue;
+      if (!(isCarProp(p) || p.dig)) continue;
+      const sx = propScreenX(p, s.scroll, 0, 0);
+      d = Math.min(d, sx - plant);
+    }
+    if (s.vendor && s.vendor.mode === 'wait') d = Math.min(d, (s.vendor.wx - s.scroll) - (s.heroX + 36));
+    if (s.npc && s.npc.mode === 'approach') d = Math.min(d, s.npc.x - (s.heroX + 50));
+    return d;
+  }
   function heroLoco(s) {
     if (s.forceLoco) return s.forceLoco;
     return s.loco || 'run';
   }
   function goRun(s, walkFirst) {
-    s.mode = 'run'; s.potion = 0; s.pose = ''; s.leap = null; s.hopT = 0; s.hopY = 0; s.digT = 0; s.pullT = 0; s.pullOf = null; s.pullPart = null;
-    if (walkFirst) { s.coolWalk = 12; s.loco = 'walk'; } else s.loco = s.coolWalk ? 'walk' : 'run';
+    s.mode = 'run'; s.potion = 0; s.pose = ''; s.leap = null; s.hopT = 0; s.hopY = 0; s.digT = 0; s.pullT = 0; s.pullOf = null; s.pullPart = null; s.pullY = 0;
+    if (walkFirst) {
+      s.coolWalk = 12; s.loco = 'walk';
+      s.pace = Math.min(s.pace == null ? 0.4 : s.pace, 0.42); s.paceTarget = 1;
+    } else {
+      s.loco = s.coolWalk ? 'walk' : 'run';
+      s.paceTarget = 1; if (s.pace == null) s.pace = s.loco === 'walk' ? 0.4 : 1;
+    }
     beginTurn(s, 'side');
   }
 
@@ -1955,6 +2020,8 @@
   }
   function tryFieldEvents(s) {
     if (s.mode !== 'run' || s.forceLoco) return;
+    if (s.vendor && (s.vendor.wx - s.scroll) < s.heroX + 100) return;
+    if (!s.forcePull && !s.forceDig && (s.pace || 0) > 0.22) return;
     if (s.npc && s.npc.mode === 'approach' && s.npc.x < s.heroX + 90) return;
     if (living(s).some(m => m.x < s.heroX + 150)) return;
     const plant = s.heroX + 28;
@@ -2207,7 +2274,7 @@
   function tickNpc(s) {
     if (s.npcCd > 0) s.npcCd--;
     if (!s.npc) {
-      if (s.mode === 'run' && s.npcCd <= 0 && !s.forceLoco && !s.noDeath) {
+      if (s.mode === 'run' && s.npcCd <= 0 && !s.forceLoco && !s.noDeath && !s.vendor) {
         if (s.forceNpc || Math.random() < 0.035) {
           if (!living(s).some(m => m.x < s.heroX + 170)) spawnNpc(s);
           else if (!s.forceNpc) s.npcCd = 24;
@@ -2225,9 +2292,10 @@
       n.x -= n.haul ? 1.5 : 2;
       if (n.x <= s.heroX + 50) {
         if (s.mode !== 'run' || living(s).some(m => m.x < s.heroX + 150)) n.mode = 'leave';
+        else if (!s.forceNpc && (s.pace || 0) > 0.22) { n.x = s.heroX + 50; }
         else {
           n.mode = 'wave'; n.t = 0; n.wave = 0;
-          s.mode = 'greet'; s.greetT = 0; s.loco = 'idle'; s.pose = '';
+          s.mode = 'greet'; s.greetT = 0; s.loco = 'idle'; s.pose = ''; s.pace = 0; s.paceTarget = 0;
           beginTurn(s, 'side');
         }
       }
@@ -2265,6 +2333,135 @@
     const x = Math.round(n.x - plant + 8), y = GROUND - c.height + 2;
     ctx.drawImage(c, x, y);
     if (n.mode === 'wave' && n.line) drawBubble(ctx, x + plant, y + (c._headY || 8), n.line);
+  }
+
+  const VENDOR_LINES = [
+    'Five stars, friend.',
+    'Free shipping? Never heard of her.',
+    'Item received as described.'
+  ];
+  let vendorCache = {};
+  function paintVendor(nod) {
+    const key = nod ? 'nod' : 'idle';
+    if (vendorCache[key]) return vendorCache[key];
+    const c = mkc(90, 72), x = c.getContext('2d'), gnd = 71;
+    const P = (xx, yy, col, w, h) => px(x, xx, yy, col, w || 1, h || 1);
+    const wood = '#6a4a28', woodH = '#8a6a3a', woodL = '#3a2814';
+    P(18, 8, woodL, 3, gnd - 20);
+    P(19, 8, wood, 2, gnd - 20);
+    P(8, 6, '#4a3218', 42, 16);
+    P(9, 7, '#7a5a2c', 40, 14);
+    P(10, 8, '#5a3e1c', 38, 12);
+    P(11, 8, '#2a1a10'); P(45, 8, '#2a1a10');
+    text(x, 'eBay', 14, 10, '#f0d878');
+    P(14, 17, '#8a1c1c', 24, 1);
+    const tx = 4, tw = 56, ty = gnd - 15;
+    P(tx, ty, woodL, tw, 3);
+    P(tx, ty, woodH, tw, 1);
+    P(tx + 1, ty + 1, wood, tw - 2, 1);
+    P(tx + 18, ty, woodL, 1, 3);
+    P(tx + 36, ty, woodL, 1, 3);
+    P(tx + 4, ty + 3, woodL, 3, 12); P(tx + 5, ty + 3, wood, 2, 12);
+    P(tx + tw - 8, ty + 3, woodL, 3, 12); P(tx + tw - 7, ty + 3, wood, 2, 12);
+    P(tx + 8, ty - 1, '#5a1a1a', 22, 2);
+    P(tx + 8, ty + 2, '#3a1010', 3, 6);
+    P(tx + 6, ty - 8, '#5a3a1c', 10, 8);
+    P(tx + 7, ty - 7, '#7a5430', 8, 6);
+    P(tx + 6, ty - 8, '#3a2410', 10, 1);
+    P(tx + 18, ty - 7, '#2a2a28', 11, 7);
+    P(tx + 19, ty - 6, '#3a3a38', 9, 4);
+    P(tx + 20, ty - 5, '#4a8a4a', 2, 2);
+    P(tx + 24, ty - 5, '#8a3a2a', 3, 2);
+    P(tx + 21, ty - 9, '#2a2a28', 2, 2);
+    P(tx + 32, ty - 10, '#2a4a3a', 4, 10);
+    P(tx + 33, ty - 12, '#3a6a4a', 2, 3);
+    P(tx + 33, ty - 8, '#8ad0a0', 2, 3);
+    P(tx + 38, ty - 6, '#4a4a30', 8, 6);
+    P(tx + 39, ty - 5, '#c8a040', 3, 3);
+    P(tx + 44, ty - 5, '#2a2a20', 2, 2);
+    P(tx + 48, ty - 5, '#5a4030', 7, 5);
+    P(tx + 50, ty - 6, '#6a5040', 3, 2);
+    const ox = 58, nodY = nod ? 2 : 0;
+    const boot = '#2a1a12', coat = '#3a2a22', coatH = '#5a4030', skin = '#c8a070', hat = '#4a2018';
+    const legH = 11, bodyH = 12, torsoH = 13;
+    P(ox + 4, gnd - legH, boot, 5, legH);
+    P(ox + 11, gnd - legH, boot, 5, legH);
+    P(ox + 3, gnd - legH - bodyH, coat, 14, bodyH);
+    P(ox + 4, gnd - legH - bodyH, coatH, 3, bodyH);
+    P(ox + 2, gnd - legH - bodyH - torsoH + nodY, coat, 15, torsoH);
+    P(ox + 3, gnd - legH - bodyH - torsoH + 1 + nodY, coatH, 4, torsoH - 3);
+    P(ox + 12, gnd - legH - bodyH - 2, '#5a3a18', 8, 8);
+    P(ox + 13, gnd - legH - bodyH - 1, '#7a5428', 6, 5);
+    P(ox + 1, gnd - legH - bodyH - 8 + nodY, coat, 3, 8);
+    P(ox, gnd - legH - bodyH - 2 + nodY, skin, 3, 3);
+    P(ox + 2, gnd - 22 + nodY, coat, 8, 3);
+    P(ox + 1, gnd - 21 + nodY, skin, 3, 3);
+    const hx = ox + 5, hy = gnd - legH - bodyH - torsoH - 7 + nodY;
+    P(hx, hy, skin, 7, 7);
+    P(hx + 1, hy + 1, '#d8b080', 5, 4);
+    P(hx + 1, hy + 3, '#3a2010'); P(hx + 3, hy + 3, '#3a2010');
+    P(hx + 1, hy + 5, '#8a5a38', 4, 1);
+    P(hx - 2, hy - 3, hat, 11, 3);
+    P(hx - 1, hy - 6, hat, 9, 4);
+    P(hx, hy - 7, '#3a1810', 7, 2);
+    P(hx, hy + 6, '#5a3a28', 6, 2);
+    inkOutline(c);
+    c._plant = 8;
+    c._headY = hy;
+    c._tableX = 28;
+    return (vendorCache[key] = c);
+  }
+  function spawnVendor(s, opts) {
+    opts = opts || {};
+    const line = opts.line || VENDOR_LINES[(Math.random() * VENDOR_LINES.length) | 0];
+    s.vendor = {
+      wx: opts.wx != null ? opts.wx : s.scroll + W + 24,
+      mode: 'wait',
+      t: 0,
+      line,
+      nod: 0,
+      sold: 0,
+      gold: 0
+    };
+    return s.vendor;
+  }
+  function tickVendor(s) {
+    if (!s.vendor) {
+      if (s.vendorCd > 0) s.vendorCd--;
+      if (s.mode === 'run' && s.vendorCd <= 0 && !s.forceLoco && !s.noDeath && !s.npc) {
+        const clear = !living(s).some(m => m.x < s.heroX + 200);
+        if (clear && (s.forceVendor || Math.random() < 0.01)) {
+          spawnVendor(s);
+          s.forceVendor = false;
+        }
+      }
+      return;
+    }
+    const v = s.vendor;
+    const sx = v.wx - s.scroll;
+    if (v.mode === 'wait') {
+      if (sx <= s.heroX + 44 && s.mode === 'run' && !living(s).some(m => m.x < s.heroX + 150) && (s.forceVendor || (s.pace || 0) <= 0.25)) {
+        v.mode = 'deal'; v.t = 0; s.vendorT = 0;
+        s.mode = 'vendor'; s.loco = 'idle'; s.pose = ''; s.pace = 0; s.paceTarget = 0;
+        s.forceVendor = false;
+        beginTurn(s, 'side');
+      }
+    }
+    if (sx < -110) {
+      s.vendor = null;
+      s.vendorCd = 1800 + ((Math.random() * 1080) | 0);
+      s.forceVendor = false;
+    }
+  }
+  function drawVendor(ctx, s, a) {
+    if (!s.vendor) return;
+    const v = s.vendor;
+    const c = paintVendor(v.nod);
+    const sx = Math.round(v.wx - s.scroll);
+    const y = GROUND - c.height + 1;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(c, sx, y);
+    if (v.mode === 'deal' && v.sold && v.line) drawBubble(ctx, sx + 64, y + (c._headY || 16), v.line);
   }
   function drawWaveArm(ctx, plant, hy, t) {
     const up = Math.round(Math.sin(t * 0.8) * 2);
@@ -2308,6 +2505,7 @@
     s.spiritY = -36; s.spiritA = 0; s.pose = ''; s.seq = null; s.leap = null; s.loco = 'idle';
     s.hp = 0; s.flashH = 5; s.fire = null;
     if (s.npc) { s.npc.mode = 'leave'; s.npc.wave = 0; }
+    if (s.vendor && s.vendor.mode === 'deal') s.vendor.mode = 'done';
     beginTurn(s, 'side');
     for (const m of allMons(s)) { m.noScore = 1; }
     if (s.fightXp && typeof xpState !== 'undefined' && typeof persistXp === 'function' && s.awardXp !== false) {
@@ -2396,7 +2594,7 @@
     if (s.fade) s.fade--;
     if (s.lunge) s.lunge--;
     if (s.leap) { s.leap.t++; if (s.leap.t >= s.leap.life) s.leap = null; }
-    if (s.toast) { s.toast.t++; if (s.toast.t > 16) s.toast = null; }
+    if (s.toast) { s.toast.t++; if (s.toast.t > (s.toast.life || 16)) s.toast = null; }
     if (s.digCd > 0) s.digCd--;
     if (s.pullCd > 0) s.pullCd--;
     if (s.deathCd > 0) s.deathCd--;
@@ -2437,26 +2635,40 @@
     const closest = live.length ? live.reduce((a, b) => a.x < b.x ? a : b) : null;
     if (s.mode === 'run') {
       if (s.coolWalk > 0) s.coolWalk--;
-      if (!closest) s.loco = (s.coolWalk || s.forceLoco === 'walk') ? 'walk' : 'run';
-      else s.loco = (closest.x - heroFront - engageDist(eq) <= 64) ? 'walk' : 'run';
-      if (s.forceLoco) s.loco = s.forceLoco;
-      const step = stepFor(heroLoco(s));
-      s.gaitF = (s.gaitF || 0) + (heroLoco(s) === 'run' ? 1.5 : 1);
+      if (s.forceLoco) {
+        s.loco = s.forceLoco;
+        s.pace = s.loco === 'run' ? 1 : (s.loco === 'walk' ? 0.4 : 0);
+        s.paceTarget = s.pace;
+      } else {
+        const tgt = paceForDist(encounterDist(s, eq, heroFront));
+        s.paceTarget = tgt;
+        const cur = (s.pace != null) ? s.pace : 1;
+        const rate = tgt < cur ? 0.12 : 0.07;
+        s.pace = cur + (tgt < cur ? -1 : 1) * Math.min(Math.abs(tgt - cur), rate);
+        s.loco = s.pace < 0.07 ? 'idle' : (s.pace < 0.5 ? 'walk' : 'run');
+      }
+      const step = scrollSpeed(s.pace);
+      s.scrollSpd = step;
+      s.gaitF = heroGaitFrame(s);
       moving(step);
       beginTurn(s, 'side');
       if (!closest && !allMons(s).some(m => m && m.dead && m.dead <= 7)) { if (--s.spawn <= 0) spawn(); }
       else if (closest) {
         approachMons(step);
-        if (closest.x <= heroFront + engageDist(eq)) {
+        const inRange = closest.x <= heroFront + engageDist(eq);
+        const ready = (s.pace || 0) <= 0.2 || closest.x <= heroFront + 8;
+        if (inRange && ready) {
           const kind = atkKind(eq);
           const ranged = kind === 'ranged' || kind === 'bolt';
           s.mode = 'fight'; s.atkT = TURN_N + 1; s.monT = 6; s.seq = null; s.pose = ''; s.fightXp = 0; s.fightLeveled = 0;
+          s.pace = 0; s.paceTarget = 0; s.scrollSpd = 0;
           if (ranged && closest.x > heroFront + 40) { s.loco = 'walk'; beginTurn(s, 'side'); for (const m of live) beginMonTurn(m, 'side'); }
           else { s.loco = 'idle'; beginTurn(s, 'front'); for (const m of live) beginMonTurn(m, 'front'); }
         }
       }
       tryFieldEvents(s);
       tickNpc(s);
+      tickVendor(s);
     } else if (s.mode === 'hop') {
       s.hopT++;
       const life = 12;
@@ -2465,6 +2677,7 @@
       s.loco = s.hopT < 3 ? 'climb' : 'hop';
       if (s.forceLoco) s.loco = s.forceLoco;
       s.gaitF = (s.gaitF || 0) + 1.2;
+      s.scrollSpd = 2;
       moving(2);
       beginTurn(s, 'side');
       if (s.hopT >= life) goRun(s, true);
@@ -2487,6 +2700,7 @@
           bstats.gold += gold; saveStats();
           addNum(s.heroX + 16, 10, '+' + part.name, '#ffe070');
           s.toast = { msg: '+PART', t: 0 };
+          s.partsHeld = (s.partsHeld || 0) + 1;
           if (Math.random() < 0.55) awardBattleXp(s, null, 1);
           s.fx.push({ k: 'glint', x: bay, y: GROUND - 20, tx: s.heroX + 22, ty: HERO_Y + 8, t: 0, life: 8 });
         }
@@ -2514,13 +2728,45 @@
         s.toast = { msg: 'SCRAP', t: 0 };
       }
       if (s.digT >= 18) { s.digCd = 90; goRun(s, true); }
+    } else if (s.mode === 'vendor') {
+      s.vendorT = (s.vendorT || 0) + 1;
+      const t = s.vendorT, v = s.vendor;
+      if (t <= 6) { s.loco = 'walk'; s.pullY = 0; }
+      else if (t <= 16) {
+        s.loco = 'climb'; s.pullY = 4;
+        if (t === 8 && v) {
+          const tx = v.wx - s.scroll + 28;
+          s.fx.push({ k: 'glint', x: s.heroX + 22, y: HERO_Y + 20, tx: tx, ty: GROUND - 18, t: 0, life: 8 });
+        }
+      } else if (t === 17) {
+        s.loco = 'idle'; s.pullY = 0;
+        const parts = s.partsHeld | 0;
+        const gold = parts > 0 ? parts * (4 + ((Math.random() * 3) | 0)) + ((Math.random() * 3) | 0) : (1 + ((Math.random() * 2) | 0));
+        s.partsHeld = 0;
+        bstats.gold += gold; saveStats();
+        if (v) { v.sold = 1; v.gold = gold; v.nod = 1; }
+        s.toast = { msg: 'SOLD! +' + gold + ' gold', t: 0, life: 36 };
+        addNum(s.heroX + 16, 10, '+' + gold + 'g', '#ffe070');
+        if (typeof playClink === 'function') playClink();
+      } else {
+        s.loco = 'idle'; s.pullY = 0;
+        if (v) v.nod = (t < 28) ? 1 : 0;
+        if (t >= 40) { if (v) v.mode = 'done'; goRun(s, true); }
+      }
+      s.gaitF = heroGaitFrame(s);
+      s.pace = 0; s.paceTarget = 0; s.scrollSpd = 0;
+      beginTurn(s, 'side');
+      moving(0);
+      tickVendor(s);
     } else if (s.mode === 'greet') {
-      s.loco = 'idle'; s.gaitF += 0.3;
+      s.loco = 'idle'; s.gaitF = heroGaitFrame(s);
+      s.pace = 0; s.paceTarget = 0; s.scrollSpd = 0;
       beginTurn(s, 'side');
       const scHold = s.scroll;
       moving(0);
       s.scroll = scHold;
       tickNpc(s);
+      tickVendor(s);
     } else if (s.mode === 'death') {
       moving(0);
       tickDeath(s);
@@ -2727,7 +2973,7 @@
     if (!on) fadeDraw(L => tiled(L.fl, s.scroll, BH - 9, bg), BH, bg);
     else {
       const a = s.alpha || 0;
-      const scStep = (s.mode === 'run' || s.mode === 'hop') ? (heroLoco(s) === 'walk' || heroLoco(s) === 'climb' ? 1 : 2) : (s.mode === 'fight' && heroLoco(s) === 'walk' ? 1 : 0);
+      const scStep = (s.mode === 'run' && s.scrollSpd != null) ? s.scrollSpd : ((s.mode === 'run' || s.mode === 'hop') ? (heroLoco(s) === 'walk' || heroLoco(s) === 'climb' ? 1 : 2) : (s.mode === 'fight' && heroLoco(s) === 'walk' ? 1 : 0));
       drawProps(bg, s.scroll, a, scStep, 'mid');
     }
   }
@@ -2924,18 +3170,17 @@
   function draw() {
     const s = st, a = s.alpha || 0;
     g.clearRect(0, 0, W, H);
-    const scStep = (s.mode === 'run' || s.mode === 'hop') ? (heroLoco(s) === 'walk' || heroLoco(s) === 'climb' ? 1 : 2) : (s.mode === 'fight' && heroLoco(s) === 'walk' ? 1 : 0);
+    const scStep = (s.mode === 'run' && s.scrollSpd != null) ? s.scrollSpd : ((s.mode === 'run' || s.mode === 'hop') ? (heroLoco(s) === 'walk' || heroLoco(s) === 'climb' ? 1 : 2) : (s.mode === 'fight' && heroLoco(s) === 'walk' ? 1 : 0));
     if (!bgOn) { const bgOf = (L) => { tiled(L.sky, 0, H - L.TH); tiled(L.far, (s.scroll + a * scStep) * 0.2, H - L.TH); tiled(L.mid, (s.scroll + a * scStep) * 0.55, H - L.TH); }; fadeDraw(bgOf, H); }
-    fadeDraw(L => { tiled(L.fl, s.scroll + a * scStep, GROUND - 8); fillBand(g, GROUND + 1, H, s.scroll + a * scStep, L.kind); }, H);
+    fadeDraw(L => tiled(L.fl, s.scroll + a * scStep, GROUND - 8), H);
     drawProps(g, s.scroll, a, scStep, 'mid');
     drawProps(g, s.scroll, a, scStep, 'ground');
     if (s.fire) drawFire(s.fire.x, s.t);
     const loc = heroLoco(s);
-    const gaitSpd = loc === 'run' || loc === 'hop' ? 1.5 : loc === 'walk' || loc === 'dig' || loc === 'climb' ? 1 : 0.4;
-    const gaitFrame = Math.floor((s.gaitF || 0) + a * gaitSpd);
+    const gaitFrame = (loc === 'run' || loc === 'walk' || loc === 'idle' || loc === 'stand') ? Math.floor(heroGaitFrame(s)) : Math.floor((s.gaitF || 0) + a * (loc === 'hop' ? 1.5 : loc === 'dig' || loc === 'climb' ? 1 : 0.4));
     const amt = faceAmt(s, a);
     const baseFront = heroSprite(s.pose);
-    let frontImg = baseFront, hy = HERO_Y + Math.round((s.hopY || 0) + (s.dodgeY || 0) + (s.mode === 'pull' ? (s.pullY || 0) : 0));
+    let frontImg = baseFront, hy = HERO_Y + Math.round((s.hopY || 0) + (s.dodgeY || 0) + ((s.mode === 'pull' || s.mode === 'vendor') ? (s.pullY || 0) : 0));
     if (s.mode === 'rest') frontImg = sitOf(baseFront);
     const eq = heroEq(), rar = rarity(eqNow());
     const sideLoco = (loc === 'idle' && s.mode !== 'dig' && s.mode !== 'hop') ? 'idle' : loc;
@@ -3184,6 +3429,7 @@
     for (const c of s.coins) { const x = ix(c, a), y = ix(c, a, 'y'); g.fillStyle = '#5a3a08'; g.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3); g.fillStyle = (s.t + c.t) % 2 ? '#ffe070' : '#d8a030'; g.fillRect(Math.round(x), Math.round(y), 1, 1); }
     for (const n of s.nums) text(g, n.v, n.x, n.y, n.col);
     drawProps(g, s.scroll, a, scStep, 'fg');
+    drawVendor(g, s, a);
     drawNpc(g, s, a);
     if (s.toast) text(g, s.toast.msg, s.heroX + 8, 8, '#ffe070');
     drawLyrics();
@@ -3204,7 +3450,6 @@
     wrap.style.height = (H * scale) + 'px';
     document.documentElement.style.setProperty('--strip-h', (H * scale) + 'px');
     document.documentElement.style.setProperty('--lyric-h', (BAND * scale) + 'px');
-    document.documentElement.style.setProperty('--battle-head', '72px');
     g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
     bgSize();
     if (st) { st.heroX = Math.max(6, Math.min(40, Math.round(W * 0.08))); if (st.mon && st.mon.x > W + 4) st.mon.x = W + 4; draw(); drawBg(); }
@@ -3266,7 +3511,7 @@
       wrap.hidden = false;
       size(); killEl.textContent = '☠ ' + bstats.kills;
       draw(); start();
-    } else { wrap.hidden = true; size(); document.documentElement.style.setProperty('--strip-h', '0px'); document.documentElement.style.setProperty('--battle-head', '0px'); start(); }
+    } else { wrap.hidden = true; size(); document.documentElement.style.setProperty('--strip-h', '0px'); start(); }
     if (typeof renderDock === 'function') renderDock();
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden) { stop(); saveStats(); } else start(); });
@@ -3318,6 +3563,17 @@
     },
     _forceDig() { if (st) { const p = (st.props || []).find(q => q.dig && !q.looted) || addProp(st, 'rubble', { x: st.heroX + 32 }); st.forceDig = true; startDig(st, p); } },
     _forceHop() { if (st) { const p = (st.props || []).find(q => q.hop && !q.used) || addProp(st, 'boulder', { x: st.heroX + 30 }); startHop(st, p); } },
+    _forceVendor() {
+      if (!st) st = freshState();
+      st.mon = null; st.mons = [];
+      if (st.mode === 'fight' || st.mode === 'greet' || st.mode === 'pull' || st.mode === 'dig') st.mode = 'run';
+      st.npc = null;
+      st.vendorCd = 0;
+      st.forceVendor = true;
+      st.pace = 0.4; st.paceTarget = 0.4; st.loco = 'walk';
+      if (!st.vendor) spawnVendor(st, { wx: st.scroll + st.heroX + 70 });
+      return st.vendor;
+    },
     _forcePull() {
       if (!st) st = freshState();
       st.mon = null; st.mons = []; if (st.mode === 'fight') st.mode = 'run';

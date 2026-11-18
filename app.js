@@ -823,8 +823,25 @@ async function paintStatus() {
 }
 
 // ---------- screens ----------
+function setHeaderTitle(text) {
+  const el = $('#title');
+  if (!el) return;
+  el.classList.remove('brandtitle');
+  el.textContent = text;
+}
+function setBrandTitle(kind) {
+  const el = $('#title');
+  if (!el) return;
+  if (window.PL_RPG) {
+    el.classList.add('brandtitle');
+    el.innerHTML = '<span class="brand">Junkyard Hero</span><small>Salvage Crusade</small>';
+    return;
+  }
+  el.classList.remove('brandtitle');
+  el.textContent = kind === 'scans' ? 'Pull List · Scans' : 'Pull List';
+}
 function showLogin(msg = '') {
-  $('#back').hidden = true; $('#title').textContent = 'Pull List';
+  $('#back').hidden = true; setBrandTitle('login');
   main.innerHTML = `<div class="login"><h2>Enter passcode</h2>
     <p class="small">Only needed once on this phone or computer.</p>
     <input id="pc" type="password" inputmode="numeric" autocomplete="current-password" maxlength="12">
@@ -901,7 +918,7 @@ function homeListHtml(rows) {
 }
 async function showHome() {
   date = null; scan = null; screen = 'home'; lastScan = null;
-  $('#back').hidden = true; $('#back').textContent = '← Scans'; $('#title').textContent = 'Pull List · Scans';
+  $('#back').hidden = true; $('#back').textContent = '← Scans'; setBrandTitle('scans');
   status();
   const draw = async idx => {
     if (screen !== 'home') return;
@@ -943,7 +960,7 @@ async function openScan(d) {
   date = d; screen = 'scan'; lastScan = null;
   $('#back').hidden = false; $('#back').textContent = '← Scans';
   scan = await kvGet('scan:' + d);
-  $('#title').textContent = scanSetTitle(d, scan);
+  setHeaderTitle(scanSetTitle(d, scan));
   serverState = ((await tx('server', 'readonly', s => req(s.get(d)))) || {}).state || {};
   localOps = (await tx('ops', 'readonly', s => req(s.getAll()))).filter(o => o.date === d);
   if (scan) { render(); sync(); playGong(); }
@@ -951,7 +968,7 @@ async function openScan(d) {
   if (!navigator.onLine) { if (!scan) main.innerHTML = '<p>This scan is not saved on this phone yet. Open it once with signal.</p>'; return; }
   try {
     const fresh = (await api('getScan', d)).scan;
-    if (fresh) { await kvSet('scan:' + d, fresh); if (date === d) { const first = !scan; scan = fresh; $('#title').textContent = scanSetTitle(d, scan); render(); if (first) { sync(); playGong(); } } }
+    if (fresh) { await kvSet('scan:' + d, fresh); if (date === d) { const first = !scan; scan = fresh; setHeaderTitle(scanSetTitle(d, scan)); render(); if (first) { sync(); playGong(); } } }
   } catch (e) {
     if (e.login) return showLogin();
     if (!scan && date === d) main.innerHTML = '<p>This scan is not saved on this phone yet. Open it once with signal.</p>';
@@ -1190,7 +1207,7 @@ async function gatherPulled() {
 function enterSub(name, title) {
   if (screen === 'scan' && date) lastScan = date;
   screen = name; date = null; scan = null;
-  $('#back').hidden = false; $('#back').textContent = lastScan ? '← List' : '← Scans'; $('#title').textContent = title;
+  $('#back').hidden = false; $('#back').textContent = lastScan ? '← List' : '← Scans'; setHeaderTitle(title);
 }
 async function showTrip(redraw) {
   if (!redraw) enterSub('trip', 'Trip days');
