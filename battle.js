@@ -562,9 +562,10 @@
   }
 
   // ---------- synced lyrics (shown on the ground under the hero) ----------
-  // Seconds to show lyrics ahead of audio.currentTime. Covers typical output latency,
-  // rAF/currentTime granularity, and whisper onset lag. Easy to tweak.
-  const LYRIC_LEAD = 0.35;
+  // Seconds to show lyrics ahead of audio.currentTime. Word starts are aligned to
+  // vocal onsets in the track, so this only covers typical output latency and rAF
+  // granularity — 0.35s was measured early against the vocal.
+  const LYRIC_LEAD = 0.15;
   function loadLyrics() {
     if (lyricData) return Promise.resolve(lyricData);
     if (!lyricP) {
@@ -592,7 +593,7 @@
     const el = document.createElement('style');
     el.id = 'pl-karaoke-css';
     el.textContent = [
-      '.battlelyrics .lyric-cur span{display:inline-block;transform-origin:50% 85%;margin:0 .14em;vertical-align:baseline}',
+      '.battlelyrics .lyric-cur span{display:inline-block;transform-origin:50% 85%;margin:0 .11em;vertical-align:baseline}',
       '.battlelyrics.rm .lyric-cur span{display:inline;transform:none!important;letter-spacing:inherit!important;filter:none!important}'
     ].join('');
     document.head.appendChild(el);
@@ -617,43 +618,50 @@
     const k = w.k || '';
     const hs = (w.hs != null) ? w.hs : w.s;
     const he = (w.he != null) ? w.he : w.e;
-    let scale = 1 + env * 0.05 * (0.45 + i * 0.55);
-    let track = 0, glow = env * (3 + i * 5), shakeX = 0, shakeY = 0;
-    // Juicy overshoot on word entry. Windows (s / hs / he) stay unchanged.
+    const accented = (k === 'hold' || k === 'shout');
+    // Same v40 style, just tighter: plain words barely move; accented words stay crisp.
+    let scale = accented ? (1 + env * 0.035 * (0.4 + i * 0.5)) : 1;
+    let track = 0, glow = accented ? env * (2.2 + i * 3.5) : 0, shakeX = 0, shakeY = 0;
     const enterAt = Math.min(w.s, hs);
     const enter = t - enterAt;
-    if (enter >= -0.02 && enter < 0.22) {
-      const p = Math.max(0, Math.min(1, (enter + 0.02) / 0.24));
-      const over = Math.sin(p * Math.PI) * (1.15 + (1 - p) * 0.45);
-      const peak = 0.18 + i * 0.10 + (k === 'shout' ? 0.08 : (k === 'hold' ? 0.05 : 0));
-      scale *= 1 + peak * over;
-      shakeY -= Math.sin(p * Math.PI) * (2.8 + i * 1.6 + (k === 'shout' ? 1.2 : 0));
+    const enterWin = accented ? 0.11 : 0.07;
+    if (enter >= -0.01 && enter < enterWin) {
+      const p = Math.max(0, Math.min(1, (enter + 0.01) / (enterWin + 0.01)));
+      // Peak early and drop off — less floaty overshoot than a long half-sine.
+      const over = Math.sin(p * Math.PI) * (1 - p * 0.55);
+      if (accented) {
+        const peak = 0.11 + i * 0.07 + (k === 'shout' ? 0.06 : 0.03);
+        scale *= 1 + peak * over;
+        shakeY -= over * (1.2 + i * 0.7 + (k === 'shout' ? 0.5 : 0));
+      } else {
+        scale *= 1 + 0.025 * over;
+      }
     }
-    if (k === 'hold' && t >= hs - 0.04 && t <= he + 0.06) {
+    if (k === 'hold' && t >= hs - 0.03 && t <= he + 0.04) {
       const dur = Math.max(0.12, he - hs);
       const p = Math.max(0, Math.min(1, (t - hs) / dur));
-      const attack = p < 0.12 ? p / 0.12 : 1;
-      const release = p > 0.88 ? (1 - p) / 0.12 : 1;
+      const attack = p < 0.08 ? p / 0.08 : 1;
+      const release = p > 0.90 ? (1 - p) / 0.10 : 1;
       const sustain = Math.max(0.25, Math.min(attack, release));
-      const pulse = 0.5 + 0.5 * Math.sin((t - hs) * Math.PI * 2 * 2.2);
-      const stretch = (0.55 + i * 0.6) * sustain * Math.min(1.25, 0.6 + dur * 0.2);
-      scale *= 1 + 0.12 + stretch * 0.24 + pulse * 0.05 * sustain;
-      track = Math.min(3.2, (0.03 + i * 0.07 + Math.min(0.11, dur * 0.025)) * stretch * 16);
-      glow += 9 + i * 11 + pulse * 4;
+      const pulse = 0.5 + 0.5 * Math.sin((t - hs) * Math.PI * 2 * 2.8);
+      const stretch = (0.55 + i * 0.6) * sustain * Math.min(1.2, 0.6 + dur * 0.2);
+      scale *= 1 + 0.10 + stretch * 0.22 + pulse * 0.022 * sustain;
+      track = Math.min(3.0, (0.03 + i * 0.07 + Math.min(0.10, dur * 0.025)) * stretch * 15);
+      glow += 8 + i * 10 + pulse * 2;
     }
-    if (k === 'shout' && t >= hs - 0.06 && t <= Math.max(he, hs + 0.55) + 0.04) {
+    if (k === 'shout' && t >= hs - 0.04 && t <= Math.max(he, hs + 0.42) + 0.03) {
       const p = Math.max(0, t - hs);
-      const pop = p < 0.05 ? p / 0.05 : Math.max(0, 1 - (p - 0.05) / 0.4);
-      scale *= 1 + 0.42 * pop * (0.7 + i * 0.45);
-      const shake = pop * 2.4;
-      shakeX += Math.sin(t * 72) * shake;
-      shakeY += Math.cos(t * 54) * shake * 0.6;
-      glow += 18 * pop;
+      const pop = p < 0.035 ? p / 0.035 : Math.max(0, 1 - (p - 0.035) / 0.28);
+      scale *= 1 + 0.40 * pop * (0.7 + i * 0.45);
+      const shake = pop * 1.55;
+      shakeX += Math.sin(t * 80) * shake;
+      shakeY += Math.cos(t * 60) * shake * 0.45;
+      glow += 16 * pop;
       // Long shouted holds (fight!) stay slightly large after the pop.
-      if (he - hs > 0.8 && t <= he + 0.04) {
-        const holdP = Math.max(0, Math.min(1, (he - t) / Math.max(0.12, he - hs)));
-        scale *= 1 + 0.12 * Math.max(holdP, pop * 0.3);
-        glow += 6 * Math.max(holdP, pop * 0.3);
+      if (he - hs > 0.8 && t <= he + 0.03) {
+        const holdP = Math.max(0, Math.min(1, (he - t) / Math.max(0.10, he - hs)));
+        scale *= 1 + 0.10 * Math.max(holdP, pop * 0.3);
+        glow += 5 * Math.max(holdP, pop * 0.3);
       }
     }
     const shadow = glow > 0.4
