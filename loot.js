@@ -218,6 +218,35 @@ function heroSvg(eq, size, cropSlot) {
   return '<img class="' + cls + '" src="' + src + '" alt="" draggable="false"' + (size ? ' data-size="' + size + '"' : '') + '>';
 }
 
+const ITEM_RR = { common: 1, uncommon: 2, rare: 3, relic: 4, legendary: 5 };
+const SLOT_BONUS = {
+  weapon: { atk: 4, crit: 2 },
+  armor: { def: 2, hp: 4 },
+  helm: { def: 2, hp: 2 },
+  pauldrons: { def: 2 },
+  cape: { def: 1, hp: 2 },
+  pack: { atk: 1, spd: 1 },
+  base: { def: 1 }
+};
+function itemBonuses(item) {
+  const rk = ITEM_RR[item && item.rarity] || 0;
+  const base = SLOT_BONUS[item && item.slot] || {};
+  const out = {};
+  for (const k in base) out[k] = base[k] * rk;
+  return out;
+}
+function itemBonusLabel(item) {
+  const b = itemBonuses(item);
+  const order = [['atk', 'ATK'], ['def', 'DEF'], ['hp', 'HP'], ['spd', 'SPD'], ['crit', 'CRIT']];
+  const parts = [];
+  for (const [k, lab] of order) if (b[k]) parts.push('+' + b[k] + ' ' + lab);
+  return parts.join(', ');
+}
+function itemBonusHtml(item) {
+  const lab = itemBonusLabel(item);
+  return lab ? '<span class="itembonus">' + lab + '</span>' : '';
+}
+
 function miniItemSvg(item) {
   return heroSvg({ _cls: item.cls === 'all' ? curClass() : item.cls, [item.slot]: item.id }, 88, item.slot);
 }
@@ -328,6 +357,7 @@ function openChest() {
       miniItemSvg(item) +
       '<b>' + esc(item.name) + '</b>' +
       '<span class="rartag" style="color:' + rar.color + '">' + rar.name + (dup ? ' · Duplicate' : '') + '</span>' +
+      itemBonusHtml(item) +
       '<button type="button" class="big">Take it</button></div>';
     over.querySelector('button').onclick = () => { over.remove(); renderDock(); };
   }, 1150);
@@ -388,7 +418,7 @@ function openArmory() {
       return '<div class="armitem' + (on ? ' on' : '') + '" style="--rar:' + rar.color + '">' +
         '<div class="armico">' + miniItemSvg(i) + '</div>' +
         '<div><b>' + esc(i.name) + '</b><span class="rartag" style="color:' + rar.color + '">' + rar.name +
-        (n > 1 ? ' · Duplicate ×' + n : '') + '</span></div>' +
+        (n > 1 ? ' · Duplicate ×' + n : '') + '</span>' + itemBonusHtml(i) + '</div>' +
         '<button type="button" data-eq="' + i.id + '">' + (on ? 'Unequip' : 'Equip') + '</button></div>';
     }).join('') : '<p class="small">No relics in this slot yet. Finish a car to earn a Reliquary Chest.</p>';
     $('#armslots').onclick = ev => { const b = ev.target.closest('[data-slot]'); if (b) { slot = b.dataset.slot; paint(); } };
@@ -416,4 +446,4 @@ function initLoot() {
   } catch (e) {}
 }
 
-window.PLLoot = { award: awardChest, awardLevels: awardLevelChests, init: initLoot, render: renderDock, svg: heroSvg, setClass: setClass, cls: curClass, picker: classPickerHtml, wirePicker: wireClassPicker };
+window.PLLoot = { award: awardChest, awardLevels: awardLevelChests, init: initLoot, render: renderDock, svg: heroSvg, setClass: setClass, cls: curClass, picker: classPickerHtml, wirePicker: wireClassPicker, itemBonuses: itemBonuses, itemBonusLabel: itemBonusLabel };

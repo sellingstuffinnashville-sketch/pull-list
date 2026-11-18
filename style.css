@@ -159,6 +159,7 @@ header h1{text-shadow:0 1px 2px #000,0 0 8px #000}
 .chestreveal .hero-svg{width:96px;height:112px;object-fit:contain}
 .chestreveal b{font-family:Cinzel,Georgia,serif;font-size:20px;color:var(--gold2)}
 .rartag{display:block;font:800 13px system-ui,sans-serif;letter-spacing:.4px;margin-top:2px}
+.itembonus{display:block;font:700 11px system-ui,sans-serif;color:#c8c0a8;margin-top:3px;letter-spacing:.2px}
 .armory{position:fixed;inset:0;z-index:45;background:#000c;display:flex;align-items:flex-end;justify-content:center}
 .armbox{background:var(--card);color:var(--txt);width:100%;max-width:720px;max-height:92vh;overflow:auto;border-top:1px solid var(--gold);border-radius:16px 16px 0 0;padding:10px 12px 24px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 .armhd{display:flex;align-items:center;gap:8px;position:sticky;top:0;background:var(--card);z-index:1;padding:4px 0 8px}
