@@ -271,7 +271,6 @@
     'arm-blood': ['blood', 'gold'], 'arm-gilt': ['steel', 'gold'], 'arm-halo': ['gold', 'white']
   };
   function drawBase(S, id) {
-    S.P({ flat: true }); S.ell(24, 61.5, 15, 2.6, 'shadow');
     if (id === 'base-rubble') {
       S.P(); S.ell(24, 61.5, 14, 2.4, 'soil');
       S.P(); S.poly([[7, 63], [9, 59], [13, 58], [15, 63]], 'stone');
@@ -354,7 +353,6 @@
   }
   function drawFamiliar(S, id) {
     if (id !== 'pack-skull') return;
-    S.P({ flat: true }); S.ell(41, 17, 3, 0.8, 'shadow');
     S.P({ flat: true }); S.line(38, 9, 35, 13, 'brass', 2); S.px(34, 14, 'brass', 3);
     S.P({ shine: true }); S.ell(41, 8, 4, 3.8, 'bone'); S.rect(39, 10, 5, 3, 'bone');
     S.tone(40, 5, 1); S.tone(43, 6, -1);
@@ -1079,7 +1077,6 @@
   function chestSprite(frame, color) {
     const S = new Spr(52, 46);
     S.ox = 6; S.oy = 8;
-    S.P({ flat: true }); S.ell(20, 33.5, 18, 2.2, 'shadow');
     const lift = frame === 1 ? 3 : 0;
     if (frame === 2) {
       // lid thrown back: inside of the lid, then glowing hoard
@@ -1454,7 +1451,6 @@
       shX = chestX + 0.5; shY = 20 + bob;
     }
     const waistX = G.run ? hipX : chestX;
-    S.P({ flat: true }); S.ell(SIDE_CX + (G.rx + G.lx) * 0.15, SIDE_FEET + 0.5, 12, 2.2, 'shadow');
     if (cls !== 'mage') sideLeg(S, hipX - 1, hipY, G.lx, G.lLift, M.pants, M.boot, 2, G.lAng, G.lKneeX, G.lKneeY);
     drawCapeSide(S, eq.cape, shX - 3, shY, G);
     drawPackSide(S, eq.pack, cls, shX - 7, shY + 4);

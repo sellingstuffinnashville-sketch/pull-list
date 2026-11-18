@@ -587,8 +587,73 @@
     }
     return null;
   }
+  function ensureKaraokeCss() {
+    if (document.getElementById('pl-karaoke-css')) return;
+    const el = document.createElement('style');
+    el.id = 'pl-karaoke-css';
+    el.textContent = [
+      '.battlelyrics .lyric-cur span{display:inline-block;transform-origin:50% 85%;margin:0 .08em;vertical-align:baseline}',
+      '.battlelyrics.rm .lyric-cur span{display:inline;transform:none!important;letter-spacing:inherit!important;filter:none!important}'
+    ].join('');
+    document.head.appendChild(el);
+  }
+  function lyricEnvAt(t) {
+    const env = lyricData && lyricData.env;
+    if (!env || !env.v || !env.v.length) return 0.4;
+    const hop = env.hop || 0.08;
+    const x = t / hop;
+    const lo = Math.max(0, Math.min(env.v.length - 1, Math.floor(x)));
+    const hi = Math.max(0, Math.min(env.v.length - 1, Math.ceil(x)));
+    const f = x - lo;
+    return (env.v[lo] * (1 - f) + env.v[hi] * f) / 100;
+  }
+  function wordWin(w) {
+    const a = (w.hs != null) ? w.hs : w.s;
+    const b = (w.he != null) ? w.he : w.e;
+    return { a: Math.min(w.s, a), b: Math.max(w.e, b) };
+  }
+  function wordStyle(w, t, env) {
+    const i = (w.i != null) ? w.i : 0.4;
+    const k = w.k || '';
+    const hs = (w.hs != null) ? w.hs : w.s;
+    const he = (w.he != null) ? w.he : w.e;
+    let scale = 1 + env * 0.05 * (0.45 + i * 0.55);
+    let track = 0, glow = env * (3 + i * 5), shakeX = 0, shakeY = 0;
+    if (k === 'hold' && t >= hs - 0.04 && t <= he + 0.06) {
+      const dur = Math.max(0.12, he - hs);
+      const p = Math.max(0, Math.min(1, (t - hs) / dur));
+      const attack = p < 0.12 ? p / 0.12 : 1;
+      const release = p > 0.88 ? (1 - p) / 0.12 : 1;
+      const sustain = Math.max(0.25, Math.min(attack, release));
+      const pulse = 0.5 + 0.5 * Math.sin((t - hs) * Math.PI * 2 * 2.2);
+      const stretch = (0.5 + i * 0.55) * sustain * Math.min(1.15, 0.55 + dur * 0.18);
+      scale *= 1 + 0.08 + stretch * 0.16 + pulse * 0.035 * sustain;
+      track = (0.02 + i * 0.05 + Math.min(0.08, dur * 0.02)) * stretch * 16; // px
+      glow += 7 + i * 9 + pulse * 3;
+    }
+    if (k === 'shout' && t >= hs - 0.06 && t <= Math.max(he, hs + 0.55) + 0.04) {
+      const p = Math.max(0, t - hs);
+      const pop = p < 0.07 ? p / 0.07 : Math.max(0, 1 - (p - 0.07) / 0.42);
+      scale *= 1 + 0.30 * pop * (0.7 + i * 0.4);
+      const shake = pop * 1.7;
+      shakeX = Math.sin(t * 68) * shake;
+      shakeY = Math.cos(t * 52) * shake * 0.55;
+      glow += 14 * pop;
+      // Long shouted holds (fight!) stay slightly large after the pop.
+      if (he - hs > 0.8 && t <= he + 0.04) {
+        const holdP = Math.max(0, Math.min(1, (he - t) / Math.max(0.12, he - hs)));
+        scale *= 1 + 0.10 * Math.max(holdP, pop * 0.3);
+        glow += 5 * Math.max(holdP, pop * 0.3);
+      }
+    }
+    const shadow = glow > 0.4
+      ? ('0 0 ' + (6 + glow * 0.35).toFixed(1) + 'px rgba(232,199,106,' + Math.min(0.85, 0.25 + glow * 0.03).toFixed(2) + '),0 1px 2px #000')
+      : '';
+    return 'transform:translate(' + shakeX.toFixed(2) + 'px,' + shakeY.toFixed(2) + 'px) scale(' + scale.toFixed(3) + ');letter-spacing:' + track.toFixed(2) + 'px;' + (shadow ? 'text-shadow:' + shadow + ';' : '');
+  }
   function drawLyrics() {
     if (!lyricEl) return;
+    ensureKaraokeCss();
     const playing = window.PLBgm && PLBgm.playing && PLBgm.playing();
     if (!playing) {
       if (lyricLast !== '') { lyricEl.hidden = true; lyricEl.innerHTML = ''; lyricLast = ''; }
@@ -607,22 +672,42 @@
       return;
     }
     const { cur, next } = hit;
-    let wi = -1;
-    if (cur.w && cur.w.length) {
-      for (let i = 0; i < cur.w.length; i++) { if (t >= cur.w[i].s) wi = i; else break; }
-    }
-    const key = cur.s + '|' + wi + '|' + (next && next.s || '');
-    if (key === lyricLast) { lyricEl.hidden = false; return; }
-    lyricLast = key;
     const words = (cur.w && cur.w.length) ? cur.w : [{ t: cur.t, s: cur.s, e: cur.e }];
-    const line = words.map((w, i) => {
-      const txt = escHtml(String(w.t || '').trim());
-      if (!txt) return '';
-      const cls = i === wi ? ' on' : (i < wi ? ' gone' : '');
-      return '<span class="' + cls.trim() + '">' + txt + '</span>';
-    }).join(' ');
-    const nxt = (next && next.t) ? '<div class="nxt">' + escHtml(next.t) + '</div>' : '';
-    lyricEl.innerHTML = '<div class="lyric-cur">' + line + '</div>' + nxt;
+    let wi = -1;
+    for (let i = 0; i < words.length; i++) {
+      if (t >= words[i].s - 0.01) wi = i; else break;
+    }
+    const rm = reduced();
+    lyricEl.classList.toggle('rm', rm);
+    const lineKey = cur.s + '|' + (next && next.s || '');
+    if (lineKey !== lyricLast) {
+      lyricLast = lineKey;
+      const line = words.map((w, i) => {
+        const txt = escHtml(String(w.t || '').trim());
+        if (!txt) return '';
+        return '<span data-i="' + i + '">' + txt + '</span>';
+      }).join(' ');
+      const nxt = (next && next.t) ? '<div class="nxt">' + escHtml(next.t) + '</div>' : '';
+      lyricEl.innerHTML = '<div class="lyric-cur">' + line + '</div>' + nxt;
+    }
+    const env = lyricEnvAt(t);
+    const spans = lyricEl.querySelectorAll('.lyric-cur span');
+    for (let i = 0; i < spans.length; i++) {
+      const w = words[i];
+      if (!w) continue;
+      const win = wordWin(w);
+      const on = t >= win.a - 0.02 && t < win.b + 0.02;
+      const gone = t >= win.b + 0.02 || (wi >= 0 && i < wi && !on);
+      const cls = on ? 'on' : (gone ? 'gone' : '');
+      if (spans[i].className !== cls) spans[i].className = cls;
+      if (rm) {
+        if (spans[i].style.cssText) spans[i].removeAttribute('style');
+      } else if (on || gone) {
+        spans[i].style.cssText = wordStyle(w, t, env);
+      } else {
+        if (spans[i].style.cssText) spans[i].removeAttribute('style');
+      }
+    }
     lyricEl.hidden = false;
   }
 
@@ -4295,6 +4380,22 @@
       return out;
     },
     _forceLoco(l) { if (st) st.forceLoco = l || null; },
+    _drawLyricsAt(t) {
+      const prev = window.PLBgm;
+      window.PLBgm = { playing() { return true; }, time() { return t - LYRIC_LEAD; } };
+      const go = () => {
+        if (!lyricEl) { try { mount(); } catch (e) {} }
+        lyricLast = '';
+        drawLyrics();
+        const spans = Array.prototype.map.call(lyricEl ? lyricEl.querySelectorAll('.lyric-cur span') : [], s => ({
+          t: s.textContent, cls: s.className, style: s.getAttribute('style') || ''
+        }));
+        window.PLBgm = prev;
+        return { hidden: !!(lyricEl && lyricEl.hidden), html: lyricEl ? lyricEl.innerHTML : '', spans, lead: LYRIC_LEAD };
+      };
+      if (!lyricData) return loadLyrics().then(go);
+      return Promise.resolve(go());
+    },
     _forceDance(kind) {
       if (!st) st = freshState();
       if (st.mode !== 'run') goRun(st);
