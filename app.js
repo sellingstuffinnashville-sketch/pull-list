@@ -116,7 +116,7 @@ function playLevelUp() {
   });
 }
 const BGM_KEY = 'pl_bgm';
-let BGM = localStorage.getItem(BGM_KEY) === '1'; // off by default
+let BGM = localStorage.getItem(BGM_KEY) !== '0'; // on by default
 let bgmGain, bgmTimer, bgmNodes = [], bgmNext = 0, bgmBar = 0, bgmBus, bgmFilter, bgmComp, bgmGen = 0;
 
 function syncBgmBtn() {
@@ -318,7 +318,7 @@ document.addEventListener('visibilitychange', () => {
   document.documentElement.classList.toggle('pl-paused', document.hidden);
   if (document.hidden) { stopBgm(); }
   else {
-    if (BGM && actx) startBgm();
+    if (BGM) startBgm();
   }
 });
 
@@ -558,6 +558,40 @@ async function applyResetIfNeeded(epoch) {
   return true;
 }
 
+// One-time client reset (v1): wipe RPG progress and local test photos, keep scan/pull
+// data, auth, and settings. Not the field RESET_EPOCH — do not bump pl_reset_epoch here.
+const PROGRESS_RESET_KEY = 'pl_reset_v1';
+const PHOTO_HIDE_KEY = 'pl_photos_hide_before';
+async function applyProgressResetV1() {
+  if (localStorage.getItem(PROGRESS_RESET_KEY) === '1') return false;
+  xpState = defaultXp();
+  persistXp();
+  localStorage.removeItem('pl_battle');
+  if (window.PLBattle) window.PLBattle.reset();
+  SFX = true;
+  BGM = true;
+  localStorage.setItem(SFX_KEY, '1');
+  localStorage.setItem(BGM_KEY, '1');
+  syncSfxBtn();
+  syncBgmBtn();
+  if (!localStorage.getItem(PHOTO_HIDE_KEY)) localStorage.setItem(PHOTO_HIDE_KEY, String(Date.now()));
+  try {
+    if (typeof urlCache !== 'undefined') {
+      for (const u of urlCache.values()) { try { if (u && String(u).startsWith('blob:')) URL.revokeObjectURL(u); } catch (e) {} }
+      urlCache.clear();
+    }
+    await tx('photos', 'readwrite', s => s.clear());
+  } catch (e) { return false; }
+  localStorage.setItem(PROGRESS_RESET_KEY, '1');
+  if (window.PLLoot) window.PLLoot.init();
+  renderXpBar();
+  return true;
+}
+function tryAutoBgm() {
+  if (!RPG || !BGM || document.hidden) return;
+  startBgm();
+}
+
 // ---------- device ----------
 let DEV = localStorage.getItem('pl_dev') || '';       // short tag in photo names, e.g. B or QXR
 let DEVNAME = localStorage.getItem('pl_devname') || '';
@@ -787,7 +821,8 @@ async function thumbURL(name, full, d = date) {
   const u = b ? URL.createObjectURL(b) : null; if (u || !full) urlCache.set(key, u); return u;
 }
 function photosFor(st, kind, code) {
-  return Object.keys(st).filter(k => k.startsWith('photo:') && st[k].v && st[k].v.kind === kind && st[k].v.code === code && !val(st, 'del:' + k.slice(6)))
+  const hideBefore = Number(localStorage.getItem(PHOTO_HIDE_KEY) || 0);
+  return Object.keys(st).filter(k => k.startsWith('photo:') && st[k].v && st[k].v.kind === kind && st[k].v.code === code && !val(st, 'del:' + k.slice(6)) && (!hideBefore || (st[k].ts || 0) >= hideBefore))
     .map(k => k.slice(6)).sort();
 }
 function thumbs(names, d = date) {
@@ -987,7 +1022,14 @@ function typing() { // don't redraw under someone typing a part number or a rece
 let VIEWMODE = localStorage.getItem('pl_view') === 'row' ? 'row' : 'car';
 const WHY = { gone: 'Gone', damaged: 'Damaged', skip: 'Skipped' };
 function partPics(st, code) {
-  return photosFor(st, 'part', code).concat(Object.keys(st).filter(k => k.startsWith('assign:') && st[k].v === code && !val(st, 'del:' + k.slice(7))).map(k => k.slice(7)));
+  const hideBefore = Number(localStorage.getItem(PHOTO_HIDE_KEY) || 0);
+  const assigned = Object.keys(st).filter(k => {
+    if (!k.startsWith('assign:') || st[k].v !== code || val(st, 'del:' + k.slice(7))) return false;
+    if (!hideBefore) return true;
+    const name = k.slice(7), ph = st['photo:' + name];
+    return ((ph && ph.ts) || (st[k].ts || 0)) >= hideBefore;
+  }).map(k => k.slice(7));
+  return photosFor(st, 'part', code).concat(assigned);
 }
 function partCard(p, st, carLine) {
   const got = !!val(st, 'got:' + p.code);
@@ -1347,6 +1389,8 @@ if (bgmBtn) {
   };
 }
 async function start() {
+  await applyProgressResetV1();
+  tryAutoBgm();
   if (!TOKEN) return showLogin(navigator.onLine ? '' : 'Needs signal the first time.');
   await applyResetIfNeeded(0);
   ensureDevice();
@@ -1358,6 +1402,7 @@ async function start() {
   showHome();
   status();
   retryNow(); // resume any photos/changes still queued from last time
+  tryAutoBgm();
   if (navigator.onLine) {
     try { await api('me'); } catch (e) { if (e.login) { TOKEN = ''; localStorage.removeItem('pl_token'); return showLogin(); } }
   }
