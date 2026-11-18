@@ -563,9 +563,24 @@
 
   // ---------- synced lyrics (shown on the ground under the hero) ----------
   // Seconds to show lyrics ahead of audio.currentTime. Word starts are aligned to
-  // vocal onsets in the track, so this only covers typical output latency and rAF
-  // granularity — 0.35s was measured early against the vocal.
-  const LYRIC_LEAD = 0.15;
+  // vocal onsets; this covers typical output latency and rAF granularity.
+  // The opening line gets a larger lead: first-play / device start latency made
+  // a flat 0.15s highlight land late on line 1.
+  const LYRIC_LEAD = 0.18;
+  function lyricLeadAt(raw) {
+    let lead = LYRIC_LEAD;
+    const first = lyricData && lyricData.lines && lyricData.lines[0];
+    if (first && raw >= 0) {
+      if (raw < first.e + 0.4) lead += 0.17;
+      else if (raw < first.e + 2.0) lead += 0.17 * Math.max(0, 1 - (raw - first.e - 0.4) / 1.6);
+    }
+    return lead;
+  }
+  function rawForLyricClock(t) {
+    let raw = t - LYRIC_LEAD;
+    for (let i = 0; i < 4; i++) raw = t - lyricLeadAt(raw);
+    return raw;
+  }
   function loadLyrics() {
     if (lyricData) return Promise.resolve(lyricData);
     if (!lyricP) {
@@ -594,7 +609,9 @@
     el.id = 'pl-karaoke-css';
     el.textContent = [
       '.battlelyrics .lyric-cur span{display:inline-block;transform-origin:50% 85%;margin:0 .11em;vertical-align:baseline}',
-      '.battlelyrics.rm .lyric-cur span{display:inline;transform:none!important;letter-spacing:inherit!important;filter:none!important}'
+      '.battlelyrics .lyric-cur span[data-hold] .let{display:inline-block;transform-origin:50% 90%;margin:0}',
+      '.battlelyrics.rm .lyric-cur span{display:inline;transform:none!important;letter-spacing:inherit!important;filter:none!important}',
+      '.battlelyrics.rm .lyric-cur span[data-hold] .let{display:inline;transform:none!important}'
     ].join('');
     document.head.appendChild(el);
   }
@@ -612,6 +629,149 @@
     const a = (w.hs != null) ? w.hs : w.s;
     const b = (w.he != null) ? w.he : w.e;
     return { a: Math.min(w.s, a), b: Math.max(w.e, b) };
+  }
+  function isLongHold(w) {
+    if (!w) return false;
+    const k = w.k || '';
+    const hs = (w.hs != null) ? w.hs : w.s, he = (w.he != null) ? w.he : w.e;
+    return (k === 'hold' || k === 'shout') && (he - hs) >= 0.7;
+  }
+  function holdSample(w, t) {
+    const hop = w.hop || 0.04;
+    const t0 = (w.t0 != null) ? w.t0 : ((w.hs != null) ? w.hs : w.s);
+    const vol = w.vol;
+    if (!vol || !vol.length) return { vol: 0.55, f0: 0 };
+    const x = (t - t0) / hop;
+    const lo = Math.max(0, Math.min(vol.length - 1, Math.floor(x)));
+    const hi = Math.max(0, Math.min(vol.length - 1, Math.ceil(x)));
+    const f = x - lo;
+    const v = (vol[lo] * (1 - f) + vol[hi] * f) / 100;
+    let p = 0;
+    const f0 = w.f0;
+    if (f0 && f0.length) {
+      const p0 = f0[Math.min(lo, f0.length - 1)] || 0;
+      const p1 = f0[Math.min(hi, f0.length - 1)] || 0;
+      p = p0 && p1 ? p0 * (1 - f) + p1 * f : (p0 || p1);
+    }
+    return { vol: v, f0: p };
+  }
+  function holdMedianF0(w) {
+    if (w._medF0 != null) return w._medF0;
+    const arr = (w.f0 || []).filter(v => v > 90 && v < 400);
+    if (!arr.length) return (w._medF0 = 0);
+    const mid = arr.filter(v => v >= 110 && v <= 280);
+    const use = mid.length >= 4 ? mid : arr;
+    const s = use.slice().sort((a, b) => a - b);
+    return (w._medF0 = s[s.length >> 1]);
+  }
+  function foldF0(f0, med) {
+    if (!med || !f0) return f0;
+    if (f0 > med * 1.75) f0 = f0 / 2;
+    if (f0 < med * 0.55) f0 = f0 * 2;
+    if (f0 > med * 1.8 || f0 < med * 0.52) return med;
+    return f0;
+  }
+  function letterWindows(w) {
+    if (w._lets) return w._lets;
+    const raw = String(w.t || '');
+    const chars = [];
+    for (let i = 0; i < raw.length; i++) if (!/\s/.test(raw[i])) chars.push(raw[i]);
+    if (!chars.length) return (w._lets = []);
+    const hs = (w.hs != null) ? w.hs : w.s, he = (w.he != null) ? w.he : w.e;
+    const dur = Math.max(0.12, he - hs);
+    const isV = ch => /[aeiouy]/i.test(ch);
+    const isL = ch => /[a-z]/i.test(ch);
+    let firstL = -1, lastL = -1, lastV = -1;
+    for (let i = 0; i < chars.length; i++) {
+      if (!isL(chars[i])) continue;
+      if (firstL < 0) firstL = i;
+      lastL = i;
+      if (isV(chars[i])) lastV = i;
+    }
+    const weights = chars.map((ch, idx) => {
+      if (!isL(ch)) return 0.25;
+      if (/[aeiou]/i.test(ch)) return 3;
+      if (/y/i.test(ch)) return 2;
+      if (idx <= firstL) return 1.15;
+      if (idx >= lastL) return 1.5;
+      return 1.2;
+    });
+    // Give extra sustain to the vowel nearest the measured loudness peak.
+    let peakT = hs + dur * 0.55;
+    if (w.vol && w.vol.length) {
+      let m = -1, mi = 0;
+      for (let k = 0; k < w.vol.length; k++) if (w.vol[k] > m) { m = w.vol[k]; mi = k; }
+      peakT = ((w.t0 != null) ? w.t0 : hs) + mi * (w.hop || 0.04);
+    }
+    let sum0 = weights.reduce((a, b) => a + b, 0);
+    let acc0 = 0, bestV = lastV, bestD = 1e9;
+    for (let i = 0; i < chars.length; i++) {
+      const a = acc0 / sum0, b = (acc0 + weights[i]) / sum0;
+      acc0 += weights[i];
+      if (!isV(chars[i])) continue;
+      const mid = hs + (a + b) * 0.5 * dur;
+      const d = Math.abs(mid - peakT);
+      if (d < bestD) { bestD = d; bestV = i; }
+    }
+    if (bestV >= 0) weights[bestV] += 2.4;
+    let trail = 0, total = 0;
+    for (let i = 0; i < chars.length; i++) {
+      total += weights[i];
+      if (lastV >= 0 && i > lastV) trail += weights[i];
+    }
+    // Final consonants only get the taper (dies: sss); the climax stays on a vowel.
+    if (trail > 0 && trail / total > 0.14) {
+      const k = (0.14 * (total - trail)) / (0.86 * trail);
+      for (let i = lastV + 1; i < chars.length; i++) weights[i] *= k;
+      total = weights.reduce((a, b) => a + b, 0);
+    }
+    let acc = 0;
+    const lets = chars.map((ch, idx) => {
+      const a = hs + dur * acc / total;
+      acc += weights[idx];
+      return { ch: ch, s: a, e: hs + dur * acc / total };
+    });
+    // If the measured peak still falls in the trailing consonants, extend the
+    // last vowel through the crest so "s" (etc.) only has the release.
+    if (lastV >= 0 && lastV < lets.length - 1 && peakT >= lets[lastV].e - 0.02) {
+      const vowelEnd = Math.min(he - 0.10, Math.max(lets[lastV].e, peakT + 0.10));
+      if (vowelEnd > lets[lastV].e) {
+        lets[lastV].e = vowelEnd;
+        const nTrail = lets.length - 1 - lastV;
+        const span = Math.max(0.08, he - vowelEnd);
+        for (let i = 0; i < nTrail; i++) {
+          lets[lastV + 1 + i].s = vowelEnd + span * (i / nTrail);
+          lets[lastV + 1 + i].e = vowelEnd + span * ((i + 1) / nTrail);
+        }
+      }
+    }
+    return (w._lets = lets);
+  }
+  function letterStyle(w, idx, t, env) {
+    const lets = letterWindows(w);
+    const L = lets[idx];
+    if (!L) return '';
+    const i = (w.i != null) ? w.i : 0.7;
+    const hs = (w.hs != null) ? w.hs : w.s, he = (w.he != null) ? w.he : w.e;
+    const samp = holdSample(w, t);
+    const med = holdMedianF0(w);
+    const f0 = foldF0(samp.f0, med);
+    let lift = 0;
+    if (med && f0 > 80) lift = Math.max(-6, Math.min(18, Math.log2(f0 / med) * 16));
+    const vol = samp.vol;
+    const mid = (L.s + L.e) * 0.5;
+    const half = Math.max(0.05, (L.e - L.s) * 0.5);
+    let focus = 1 - Math.min(1, Math.abs(t - mid) / (half * 1.55 + 0.06));
+    if (t < L.s) focus = Math.max(0, 0.2 * (1 - (L.s - t) / 0.18));
+    if (t > L.e) focus = Math.max(0.22, 1 - (t - L.e) / Math.max(0.22, (he - L.e) + 0.18));
+    const scale = 1 + vol * (0.24 + i * 0.22) * (0.3 + 0.95 * focus);
+    const track = vol * focus * (1.6 + i * 2.2);
+    const y = -lift * (0.4 + 0.75 * focus) - focus * vol * 1.1;
+    const glow = vol * (9 + i * 10) * (0.35 + 0.85 * focus);
+    const shadow = glow > 0.4
+      ? ('0 0 ' + (5 + glow * 0.45).toFixed(1) + 'px rgba(232,199,106,' + Math.min(0.92, 0.28 + glow * 0.035).toFixed(2) + '),0 1px 2px #000')
+      : '';
+    return 'transform:translate(0,' + y.toFixed(2) + 'px) scale(' + scale.toFixed(3) + ');letter-spacing:' + track.toFixed(2) + 'px;' + (shadow ? 'text-shadow:' + shadow + ';' : '');
   }
   function wordStyle(w, t, env) {
     const i = (w.i != null) ? w.i : 0.4;
@@ -641,13 +801,18 @@
       const dur = Math.max(0.12, he - hs);
       const p = Math.max(0, Math.min(1, (t - hs) / dur));
       const attack = p < 0.08 ? p / 0.08 : 1;
-      const release = p > 0.90 ? (1 - p) / 0.10 : 1;
-      const sustain = Math.max(0.25, Math.min(attack, release));
-      const pulse = 0.5 + 0.5 * Math.sin((t - hs) * Math.PI * 2 * 2.8);
-      const stretch = (0.55 + i * 0.6) * sustain * Math.min(1.2, 0.6 + dur * 0.2);
-      scale *= 1 + 0.10 + stretch * 0.22 + pulse * 0.022 * sustain;
-      track = Math.min(3.0, (0.03 + i * 0.07 + Math.min(0.10, dur * 0.025)) * stretch * 15);
-      glow += 8 + i * 10 + pulse * 2;
+      const release = p > 0.92 ? (1 - p) / 0.08 : 1;
+      const sustain = Math.max(0.3, Math.min(attack, release));
+      const samp = holdSample(w, t);
+      const loud = samp.vol;
+      // Stretch follows measured loudness and sustain — louder/longer holds go further.
+      const stretch = (0.7 + i * 0.7) * sustain * (0.5 + loud * 0.9) * Math.min(1.55, 0.7 + dur * 0.18);
+      scale *= 1 + 0.12 + stretch * 0.34;
+      track = Math.min(6.5, (0.04 + i * 0.08 + Math.min(0.14, dur * 0.03)) * stretch * 16);
+      glow += 8 + i * 10 + loud * 12;
+      const med = holdMedianF0(w);
+      const f0 = foldF0(samp.f0, med);
+      if (med && f0 > 80) shakeY -= Math.max(-6, Math.min(14, Math.log2(f0 / med) * 12));
     }
     if (k === 'shout' && t >= hs - 0.04 && t <= Math.max(he, hs + 0.42) + 0.03) {
       const p = Math.max(0, t - hs);
@@ -683,7 +848,7 @@
       if (lyricLast !== '') { lyricEl.hidden = true; lyricEl.innerHTML = ''; lyricLast = ''; }
       return;
     }
-    const t = raw + LYRIC_LEAD;
+    const t = raw + lyricLeadAt(raw);
     const hit = lyricAt(t);
     if (!hit) {
       if (lyricLast !== '') { lyricEl.hidden = true; lyricEl.innerHTML = ''; lyricLast = ''; }
@@ -703,23 +868,33 @@
       const line = words.map((w, i) => {
         const txt = escHtml(String(w.t || '').trim());
         if (!txt) return '';
+        if (isLongHold(w)) {
+          const inner = letterWindows(w).map((L, k) => '<span class="let" data-l="' + k + '">' + escHtml(L.ch) + '</span>').join('');
+          return '<span data-i="' + i + '" data-hold="1">' + inner + '</span>';
+        }
         return '<span data-i="' + i + '">' + txt + '</span>';
       }).join(' ');
       const nxt = (next && next.t) ? '<div class="nxt">' + escHtml(next.t) + '</div>' : '';
       lyricEl.innerHTML = '<div class="lyric-cur">' + line + '</div>' + nxt;
     }
     const env = lyricEnvAt(t);
-    const spans = lyricEl.querySelectorAll('.lyric-cur span');
+    const spans = lyricEl.querySelectorAll('.lyric-cur > span');
     for (let i = 0; i < spans.length; i++) {
       const w = words[i];
       if (!w) continue;
       const win = wordWin(w);
       const on = t >= win.a - 0.02 && t < win.b + 0.02;
       const gone = t >= win.b + 0.02 || (wi >= 0 && i < wi && !on);
-      const cls = on ? 'on' : (gone ? 'gone' : '');
-      if (spans[i].className !== cls) spans[i].className = cls;
+      const holdCls = isLongHold(w) ? ' holdw' : '';
+      const cls = (on ? 'on' : (gone ? 'gone' : '')) + holdCls;
+      if (spans[i].className.trim() !== cls.trim()) spans[i].className = cls.trim();
       if (rm) {
         if (spans[i].style.cssText) spans[i].removeAttribute('style');
+        spans[i].querySelectorAll('.let').forEach(el => el.removeAttribute('style'));
+      } else if (isLongHold(w) && (on || gone)) {
+        if (spans[i].style.cssText) spans[i].removeAttribute('style');
+        const lets = spans[i].querySelectorAll('.let');
+        for (let k = 0; k < lets.length; k++) lets[k].style.cssText = letterStyle(w, k, t, env);
       } else if (on || gone) {
         spans[i].style.cssText = wordStyle(w, t, env);
       } else {
@@ -4528,16 +4703,16 @@
     _forceLoco(l) { if (st) st.forceLoco = l || null; },
     _drawLyricsAt(t) {
       const prev = window.PLBgm;
-      window.PLBgm = { playing() { return true; }, time() { return t - LYRIC_LEAD; } };
+      window.PLBgm = { playing() { return true; }, time() { return rawForLyricClock(t); } };
       const go = () => {
         if (!lyricEl) { try { mount(); } catch (e) {} }
         lyricLast = '';
         drawLyrics();
-        const spans = Array.prototype.map.call(lyricEl ? lyricEl.querySelectorAll('.lyric-cur span') : [], s => ({
+        const spans = Array.prototype.map.call(lyricEl ? lyricEl.querySelectorAll('.lyric-cur > span') : [], s => ({
           t: s.textContent, cls: s.className, style: s.getAttribute('style') || ''
         }));
         window.PLBgm = prev;
-        return { hidden: !!(lyricEl && lyricEl.hidden), html: lyricEl ? lyricEl.innerHTML : '', spans, lead: LYRIC_LEAD };
+        return { hidden: !!(lyricEl && lyricEl.hidden), html: lyricEl ? lyricEl.innerHTML : '', spans, lead: lyricLeadAt(rawForLyricClock(t)) };
       };
       if (!lyricData) return loadLyrics().then(go);
       return Promise.resolve(go());
