@@ -1,13 +1,17 @@
 // Offline open: app shell is precached; scan data + photos live in IndexedDB. API calls go to Apps Script and are
 // never cached. Same-origin files are network-first with a short timeout, so weak yard signal falls back to the
 // cached copy fast instead of hanging. Reference thumbs (i.ebayimg.com, yard photos) are cached once seen.
-const V = 'pl-pages-v21';
+// The /plain/ app has its own service worker; this one must not intercept or fallback-serve that path.
+const V = 'pl-pages-v22';
 const SHELL = ['./', 'index.html', 'style.css', 'fonts/cinzel.woff2', 'app.js', 'px.js', 'loot.js', 'battle.js', 'zip.js', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'music.mp3'];
+const rootPath = new URL('./', self.registration.scope).pathname;
+const isPlain = u => { const p = u.pathname; return p === rootPath + 'plain' || p.startsWith(rootPath + 'plain/'); };
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' }))))); self.skipWaiting(); });
-self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('pl-pages-v') && k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
+  if (isPlain(u)) return;
   if (u.hostname === 'i.ebayimg.com' || u.hostname === 'papimages.blob.core.windows.net') {
     e.respondWith((async () => {
       const c = await caches.open(V);

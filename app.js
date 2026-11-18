@@ -2,6 +2,7 @@
 // then POSTed to the Apps Script JSON API when there is signal. Photos queue in IndexedDB and upload to Drive one at
 // a time, retrying with backoff on weak signal; the queue survives closing the app.
 'use strict';
+const RPG = window.PL_RPG !== false;
 const $ = s => document.querySelector(s);
 const main = $('#main');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -30,8 +31,10 @@ function unlockAudio() {
   if (actx.state === 'suspended') actx.resume();
   if (typeof startBgm === 'function') startBgm();
 }
-['pointerdown', 'touchstart', 'click', 'keydown'].forEach(ev =>
-  document.addEventListener(ev, unlockAudio, { capture: true }));
+if (RPG) {
+  ['pointerdown', 'touchstart', 'click', 'keydown'].forEach(ev =>
+    document.addEventListener(ev, unlockAudio, { capture: true }));
+}
 
 function sfxReady() { return SFX && actx && master; }
 
@@ -435,6 +438,7 @@ function applyXp(changes, ev) {
   }
   xpState.level = levelFromXp(xpState.xp);
   persistXp();
+  if (!RPG) return;
   renderXpBar();
   for (const c of changes) {
     if (!c.revoke && c.id && c.id.indexOf('car:') === 0 && window.PLLoot) window.PLLoot.award(c.id);
@@ -878,13 +882,13 @@ async function showHome() {
   status();
   const draw = idx => {
     if (screen !== 'home') return;
-    const stats = `Level ${xpState.level} · ${xpState.xp} XP · ${xpState.pulled} parts pulled · est. net ${money(xpState.net)}`;
-    main.innerHTML = `<div class="tools"><button data-act="trip">Trip days</button><button data-act="ready">Ready to list</button></div><p class="xpstats">${stats}</p>${window.PLLoot ? window.PLLoot.picker() : ''}<p class="small">Newest first. Tap a scan to open it.</p>` + (idx && idx.length ? idx.map(s =>
+    const rpgBits = RPG ? `<p class="xpstats">Level ${xpState.level} · ${xpState.xp} XP · ${xpState.pulled} parts pulled · est. net ${money(xpState.net)}</p>${window.PLLoot ? window.PLLoot.picker() : ''}` : '';
+    main.innerHTML = `<div class="tools"><button data-act="trip">Trip days</button><button data-act="ready">Ready to list</button></div>${rpgBits}<p class="small">Newest first. Tap a scan to open it.</p>` + (idx && idx.length ? idx.map(s =>
       `<button class="scanitem" data-d="${esc(s.date)}"><b>${esc(s.date)}</b>${esc(s.label)}<br><span class="small">${s.cars} cars · ${s.parts} parts</span></button>`).join('')
       : `<p>${navigator.onLine ? 'Loading scans…' : 'No scans saved on this phone yet. Open the app once with signal.'}</p>`)
       + `<p class="small">This phone: ${esc(DEVNAME)} · <a href="#" class="chg">settings</a></p>`;
     main.querySelectorAll('.scanitem').forEach(b => b.onclick = () => openScan(b.dataset.d));
-    if (window.PLLoot) window.PLLoot.wirePicker(main);
+    if (RPG && window.PLLoot) window.PLLoot.wirePicker(main);
   };
   const cached = await kvGet('index') || [];
   draw(cached);
@@ -1293,9 +1297,11 @@ async function start() {
   if (!TOKEN) return showLogin(navigator.onLine ? '' : 'Needs signal the first time.');
   await applyResetIfNeeded(0);
   ensureDevice();
-  renderXpBar();
-  if (window.PLLoot) window.PLLoot.init();
-  if (window.PLBattle) window.PLBattle.init();
+  if (RPG) {
+    renderXpBar();
+    if (window.PLLoot) window.PLLoot.init();
+    if (window.PLBattle) window.PLBattle.init();
+  }
   showHome();
   status();
   retryNow(); // resume any photos/changes still queued from last time
