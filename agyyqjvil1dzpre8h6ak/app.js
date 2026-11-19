@@ -908,6 +908,7 @@ async function ops(pairs, d = date) { // save one or more ops locally first, the
   const now = Date.now();
   const list = pairs.map(([k, v], i) => ({ id: DEV + '-' + (now + i).toString(36) + '-' + Math.random().toString(36).slice(2, 8), k, v, dev: DEV, ts: now + i, date: d, pending: 1 }));
   if (d === date) localOps.push(...list);
+  if (d) VIEWS[d] = merge(VIEWS[d] || {}, list);
   await tx('ops', 'readwrite', s => { for (const o of list) s.put(o); });
   rerender(); sync();
 }
@@ -936,6 +937,7 @@ async function sync(extra = []) {
     const allPend = (await tx('ops', 'readonly', s => req(s.getAll()))).filter(o => o.pending);
     const dates = new Set(allPend.map(o => o.date).filter(Boolean));
     if (date) dates.add(date);
+    if (typeof walkMode !== 'undefined' && walkMode) for (const w of (walkList || [])) if (w && w.day) dates.add(w.day);
     for (const d of extra) dates.add(d);
     let changed = false;
     const order = [...dates].sort((a, b) => (b === date) - (a === date)); // open scan first
@@ -954,6 +956,7 @@ async function sync(extra = []) {
       const ids = new Set(pend.map(o => o.id));
       for (const o of localOps) if (ids.has(o.id)) o.pending = 0;
       if (d === date) serverState = j.state || {};
+      VIEWS[d] = merge(j.state || {}, (await tx('ops', 'readonly', s => req(s.getAll()))).filter(o => o.date === d));
       changed = true;
       markSynced();
     }
@@ -1148,6 +1151,193 @@ async function paintStatus() {
 }
 
 // ---------- screens ----------
+// ---------- My Walk (solo only): hand-picked cars from any day, saved on this phone ----------
+const WALK_KEY = 'plsolo_pl_walk';
+const WALK_DIR_KEY = 'plsolo_pl_walk_dir';
+let walkMode = false;
+let walkList = [];
+let lastWasWalk = false;
+let walkDir = localStorage.getItem(WALK_DIR_KEY) === 'desc' ? 'desc' : 'asc';
+function loadWalk() {
+  try {
+    const x = JSON.parse(localStorage.getItem(WALK_KEY) || '[]');
+    return Array.isArray(x) ? x.filter(w => w && w.day && w.code6) : [];
+  } catch (e) { return []; }
+}
+function saveWalk() {
+  localStorage.setItem(WALK_KEY, JSON.stringify(walkList));
+  localStorage.setItem(WALK_DIR_KEY, walkDir);
+}
+walkList = loadWalk();
+function carIdKey(car) {
+  const vin = String((car && car.vin) || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  if (vin.length >= 8) return 'v:' + vin;
+  return 's:' + String((car && car.code6) || '').toUpperCase();
+}
+function walkItemKey(w) {
+  const vin = String((w && w.vin) || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  if (vin.length >= 8) return 'v:' + vin;
+  return 's:' + String((w && w.code6) || '').toUpperCase();
+}
+function sameWalkCar(w, car) {
+  if (!w || !car) return false;
+  return walkItemKey(w) === carIdKey(car) || w.code6 === car.code6;
+}
+function walkHas(car, day) {
+  return walkList.some(w => sameWalkCar(w, car) && (!day || w.day === day));
+}
+function addToWalk(car, day) {
+  if (!car || !day) return;
+  if (walkList.some(w => sameWalkCar(w, car) && w.day === day)) return;
+  walkList.push({ day, code6: car.code6, vin: car.vin || '' });
+  saveWalk();
+}
+function removeFromWalk(car, day) {
+  walkList = walkList.filter(w => {
+    if (!sameWalkCar(w, car)) return true;
+    return day ? w.day !== day : false;
+  });
+  saveWalk();
+}
+function clearWalk() { walkList = []; saveWalk(); }
+function walkCount() { return walkList.length; }
+function walkDayLabel(d) {
+  const dt = new Date(String(d) + 'T12:00:00');
+  if (isNaN(dt.getTime())) return String(d || '');
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function dayColorIndex(d) {
+  const days = [...new Set((scan && scan.walkDays) || (walkMode ? walkList.map(w => w.day) : (date ? [date] : [])))].sort();
+  const i = days.indexOf(d);
+  return i < 0 ? 0 : i % 5;
+}
+function stFor(d) {
+  if (!d) return {};
+  if (!walkMode && d === date) return (VIEWS[date] = merge(serverState, localOps));
+  return VIEWS[d] || {};
+}
+function walkBtnHtml() {
+  const n = walkCount();
+  return `<button data-act="walk" class="walktab${walkMode ? ' on' : ''}">My Walk${n ? ' (' + n + ')' : ''}</button>`;
+}
+function dayBadgeHtml(days, isNew) {
+  const uniq = [...new Set((days || []).filter(Boolean))];
+  let h = '<span class="daybadges">';
+  for (const d of uniq.sort().reverse()) {
+    h += `<span class="daybadge dayc${dayColorIndex(d)}" title="${esc(d)}">${esc(walkDayLabel(d))}</span>`;
+  }
+  if (isNew) h += `<span class="daybadge daynew">NEW</span>`;
+  h += '</span>';
+  return h;
+}
+function dayLegendHtml(days) {
+  const uniq = [...new Set((days || []).filter(Boolean))].sort().reverse();
+  if (!uniq.length) return '';
+  const today = chiDay();
+  return `<div class="daylegend" aria-label="Day colors"><span class="legtitle">Scan day</span>` +
+    uniq.map(d => `<span class="legitem"><span class="daybadge dayc${dayColorIndex(d)}">${esc(walkDayLabel(d))}</span>${d === today ? '<span class="daybadge daynew">NEW</span>' : ''}</span>`).join('') +
+    `</div>`;
+}
+function walkToggleHtml(car, day) {
+  const on = walkHas(car, day);
+  if (on) return `<button type="button" class="walkbtn on" data-act="walkrm" data-c="${esc(car.code6)}" data-day="${esc(day)}">On walk · Remove</button>`;
+  return `<button type="button" class="walkbtn" data-act="walkadd" data-c="${esc(car.code6)}" data-day="${esc(day)}">+ Add to Walk</button>`;
+}
+function rowNum(r) {
+  const n = parseInt(r, 10);
+  return Number.isFinite(n) ? n : 9999;
+}
+function findCarOnDay(sc, code6, vin) {
+  if (!sc || !sc.rows) return null;
+  const vinK = String(vin || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  for (const row of sc.rows) for (const car of (row.cars || [])) {
+    const cv = String(car.vin || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (vinK.length >= 8 && cv === vinK) return { row: row.row, car };
+    if (car.code6 === code6) return { row: row.row, car };
+  }
+  return null;
+}
+async function loadStateDays(days) {
+  const uniq = [...new Set(days.filter(Boolean))];
+  await Promise.all(uniq.map(async d => { await stateFor(d); }));
+}
+async function buildWalkScan() {
+  const items = loadWalk();
+  walkList = items;
+  const byDay = {};
+  for (const w of items) {
+    if (!byDay[w.day]) {
+      byDay[w.day] = await kvGet('scan:' + w.day);
+    }
+  }
+  const groups = new Map();
+  for (const w of items) {
+    const sc = byDay[w.day];
+    const hit = findCarOnDay(sc, w.code6, w.vin);
+    if (!hit) continue;
+    const { row, car } = hit;
+    const k = carIdKey(car);
+    let g = groups.get(k);
+    if (!g) {
+      g = { key: k, row, rowRank: rowNum(row), newest: w.day, car: null, parts: new Map(), scanDates: [] };
+      groups.set(k, g);
+    }
+    if (String(w.day) > String(g.newest)) { g.newest = w.day; g.row = row; g.rowRank = rowNum(row); }
+    if (!g.scanDates.includes(w.day)) g.scanDates.push(w.day);
+    for (const p of (car.parts || [])) {
+      const prev = g.parts.get(p.code);
+      if (!prev || String(w.day) > String(prev.scanDate)) g.parts.set(p.code, { ...p, scanDate: w.day });
+    }
+    // Keep a car snapshot from the newest day
+    if (!g.car || String(w.day) >= String(g.newest)) {
+      g.car = { ...car, parts: [], scanDate: w.day, scanDates: g.scanDates, date_set: car.date_set || w.day, _row: row };
+    }
+  }
+  const cars = [...groups.values()].map(g => {
+    const car = g.car;
+    car.parts = [...g.parts.values()];
+    car.scanDates = g.scanDates.slice().sort();
+    car.scanDate = g.newest;
+    car._row = g.row;
+    car._rowRank = g.rowRank;
+    return car;
+  });
+  const rowMap = new Map();
+  for (const car of cars) {
+    const rk = car._row;
+    if (!rowMap.has(rk)) rowMap.set(rk, { row: rk, rank: car._rowRank, cars: [] });
+    rowMap.get(rk).cars.push(car);
+  }
+  for (const r of rowMap.values()) {
+    r.cars.sort((a, b) => String(a.code6 || '').localeCompare(String(b.code6 || '')) || String(a.car || '').localeCompare(String(b.car || '')));
+  }
+  const rows = [...rowMap.values()].sort((a, b) => a.rank - b.rank || String(a.row).localeCompare(String(b.row)));
+  if (walkDir === 'desc') rows.reverse();
+  const walkDays = [...new Set(items.map(w => w.day))].sort();
+  return { combined: true, walk: true, walkDays, date: 'walk', label: 'My Walk', rows };
+}
+async function openWalk() {
+  walkMode = true;
+  lastWasWalk = true;
+  date = null;
+  screen = 'scan';
+  $('#back').hidden = false; $('#back').textContent = lastScan ? '← List' : '← Scans';
+  walkList = loadWalk();
+  const days = [...new Set(walkList.map(w => w.day))];
+  if (navigator.onLine) {
+    try {
+      await Promise.all(days.map(async d => {
+        try { const fresh = (await api('getScan', d)).scan; if (fresh) await kvSet('scan:' + d, fresh); } catch (e) { if (e.login) throw e; }
+      }));
+    } catch (e) { if (e.login) return showLogin(); }
+  }
+  await loadStateDays(days);
+  scan = await buildWalkScan();
+  setHeaderTitle('My Walk');
+  render();
+  sync(days);
+}
+
 function setHeaderTitle(text) {
   const el = $('#title');
   if (!el) return;
@@ -1248,6 +1438,7 @@ function homeListHtml(rows) {
   return h;
 }
 async function showHome() {
+  walkMode = false; lastWasWalk = false;
   date = null; scan = null; screen = 'home'; lastScan = null;
   $('#back').hidden = true; $('#back').textContent = '← Scans'; setBrandTitle('scans');
   status();
@@ -1258,7 +1449,8 @@ async function showHome() {
     const list = (idx && idx.length) ? homeListHtml(rows) : `<p>${navigator.onLine ? 'Loading scans…' : 'No scans saved on this phone yet. Open the app once with signal.'}</p>`;
     const rpgBits = RPG ? `<div class="rpghome"><p class="xpstats">Level ${xpState.level} · ${xpState.xp} XP · ${xpState.pulled} parts pulled · est. net ${money(xpState.net)}</p>${window.PLLoot ? window.PLLoot.picker() : ''}</div>` : '';
     const y = scrollY;
-    main.innerHTML = `<div class="tools"><button data-act="trip">Trip days</button><button data-act="ready">Ready to list</button></div>`
+    main.innerHTML = `<div class="tools">${walkBtnHtml()}<button data-act="trip">Trip days</button><button data-act="ready">Ready to list</button></div>`
+      + `<p class="small walkhint">Add cars to My Walk from a daily list, then walk the yard row by row.</p>`
       + list + rpgBits
       + `<p class="small">This phone: ${esc(DEVNAME)} · <a href="#" class="chg">settings</a></p>`;
     scrollTo(0, y);
@@ -1288,7 +1480,8 @@ async function prefetchScans(list) {
   if (login) throw Object.assign(new Error('login'), { login: true });
 }
 async function openScan(d) {
-  date = d; screen = 'scan'; lastScan = null;
+  walkMode = false; lastWasWalk = false;
+  date = d; screen = 'scan'; lastScan = d;
   $('#back').hidden = false; $('#back').textContent = '← Scans';
   scan = await kvGet('scan:' + d);
   setHeaderTitle(scanSetTitle(d, scan));
@@ -1335,64 +1528,117 @@ function partCard(p, st, carLine) {
     : '';
   const elink = p.ref && p.ref.link ? `<a class="elink" href="${esc(p.ref.link)}" target="_blank" rel="noopener noreferrer">eBay</a>` : '';
   return `<div class="part ${got ? 'got' : ''}">${carLine || ''}<div class="pline">
-    <button class="chk" data-act="got" data-c="${p.code}" aria-label="Got it">${got ? '✓' : ''}</button>
+    <button class="chk" data-act="got" data-c="${p.code}" data-day="${esc(p.scanDate || date || '')}" aria-label="Got it">${got ? '✓' : ''}</button>
     ${thumb}
     <div class="pinfo"><span class="pcode">${esc(p.code)}</span><span class="tier ${p.tier}">${p.tier}</span>${elink}
     <div class="pname">${esc(p.part)}${p.risk ? `<span class="prisk" title="High failure risk from a junkyard car">yard risk</span>` : ''}</div>${p.note ? `<div class="pnote">${esc(p.note)}</div>` : ''}
     ${p.pap != null ? `<div class="small">PAP price $${p.pap.toFixed(2)}</div>` : ''}</div>
     <div class="pnet"><span class="pnetlbl">Est. net</span>${money(p.net)}${p.dollars_per_hour != null ? `<span class="pdph">${money(p.dollars_per_hour)}/hr</span>` : ''}</div></div>
     ${pnBlock(p, st)}
-    <div class="pbtns"><button class="cambtn" data-act="part" data-c="${p.code}">📷${pics.length ? ' ' + pics.length : ''}</button>
-    <input data-pn="${p.code}" placeholder="Actual part #" value="${esc(val(st, 'pn:' + p.code) || '')}"></div>
-    ${got ? '' : `<div class="whybtns"><button data-act="why" data-why="gone" data-c="${p.code}">Gone</button><button data-act="why" data-why="damaged" data-c="${p.code}">Damaged</button><button data-act="why" data-why="skip" data-c="${p.code}">Skip</button></div>`}
-    ${thumbs(pics)}</div>`;
+    <div class="pbtns"><button class="cambtn" data-act="part" data-c="${p.code}" data-day="${esc(p.scanDate || date || '')}">📷${pics.length ? ' ' + pics.length : ''}</button>
+    <input data-pn="${p.code}" data-day="${esc(p.scanDate || date || '')}" placeholder="Actual part #" value="${esc(val(st, 'pn:' + p.code) || '')}"></div>
+    ${got ? '' : `<div class="whybtns"><button data-act="why" data-why="gone" data-c="${p.code}" data-day="${esc(p.scanDate || date || '')}">Gone</button><button data-act="why" data-why="damaged" data-c="${p.code}" data-day="${esc(p.scanDate || date || '')}">Damaged</button><button data-act="why" data-why="skip" data-c="${p.code}" data-day="${esc(p.scanDate || date || '')}">Skip</button></div>`}
+    ${thumbs(pics, p.scanDate || date)}</div>`;
 }
 function removedLine(p, st) {
   const by = st['rm:' + p.code], why = WHY[val(st, 'why:' + p.code)] || 'Skipped';
-  return `<div class="removed">✕ ${esc(p.code)} ${esc(p.part)} <span class="small">${why}${by ? ' · ' + esc(by.dev) : ''}</span><button data-act="undo" data-c="${p.code}">Undo</button></div>`;
+  return `<div class="removed">✕ ${esc(p.code)} ${esc(p.part)} <span class="small">${why}${by ? ' · ' + esc(by.dev) : ''}</span><button data-act="undo" data-c="${p.code}" data-day="${esc(p.scanDate || date || '')}">Undo</button></div>`;
+}
+function carSourceDays(car) {
+  if (car && car.scanDates && car.scanDates.length) return car.scanDates;
+  const d = (car && car.scanDate) || date;
+  return d ? [d] : [];
 }
 function carHead(car, st) {
+  const days = carSourceDays(car);
+  const day0 = days[0] || date;
   const vinPics = photosFor(st, 'vin', car.code6), xPics = photosFor(st, 'x', car.code6);
   const vin = val(st, 'vin:' + car.code6);
+  const isNew = days.some(d => d === chiDay());
   return `<div class="carhd">
+    ${dayBadgeHtml(days, isNew)}
     ${car.photo ? `<button type="button" class="carphoto" data-refimg="${esc(car.photo)}" aria-label="Yard photo of ${esc(car.car)}"><img loading="lazy" referrerpolicy="no-referrer" src="${esc(car.photo)}" alt=""></button>` : ''}
-    <div class="carbtns"><button data-act="vin" data-c="${car.code6}" class="${vinPics.length ? 'done' : ''}">📷 VIN photo${vinPics.length ? ' ✓' : ''}</button>
-    <button data-act="x" data-c="${car.code6}">📷 Extra photo${xPics.length ? ` (${xPics.length})` : ''}</button></div>
+    <div class="carbtns"><button data-act="vin" data-c="${car.code6}" data-day="${esc(day0 || '')}" class="${vinPics.length ? 'done' : ''}">📷 VIN photo${vinPics.length ? ' ✓' : ''}</button>
+    <button data-act="x" data-c="${car.code6}" data-day="${esc(day0 || '')}">📷 Extra photo${xPics.length ? ` (${xPics.length})` : ''}</button>
+    ${walkMode ? `<button type="button" class="walkbtn on" data-act="walkrm" data-c="${esc(car.code6)}" data-day="${esc(day0 || '')}">Remove from Walk</button>` : walkToggleHtml(car, day0)}</div>
     <div class="code6">${esc(car.code6)}</div>
     <div class="name">${esc(car.car)}${car.engine ? ` · ${esc(car.engine.replace(/^[\d.]+L\s*/, ''))}` : ''}</div>
     <div class="vin">VIN ${esc(car.vin)}</div>
     ${vin ? `<div class="vinflag">VIN photo taken · check ${vin.verify === 'ok' ? 'passed' : vin.verify === 'mismatch' ? 'MISMATCH' : 'pending'}</div>` : ''}
-    ${thumbs(vinPics)}${thumbs(xPics)}</div>`;
+    ${thumbs(vinPics, day0)}${thumbs(xPics, day0)}</div>`;
+}
+function partState(p) { return stFor((p && p.scanDate) || date); }
+function carBar(car, day) {
+  const days = carSourceDays(car);
+  const d = day || days[0] || date;
+  const isNew = days.some(x => x === chiDay());
+  return `<div class="walkcarbar">${dayBadgeHtml(days, isNew)}<b>${esc(car.code6)}</b> <span class="walkcarname">${esc(car.car)}</span>${walkMode ? `<button type="button" class="walkbtn on" data-act="walkrm" data-c="${esc(car.code6)}" data-day="${esc(d || '')}">Remove</button>` : walkToggleHtml(car, d)}</div>`;
+}
+function rowTotals(row) {
+  let n = 0, net = 0, got = 0;
+  for (const car of (row.cars || [])) {
+    for (const p of (car.parts || [])) {
+      const st = partState(p);
+      if (val(st, 'rm:' + p.code)) continue;
+      n++;
+      net += (p.net || 0);
+      if (val(st, 'got:' + p.code)) got++;
+    }
+  }
+  return { n, net, got };
 }
 function render() {
-  if (!scan || !date || screen !== 'scan') return;
+  if (!scan || screen !== 'scan') return;
+  if (!walkMode && !date) return;
   if (typing()) return;
-  const st = view();
+  const st0 = walkMode ? {} : view();
   let gotN = 0, gotNet = 0, all = 0, skipN = 0;
-  let h = `<div class="tools"><button data-act="mode">${VIEWMODE === 'row' ? '☰ By row' : '🚗 By car'}</button><button data-act="trip">Trip</button><button data-act="ready">Ready to list</button></div>
+  const dirLabel = walkDir === 'desc' ? 'Rows: back → front' : 'Rows: front → back';
+  let h = `<div class="tools">${walkBtnHtml()}<button data-act="mode">${VIEWMODE === 'row' ? '☰ By row' : '🚗 By car'}</button>`
+    + (walkMode ? `<button data-act="walkdir">${esc(dirLabel)}</button><button data-act="walkclear">Clear walk</button>` : '')
+    + `<button data-act="trip">Trip</button><button data-act="ready">Ready to list</button></div>
     <div class="small tally" id="tally"></div>`;
-  for (const row of scan.rows) {
-    h += `<div class="rowband">ROW ${esc(row.row)}</div>`;
+  if (walkMode) {
+    h += dayLegendHtml((scan && scan.walkDays) || []);
+    if (!scan.rows || !scan.rows.length) {
+      h += `<p class="walkempty">No cars on your walk yet. Open a daily list and tap <b>Add to Walk</b> on each car you want to pull.</p>`;
+    }
+  }
+  for (const row of (scan.rows || [])) {
+    const tot = rowTotals(row);
+    const totTxt = tot.n ? ` · ${tot.n} part${tot.n === 1 ? '' : 's'} · est. net ${money(tot.net)}${tot.got ? ` · ${tot.got} got` : ''}` : '';
+    h += `<div class="rowband">ROW ${esc(row.row)}${esc(totTxt)}</div>`;
     for (const car of row.cars) {
+      const days = carSourceDays(car);
+      const day0 = days[0] || date;
+      const st = stFor(day0) || st0;
       if (VIEWMODE === 'car') h += `<section class="car">${carHead(car, st)}`;
+      else h += carBar(car, day0);
       const removed = [];
       const parts = car.parts.slice().sort((a, b) => (b.dollars_per_hour || 0) - (a.dollars_per_hour || 0) || (b.net || 0) - (a.net || 0) || String(a.code).localeCompare(String(b.code)));
       for (const p of parts) {
+        if (!p.scanDate && day0) p.scanDate = day0;
+        const stP = partState(p);
         all++;
-        if (val(st, 'rm:' + p.code)) { removed.push(p); skipN++; continue; }
-        if (val(st, 'got:' + p.code)) { gotN++; gotNet += p.net || 0; }
-        const carLine = VIEWMODE === 'row' ? `<div class="carline"><b>${esc(car.code6)}</b> ${esc(car.car)}</div>` : '';
-        h += VIEWMODE === 'row' ? `<section class="car rowpart">${partCard(p, st, carLine)}</section>` : partCard(p, st);
+        if (val(stP, 'rm:' + p.code)) { removed.push(p); skipN++; continue; }
+        if (val(stP, 'got:' + p.code)) { gotN++; gotNet += p.net || 0; }
+        const carLine = VIEWMODE === 'row' ? `<div class="carline">${dayBadgeHtml(days, days.some(d => d === chiDay()))}<b>${esc(car.code6)}</b> ${esc(car.car)}</div>` : '';
+        h += VIEWMODE === 'row' ? `<section class="car rowpart">${partCard(p, stP, carLine)}</section>` : partCard(p, stP);
       }
-      for (const p of removed) h += VIEWMODE === 'row' ? `<section class="car rowpart">${removedLine(p, st)}</section>` : removedLine(p, st);
+      for (const p of removed) h += VIEWMODE === 'row' ? `<section class="car rowpart">${removedLine(p, partState(p))}</section>` : removedLine(p, partState(p));
       if (VIEWMODE === 'car') h += `</section>`;
     }
   }
-  h += `<button class="big" data-act="export">⬇ Export photos + checks (zip)</button>
-    <p class="small">Photos upload to Drive by code when there's signal. Export is a backup of this phone's photos.</p>
-    <p class="small">This phone: ${esc(DEVNAME)} · <a href="#" class="chg">settings</a></p>`;
+  if (!walkMode) {
+    h += `<button class="big" data-act="export">⬇ Export photos + checks (zip)</button>
+    <p class="small">Photos upload to Drive by code when there's signal. Export is a backup of this phone's photos.</p>`;
+  }
+  h += `<p class="small">This phone: ${esc(DEVNAME)} · <a href="#" class="chg">settings</a></p>`;
   const y = scrollY; main.innerHTML = h; scrollTo(0, y);
-  $('#tally').textContent = `Got ${gotN} of ${all} parts · est net ${money(gotNet)}${skipN ? ` · ${skipN} skipped` : ''}`;
+  const tally = $('#tally');
+  if (tally) tally.textContent = walkMode
+    ? `My Walk · ${gotN} of ${all} parts · est net ${money(gotNet)}${skipN ? ` · ${skipN} skipped` : ''}`
+    : `Got ${gotN} of ${all} parts · est net ${money(gotNet)}${skipN ? ` · ${skipN} skipped` : ''}`;
   fillThumbs();
 }
 
@@ -1404,7 +1650,7 @@ function pnBlock(p, st) {
   const ok = actual && pnNorm(actual) === pnNorm(p.expected_pn);
   const alt = (p.alt_pns || []).filter(Boolean);
   return `<div class="xpn${ok ? ' ok' : ''}"><div class="xpnt"><span class="xpnl">Expected PN</span> <b>${esc(p.expected_pn)}</b>${alt.length ? `<div class="small">also seen: ${alt.map(esc).join(', ')}</div>` : ''}</div>
-    <button type="button" class="xpnbtn" data-act="pnok" data-c="${p.code}">${ok ? '✓ Matches' : 'Matches'}</button></div>`;
+    <button type="button" class="xpnbtn" data-act="pnok" data-c="${p.code}" data-day="${esc(p.scanDate || date || '')}">${ok ? '✓ Matches' : 'Matches'}</button></div>`;
 }
 
 function refPreview(img) {
@@ -1422,14 +1668,36 @@ main.addEventListener('click', async e => {
   if (ph && !t) return photoSheet(ph.dataset.photo, ph.dataset.d || date);
   if (!t) return;
   const c = t.dataset.c;
+  const actDay = t.dataset.day || date;
+  const carFromBtn = () => (scan && scan.rows || []).flatMap(r => r.cars || []).find(x => x.code6 === c);
   switch (t.dataset.act) {
     case 'trip': return showTrip();
     case 'ready': return showReady();
     case 'rcptday': return capture('rcpt', t.dataset.day, t.dataset.day);
     case 'export': return exportZip();
+    case 'walk': return openWalk();
+    case 'walkdir':
+      walkDir = walkDir === 'desc' ? 'asc' : 'desc';
+      saveWalk();
+      return walkMode ? openWalk() : render();
+    case 'walkclear':
+      if (!walkCount()) return;
+      if (!confirm('Clear your walk? This only removes cars from My Walk on this phone, not check-offs.')) return;
+      clearWalk();
+      return walkMode ? openWalk() : (screen === 'scan' ? render() : showHome());
+    case 'walkadd': {
+      const car = carFromBtn();
+      if (car && actDay) addToWalk(car, actDay);
+      return screen === 'scan' ? render() : showHome();
+    }
+    case 'walkrm': {
+      const car = carFromBtn();
+      if (car) removeFromWalk(car, actDay);
+      return walkMode ? openWalk() : (screen === 'scan' ? render() : showHome());
+    }
   }
   if (screen !== 'scan') return;
-  const st = view();
+  const st = stFor(actDay);
   switch (t.dataset.act) {
     case 'mode': VIEWMODE = VIEWMODE === 'row' ? 'car' : 'row'; localStorage.setItem('plsolo_pl_view', VIEWMODE); return render();
     case 'got': {
@@ -1449,13 +1717,13 @@ main.addEventListener('click', async e => {
         if (wasDone && !nowDone) xp.push({ id: carId(car), revoke: 1 });
       }
       applyXp(xp, e);
-      return next ? ops([['got:' + c, true], ['day:' + c, chiDay()]]) : op('got:' + c, false);
+      return next ? ops([['got:' + c, true], ['day:' + c, chiDay()]], actDay) : op('got:' + c, false, actDay);
     }
     case 'pnok': {
       const p = scan.rows.flatMap(r => r.cars).flatMap(x => x.parts).find(x => x.code === c);
       if (!p || !p.expected_pn) return;
       const cur = val(st, 'pn:' + c) || '';
-      return op('pn:' + c, pnNorm(cur) === pnNorm(p.expected_pn) ? '' : p.expected_pn);
+      return op('pn:' + c, pnNorm(cur) === pnNorm(p.expected_pn) ? '' : p.expected_pn, actDay);
     }
     case 'why': {
       const car = carForPart(c);
@@ -1466,7 +1734,7 @@ main.addEventListener('click', async e => {
       if (wasDone && !nowDone) xp.push({ id: carId(car), revoke: 1 });
       if (!wasDone && nowDone) xp.push({ id: carId(car), amount: 50 });
       applyXp(xp, e);
-      return ops([['rm:' + c, true], ['why:' + c, t.dataset.why]]); // gone / damaged / skip, logged in the op file
+      return ops([['rm:' + c, true], ['why:' + c, t.dataset.why]], actDay); // gone / damaged / skip, logged in the op file
     }
     case 'undo': {
       const car = carForPart(c);
@@ -1478,22 +1746,22 @@ main.addEventListener('click', async e => {
       if (wasDone && !nowDone) xp.push({ id: carId(car), revoke: 1 });
       if (!wasDone && nowDone) { playQuest(); xp.push({ id: carId(car), amount: 50 }); }
       applyXp(xp, e);
-      return ops([['rm:' + c, false], ['why:' + c, '']]);
+      return ops([['rm:' + c, false], ['why:' + c, '']], actDay);
     }
-    case 'part': return capture('part', c);
-    case 'vin': return capture('vin', c);
-    case 'x': return capture('x', c);
+    case 'part': return capture('part', c, actDay);
+    case 'vin': return capture('vin', c, actDay);
+    case 'x': return capture('x', c, actDay);
   }
 });
 main.addEventListener('change', e => {
-  if (e.target.dataset.pn && screen === 'scan') op('pn:' + e.target.dataset.pn, e.target.value.trim());
+  if (e.target.dataset.pn && screen === 'scan') op('pn:' + e.target.dataset.pn, e.target.value.trim(), e.target.dataset.day || date);
   if (e.target.dataset.paid) op('tday:paid', e.target.value.trim().replace(/[^\d.]/g, ''), e.target.dataset.paid);
 });
 
 async function photoSheet(name, d = date) {
   const st = VIEWS[d] || (await stateFor(d)), meta = val(st, 'photo:' + name) || {};
   const u = (await thumbURL(name, true, d)) || (await thumbURL(name, false, d));
-  const car = scan && d === date ? scan.rows.flatMap(r => r.cars).find(c => c.code6 === meta.code) : null;
+  const car = scan ? scan.rows.flatMap(r => r.cars).find(c => c.code6 === meta.code) : null;
   const opts = meta.kind === 'x' && car ? car.parts.map(p => `<button data-assign="${p.code}">Assign to ${esc(p.code)} ${esc(p.part)}</button>`).join('') : '';
   const el = document.createElement('div'); el.className = 'sheet';
   el.innerHTML = `<div class="box">${u ? `<img src="${u}">` : '<p>Taken on another phone. It is in Drive once uploaded.</p>'}
@@ -1543,9 +1811,11 @@ async function gatherPulled() {
   return { days, dayList };
 }
 function enterSub(name, title) {
-  if (screen === 'scan' && date) lastScan = date;
+  if (screen === 'scan' && walkMode) lastWasWalk = true;
+  else if (screen === 'scan' && date) { lastScan = date; lastWasWalk = false; }
   screen = name; date = null; scan = null;
-  $('#back').hidden = false; $('#back').textContent = lastScan ? '← List' : '← Scans'; setHeaderTitle(title);
+  const backList = lastWasWalk || lastScan;
+  $('#back').hidden = false; $('#back').textContent = backList ? '← List' : '← Scans'; setHeaderTitle(title);
 }
 async function showTrip(redraw) {
   if (!redraw) enterSub('trip', 'Trip days');
@@ -1659,7 +1929,12 @@ async function exportZip() {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `pull_${date}_${DEV}.zip`; document.body.append(a); a.click(); a.remove();
 }
 
-$('#back').onclick = () => { if ((screen === 'trip' || screen === 'ready') && lastScan) openScan(lastScan); else showHome(); };
+$('#back').onclick = () => {
+  if ((screen === 'trip' || screen === 'ready') && lastWasWalk) return openWalk();
+  if ((screen === 'trip' || screen === 'ready') && lastScan) return openScan(lastScan);
+  if (walkMode && lastScan) return openScan(lastScan);
+  showHome();
+};
 const sfxBtn = $('#sfx');
 if (sfxBtn) {
   syncSfxBtn();

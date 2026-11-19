@@ -1,6 +1,6 @@
 // Private solo plain Pull List. Own cache name and scope. Do not clash with shared game or /plain/.
-const V = 'pl-pages-solo-v1';
-const SHELL = ['./', 'index.html', 'manifest.webmanifest', '../style.css', '../fonts/cinzel.woff2', './app.js', '../home_list.js', '../zip.js', './config.js', '../icon-192.png', '../icon-512.png'];
+const V = 'pl-pages-solo-v2';
+const SHELL = ['./', 'index.html', 'manifest.webmanifest', '../style.css', '../fonts/cinzel.woff2', './app.js', '../home_list.js', '../zip.js', './config.js', './solo.css', '../icon-192.png', '../icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' }))))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('pl-pages-solo') && k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

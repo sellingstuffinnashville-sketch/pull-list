@@ -1,0 +1,28 @@
+/* Solo-only My Walk UI. Do not load this from the shared game or /plain/. */
+.tools{flex-wrap:wrap}
+.tools button{flex:1 1 44%;min-width:120px}
+.tools button.walktab{flex:1 1 100%;background:#14261a;border-color:#3d8f55;color:#d7f5df;font-weight:800}
+.tools button.walktab.on{background:#1e5a32;border-color:#6ee7a0;color:#fff}
+.walkhint{margin:2px 2px 10px}
+.walkempty{margin:16px 8px;padding:14px;border:2px dashed #444;border-radius:10px;background:#f7f7f7}
+.daybadges{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px}
+.daybadge{display:inline-block;padding:3px 8px;border-radius:999px;font:800 13px/1.2 system-ui,sans-serif;letter-spacing:.2px;border:2px solid transparent;color:#111}
+.daybadge.dayc0{background:#ffd54a;border-color:#c49200}
+.daybadge.dayc1{background:#7ec8ff;border-color:#1565a8;color:#06233d}
+.daybadge.dayc2{background:#ff9e7a;border-color:#c14a22}
+.daybadge.dayc3{background:#c5a3ff;border-color:#6a3cbc;color:#2a1050}
+.daybadge.dayc4{background:#8ee0b0;border-color:#1f7a48}
+.daybadge.daynew{background:#111;color:#ffe14a;border-color:#111;letter-spacing:.8px;font-size:11px}
+.daylegend{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 2px 10px;padding:8px 10px;border:2px solid #111;border-radius:10px;background:#fafafa}
+.daylegend .legtitle{font-weight:800;font-size:13px;margin-right:4px}
+.daylegend .legitem{display:inline-flex;gap:4px;align-items:center}
+.walkbtn{flex:1 1 100%;min-height:48px;border:3px solid #1f7a48;border-radius:10px;background:#e8f8ee;color:#0d3b20;font-weight:800;font-size:16px}
+.walkbtn.on{border-color:#8a1f1f;background:#fde8e8;color:#5a1010}
+.carbtns{flex-wrap:wrap}
+.walkcarbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0 4px;padding:8px 10px;border:2px solid #111;border-radius:10px;background:#f3f3f3}
+.walkcarbar b{font:800 18px/1.1 ui-monospace,Menlo,monospace}
+.walkcarbar .walkcarname{flex:1 1 auto;font-weight:700}
+.walkcarbar .walkbtn{flex:0 0 auto;min-height:40px;padding:6px 12px;font-size:14px}
+.walkcarbar .daybadges{margin:0}
+.carline .daybadges{margin:0 6px 0 0;vertical-align:middle}
+.carhd .daybadges{display:flex}
