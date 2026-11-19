@@ -1,1 +1,1 @@
-window.PL_CONFIG = { EXEC_URL: '' }; // filled after solo Apps Script deploy
+window.PL_CONFIG = { EXEC_URL: 'https://script.google.com/macros/s/AKfycbyR0nLDBEdTjrwEKrWNRjyRJHacPOclV7gYmagzmYQhsLojTbl67IfVj7uSGrJuynNdnQ/exec' };
